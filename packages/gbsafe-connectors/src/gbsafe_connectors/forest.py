@@ -43,7 +43,11 @@ def _is_success_envelope(payload: Any) -> bool:
         if not isinstance(node, dict):
             return False
         node = node.get(key, {})
-    return isinstance(node, dict) or "result" in payload
+    if isinstance(node, dict) and node:
+        return True
+    # `result`만 있는 응답은 목록이 실제로 들어 있을 때만 정상으로 본다
+    result = payload.get("result")
+    return isinstance(result, dict) or (isinstance(result, list) and bool(result))
 
 
 def _rows(payload: Any) -> list[dict[str, Any]]:
@@ -76,9 +80,12 @@ def _rows(payload: Any) -> list[dict[str, Any]]:
             return [node]
         if isinstance(node, list):
             return [row for row in node if isinstance(row, dict)]
-        # 키는 있지만 값이 목록·객체가 아니다 — 자료 없음 표기만 인정한다
-        if node in (None, "", []):
+        # 키는 있지만 값이 목록·객체가 아니다 — 빈 문자열만 자료 없음으로 본다.
+        # null은 원천 오류와 구별할 수 없으므로 실패로 다룬다.
+        if node == "":
             return []
+        if node is None:
+            raise ValueError(f"{'.'.join(path)}가 null입니다 — 원천 오류일 수 있습니다")
         raise ValueError(f"{'.'.join(path)}가 객체·배열이 아닙니다 ({type(node).__name__})")
     raise ValueError("응답에서 알려진 데이터 경로를 찾을 수 없습니다")
 

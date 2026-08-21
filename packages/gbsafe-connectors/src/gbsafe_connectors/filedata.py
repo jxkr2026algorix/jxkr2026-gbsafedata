@@ -224,6 +224,14 @@ class ShelterCsvConnector(Connector[Shelter]):
                 )
             )
 
+        # 행은 읽혔는데 하나도 정규화되지 않았다면 컬럼 이름을 알아보지 못한 것이다.
+        # '대피소 없음'으로 보고하면 읽지 못한 파일이 '대피소 없음'이 된다.
+        if rows and not records and not region and not hazard_hint:
+            raise ValueError(
+                f"{len(rows)}행을 읽었으나 시설명 컬럼을 찾지 못했습니다. "
+                f"확인된 컬럼: {', '.join(sorted(rows[0]))[:120]}"
+            )
+
         caveats = [
             "현재 운영 여부와 수용인원은 확인되지 않았습니다 — 실시간으로 표시하면 안 됩니다",
         ]
@@ -239,6 +247,8 @@ class ShelterCsvConnector(Connector[Shelter]):
         if was_cp949:
             caveats.append(f"CP949 인코딩을 {encoding}로 해석했습니다")
 
+        if region and not records:
+            caveats.append(f"'{region}'에 해당하는 항목이 파일에 없습니다")
         return FetchOutcome(
             records=tuple(records), caveats=tuple(caveats), confirmed_absence=not records
         )
@@ -306,11 +316,19 @@ class LandslideRiskZoneCsvConnector(Connector[RiskZone]):
                 )
             )
 
+        if rows and not records and not region:
+            raise ValueError(
+                f"{len(rows)}행을 읽었으나 지구명·소재지 컬럼을 찾지 못했습니다. "
+                f"확인된 컬럼: {', '.join(sorted(rows[0]))[:120]}"
+            )
+
         caveats = ["사전 지정된 취약지역입니다 — 현재 발생 여부가 아닙니다"]
         if without_coords:
             caveats.append(f"{without_coords}건은 좌표가 없습니다")
         if was_cp949:
             caveats.append(f"CP949 인코딩을 {encoding}로 해석했습니다")
+        if region and not records:
+            caveats.append(f"'{region}'에 해당하는 항목이 파일에 없습니다")
         return FetchOutcome(
             records=tuple(records), caveats=tuple(caveats), confirmed_absence=not records
         )

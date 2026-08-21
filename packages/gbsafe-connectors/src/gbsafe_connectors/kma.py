@@ -149,9 +149,14 @@ def _items(payload: Any) -> list[dict[str, Any]]:
         raise ValueError("body에 items 키가 없습니다")
 
     items = body["items"]
-    # 자료가 없을 때 원천이 쓰는 표기 — 이것만 '해당 없음'으로 인정한다
-    if items in (None, "", []):
+    # 자료가 없을 때 원천이 실제로 쓰는 표기만 '해당 없음'으로 인정한다.
+    # `null`은 여기 넣지 않는다 — 서버 과부하 시에도 나오므로 '없음'과 구별할 수 없다.
+    if items in ("", []):
         return []
+    if items is None:
+        raise ValueError(
+            "items가 null입니다 — 자료 없음 표기가 아니며 원천 오류일 수 있습니다"
+        )
     if isinstance(items, dict):
         if "item" not in items:
             raise ValueError("items에 item 키가 없습니다")

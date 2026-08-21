@@ -897,3 +897,63 @@ class TestProvenanceIsNotFabricated:
         licence = outcome.records[0].provenance.license
         assert licence is LicenseCode.UNKNOWN
         assert not permits(licence, Operation.DERIVE)
+
+
+class TestNullIsNotAbsence:
+    """`null`은 '자료 없음' 표기가 아니다. 서버 과부하에서도 나온다."""
+
+    def test_items_null_is_failure(self, settings: Settings) -> None:
+        body = {"response": {"header": {"resultCode": "00"}, "body": {"items": None}}}
+        with pytest.raises(ValueError, match="null"):
+            UltraShortNowcastConnector(settings=settings).parse(
+                make_response(body), location="문경시"
+            )
+
+    @pytest.mark.parametrize("marker", ["", []])
+    def test_documented_markers_still_confirm(
+        self, settings: Settings, marker: object
+    ) -> None:
+        body = {"response": {"header": {"resultCode": "00"}, "body": {"items": marker}}}
+        outcome = UltraShortNowcastConnector(settings=settings).parse(
+            make_response(body), location="문경시"
+        )
+        assert outcome.outcome is SourceOutcome.CONFIRMED_EMPTY
+
+    def test_forest_empty_result_is_failure(self, settings: Settings) -> None:
+        """`{'result': []}`로 봉투 검사를 우회할 수 있었다."""
+        with pytest.raises(ValueError):
+            WildfireRiskConnector(settings=settings).parse(make_response({"result": []}))
+
+    def test_forest_populated_result_parses(self, settings: Settings) -> None:
+        body = {
+            "result": [
+                {"sido": "경상북도", "meanavg": "10", "maxi": "20", "analdate": "20260822"}
+            ]
+        }
+        outcome = WildfireRiskConnector(settings=settings).parse(make_response(body))
+        assert outcome.outcome is SourceOutcome.RECORDS
+
+
+class TestUnreadableCsvIsNotAbsence:
+    """컬럼을 못 읽은 대피소 파일이 '대피소 없음'이 되면 안 된다."""
+
+    def test_wrong_columns_is_failure(self, settings: Settings) -> None:
+        with pytest.raises(ValueError, match="컬럼을 찾지 못했습니다"):
+            ShelterCsvConnector(settings=settings).parse(
+                local_response(b"colA,colB\nx,y\n")
+            )
+
+    def test_wrong_columns_is_failure_for_zones(self, settings: Settings) -> None:
+        with pytest.raises(ValueError, match="컬럼을 찾지 못했습니다"):
+            LandslideRiskZoneCsvConnector(settings=settings).parse(
+                local_response(b"colA,colB\nx,y\n")
+            )
+
+    def test_region_filter_removing_all_is_confirmed(self, settings: Settings) -> None:
+        """그 지역에 항목이 없는 것은 확인된 부재다."""
+        csv = "시설명,소재지도로명주소,위도,경도\n회관,경상북도 문경시,36.68,128.25\n"
+        outcome = ShelterCsvConnector(settings=settings).parse(
+            local_response(csv.encode()), region="없는지역"
+        )
+        assert outcome.outcome is SourceOutcome.CONFIRMED_EMPTY
+        assert any("없습니다" in caveat for caveat in outcome.caveats)
