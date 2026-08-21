@@ -274,11 +274,21 @@ class TestFreshness:
         assert result.status is FreshnessStatus.STALE
         assert not result.is_usable_for_decision
 
-    def test_forecast_time_in_future_is_not_negative(self) -> None:
-        """예보는 대상시각이 미래다. 음수 나이가 나오면 안 된다."""
+    def test_small_future_skew_is_tolerated(self) -> None:
+        """서버 간 시계 오차 범위의 미래 시각은 정상으로 본다."""
         now = datetime.now(UTC)
-        result = evaluate(as_of=now + timedelta(hours=6), expected_cycle_seconds=3600, now=now)
+        result = evaluate(as_of=now + timedelta(minutes=5), expected_cycle_seconds=3600, now=now)
         assert result.age_seconds == 0
+        assert result.status is FreshnessStatus.FRESH
+
+    def test_far_future_timestamp_is_unknown_not_fresh(self) -> None:
+        """미래 시각을 0으로 깎으면 2099년 관측이 영원히 fresh로 남는다."""
+        result = evaluate(
+            as_of=datetime(2099, 1, 1, tzinfo=UTC), expected_cycle_seconds=3600
+        )
+        assert result.status is FreshnessStatus.UNKNOWN
+        assert not result.is_usable_for_decision
+        assert "미래" in result.reason
 
     def test_unknown_is_not_fresh(self) -> None:
         """'모른다'를 '최신이다'로 바꾸지 않는다."""
@@ -607,20 +617,29 @@ class TestAnswer:
         answer = Answer(query="test", records=records)
         assert len(answer.citations) == 1
 
-    def test_degraded_status_does_not_block(self) -> None:
-        """부분 장애는 해석을 막지 않는다."""
+    @pytest.mark.parametrize(
+        "status",
+        [UpstreamStatus.DEGRADED, UpstreamStatus.UNAVAILABLE, UpstreamStatus.NOT_AUTHORIZED],
+    )
+    def test_every_failure_blocks_interpretation(self, status: UpstreamStatus) -> None:
+        """어떤 실패도 '해당 없음'으로 읽히면 안 된다.
+
+        한도 초과나 파싱 실패를 '부분 장애'로 통과시키면 응답을 만들지 못한
+        원천이 있는데도 complete=true가 된다.
+        """
         answer: Answer[dict[str, int]] = Answer(
             query="test",
             degradations=(
                 Degradation(
                     dataset_id="15073861",
-                    status=UpstreamStatus.DEGRADED,
-                    detail="일일 한도 초과",
+                    status=status,
+                    detail="실패",
                     occurred_at=datetime.now(UTC),
                 ),
             ),
         )
-        assert answer.is_complete
+        assert not answer.is_complete
+        assert answer.degradations[0].blocks_interpretation
 
 
 class TestRecord:

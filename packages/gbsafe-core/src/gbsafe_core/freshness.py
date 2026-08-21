@@ -18,6 +18,9 @@ from .models import Freshness, FreshnessStatus
 AGING_CYCLE_MULTIPLE = 2.0
 STALE_CYCLE_MULTIPLE = 6.0
 
+#: 미래 시각을 허용하는 범위. 서버 간 시계 오차를 흡수한다.
+MAX_CLOCK_SKEW = timedelta(minutes=10)
+
 #: 갱신주기가 알려지지 않은 데이터에 적용하는 절대 임계값.
 UNKNOWN_CYCLE_AGING = timedelta(hours=6)
 UNKNOWN_CYCLE_STALE = timedelta(days=2)
@@ -39,6 +42,20 @@ def evaluate(
         raise ValueError("as_of는 시간대를 포함해야 합니다")
 
     age = evaluated_at - as_of
+    # 관측 시각이 미래인 것은 시계 오차 범위에서만 정상이다. 그 이상 미래면
+    # 잘못된 값이며, 0으로 깎으면 2099년 관측이 영원히 fresh로 남는다.
+    if -age > MAX_CLOCK_SKEW:
+        return Freshness(
+            status=FreshnessStatus.UNKNOWN,
+            age_seconds=None,
+            expected_cycle_seconds=expected_cycle_seconds,
+            as_of=as_of,
+            evaluated_at=evaluated_at,
+            reason=(
+                f"관측 시각이 현재보다 {-age} 미래입니다 — 시각 표기 오류로 보이며 "
+                "신선도를 판정할 수 없습니다"
+            ),
+        )
     age_seconds = max(0, int(age.total_seconds()))
 
     if expected_cycle_seconds and expected_cycle_seconds > 0:

@@ -261,7 +261,17 @@ class Degradation(Frozen):
 
     @property
     def blocks_interpretation(self) -> bool:
-        return self.status in (UpstreamStatus.UNAVAILABLE, UpstreamStatus.NOT_AUTHORIZED)
+        """결과를 '해당 없음'으로 해석할 수 없게 만드는지.
+
+        모든 실패가 여기 해당한다. 파싱 실패나 호출 한도 초과를 '부분 장애'로
+        분류해 통과시키면, 응답을 만들지 못한 원천이 있는데도 complete=true가
+        되어 빈 결과가 '위험 없음'으로 읽힌다.
+        """
+        return self.status in (
+            UpstreamStatus.UNAVAILABLE,
+            UpstreamStatus.NOT_AUTHORIZED,
+            UpstreamStatus.DEGRADED,
+        )
 
 
 class Answer[PayloadT](BaseModel):

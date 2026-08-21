@@ -342,7 +342,23 @@ class SafeDataService:
 
         일부 원천이 실패해도 나머지를 돌려주고, 실패는 degradation으로 남긴다.
         """
-        hazard_domain = _parse_hazard(hazard) or HazardDomain.HEAVY_RAIN
+        hazard_domain = _parse_hazard(hazard) if hazard else HazardDomain.HEAVY_RAIN
+        if hazard_domain is None:
+            supported = ", ".join(item.value for item in HazardDomain)
+            return Answer(
+                query=f"{region} {hazard}",
+                degradations=(
+                    Degradation(
+                        dataset_id="hazard",
+                        status=UpstreamStatus.UNAVAILABLE,
+                        detail=(
+                            f"'{hazard}'를 재난 유형으로 해석할 수 없습니다. "
+                            f"사용 가능: {supported}"
+                        ),
+                        occurred_at=datetime.now(UTC),
+                    ),
+                ),
+            )
         names = include or HAZARD_PLAYBOOK.get(hazard_domain, ("weather_warning",))
 
         sigungu = find_sigungu(region)

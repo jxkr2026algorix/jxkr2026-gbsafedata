@@ -306,6 +306,13 @@ class Connector[PayloadT](ABC):
             )
         if response.status is UpstreamStatus.UNAVAILABLE:
             return self._degrade(UpstreamStatus.UNAVAILABLE, response.detail)
+        if response.status is UpstreamStatus.DEGRADED:
+            # 한도 초과·resultCode 오류 응답을 파싱하면 대개 빈 목록이 나오고,
+            # 그것이 '자료 없음'으로 보고된다. 파싱 전에 실패로 확정한다.
+            return self._degrade(
+                UpstreamStatus.DEGRADED,
+                response.detail or "원천이 오류 응답을 반환했습니다",
+            )
 
         try:
             outcome = self.parse(response, **kwargs)
@@ -362,7 +369,12 @@ class Connector[PayloadT](ABC):
                     "오프라인 모드이며 저장된 스냅샷이 없습니다. "
                     "GBSAFE_OFFLINE=false로 두고 한 번 수집하세요."
                 )
-            body = self._store.get(self.dataset_id, latest.snapshot_id) or b""
+            body = self._store.get(self.dataset_id, latest.snapshot_id)
+            if not body:
+                raise ConnectorError(
+                    f"저장된 스냅샷({latest.snapshot_id[:12]})을 읽을 수 없습니다. "
+                    "파일이 손상되었거나 삭제되었습니다."
+                )
             return RawResponse(
                 body=body,
                 content_type=latest.content_type,
@@ -380,7 +392,9 @@ class Connector[PayloadT](ABC):
                 request_params[self.service_key_param] = key
 
         response = await self._send(url, request_params)
-        if response.status in (UpstreamStatus.OK, UpstreamStatus.DEGRADED):
+        # 정상 응답만 보존한다. 오류 본문을 스냅샷에 남기면 나중에 그것이
+        # '마지막 정상자료'로 제시된다.
+        if response.status is UpstreamStatus.OK:
             ref = self._store.put(
                 dataset_id=self.dataset_id,
                 body=response.body,

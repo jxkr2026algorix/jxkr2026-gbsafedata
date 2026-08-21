@@ -123,16 +123,56 @@ class TestNowcastConnector:
         [
             ("23.4", 23.4),
             ("0", 0.0),
-            ("강수없음", 0.0),
-            ("적설없음", 0.0),
             ("1mm 미만", 0.5),
             ("5mm", 5.0),
-            ("", 0.0),
             ("이상한값", None),
+            # 결측은 0이 아니라 None이다. 0으로 바꾸면 기온 결측이 0℃가 된다.
+            ("", None),
+            ("-", None),
+            ("null", None),
         ],
     )
     def test_parse_measure(self, raw: str, value: float | None) -> None:
         assert _parse_measure(raw) == value
+
+    @pytest.mark.parametrize(
+        ("raw", "category", "value"),
+        [
+            ("강수없음", "RN1", 0.0),
+            ("적설없음", "SNO", 0.0),
+            # 기온·습도에 '없음' 표기가 오면 0이 아니라 미확인이다
+            ("강수없음", "T1H", None),
+            ("적설없음", "REH", None),
+        ],
+    )
+    def test_zero_only_for_precipitation(
+        self, raw: str, category: str, value: float | None
+    ) -> None:
+        assert _parse_measure(raw, category) == value
+
+    def test_missing_temperature_is_not_zero(self, settings: Settings) -> None:
+        """결측 기온이 0℃로 보고되면 실측처럼 읽힌다."""
+        body = {
+            "response": {
+                "header": {"resultCode": "00"},
+                "body": {
+                    "items": {
+                        "item": [
+                            {
+                                "baseDate": "20260822",
+                                "baseTime": "0200",
+                                "category": "T1H",
+                                "obsrValue": "",
+                            }
+                        ]
+                    }
+                },
+            }
+        }
+        connector = UltraShortNowcastConnector(settings=settings)
+        outcome = connector.parse(make_response(body), location="문경시")
+        assert outcome.records[0].payload.value is None
+        assert QualityFlag.PARTIAL_RESPONSE in outcome.records[0].quality_flags
 
 
 class TestWeatherWarningConnector:

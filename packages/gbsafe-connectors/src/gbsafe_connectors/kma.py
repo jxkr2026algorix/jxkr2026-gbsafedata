@@ -63,15 +63,30 @@ PTY_CODES: dict[str, str] = {
     "7": "눈날림",
 }
 
-#: 강수량 문자열 특수 표기. 숫자로 파싱되지 않는다.
-_TRACE_VALUES = frozenset({"강수없음", "적설없음", "-", "", "null"})
+#: 강수·적설에서만 0을 의미하는 표기. 다른 카테고리에는 적용하지 않는다.
+_ZERO_VALUES = frozenset({"강수없음", "적설없음"})
+
+#: 결측 표기. **0이 아니라 None이다.**
+_MISSING_VALUES = frozenset({"-", "", "null", "none", "nan"})
+
+#: 값이 0을 의미할 수 있는 카테고리. 강수·적설만 해당한다.
+#: 기온·습도·풍속에서 결측을 0으로 바꾸면 0℃·습도 0%가 실측처럼 보인다.
+_ZEROABLE_CATEGORIES = frozenset({"RN1", "PCP", "SNO", "POP", "PTY"})
 
 
-def _parse_measure(raw: str) -> float | None:
-    """기상청 값 문자열을 숫자로. '강수없음'은 0, '1mm 미만'은 0.5로 본다."""
+def _parse_measure(raw: str, category: str = "") -> float | None:
+    """기상청 값 문자열을 숫자로.
+
+    **결측은 None이다.** 이전에는 빈 문자열·`-`·`null`을 모두 0으로 바꿨는데,
+    강수량에서는 맞지만 기온에서는 결측이 0℃로 보이는 문제가 있었다.
+    '강수없음'류 표기는 강수·적설 카테고리에서만 0으로 해석한다.
+    """
     text = raw.strip()
-    if text in _TRACE_VALUES:
-        return 0.0
+    lowered = text.casefold()
+    if lowered in _MISSING_VALUES:
+        return None
+    if text in _ZERO_VALUES:
+        return 0.0 if not category or category in _ZEROABLE_CATEGORIES else None
     if "미만" in text:
         return 0.5
     cleaned = text.replace("mm", "").replace("cm", "").replace("이상", "").strip()
@@ -172,7 +187,7 @@ class UltraShortNowcastConnector(Connector[Observation]):
                 str(item.get("baseDate", "")), str(item.get("baseTime", ""))
             )
             flags: tuple[QualityFlag, ...] = ()
-            value = _parse_measure(raw_value)
+            value = _parse_measure(raw_value, category)
             if value is None:
                 flags = (QualityFlag.PARTIAL_RESPONSE,)
 
@@ -252,7 +267,7 @@ class ShortTermForecastConnector(Connector[Observation]):
                 self.record(
                     Observation(
                         kind=kind,
-                        value=_parse_measure(str(item.get("fcstValue", ""))),
+                        value=_parse_measure(str(item.get("fcstValue", "")), category),
                         unit=unit,
                         station=f"격자 {grid.nx},{grid.ny}",
                         target_time=target,

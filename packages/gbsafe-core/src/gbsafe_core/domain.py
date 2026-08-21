@@ -127,8 +127,12 @@ class HazardAlert(Frozen):
 
     @property
     def is_active(self) -> bool:
-        """지금 발효 중인지. 해제 통보문은 False."""
-        return self.action is not AlertAction.CANCELLED
+        """지금 발효 중이라고 **확인된** 경우에만 True.
+
+        해제 통보문과 종류를 판별할 수 없는 통보문은 False다. 판별 실패를
+        '발효 중'으로 취급하면 이미 끝난 위험이 현재 위험으로 표시된다.
+        """
+        return self.action in (AlertAction.ISSUED, AlertAction.EXTENDED)
 
     @property
     def is_actionable(self) -> bool:
