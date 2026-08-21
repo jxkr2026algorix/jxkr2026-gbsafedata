@@ -154,14 +154,23 @@ The three landslide APIs have it backwards from everything else: **development-s
 ## Development
 
 ```bash
-uv run pytest tests/ -q                               # no network required
+uv run pytest tests/ -q                                # no network required
 uv run ruff check .
-uv run python scripts/smoke_live_apis.py              # call the real APIs
+uv run python scripts/mutation_audit.py                # measure what tests catch
+uv run python scripts/smoke_live_apis.py               # call the real APIs
 uv run python scripts/check_generated_docs.py --write  # regenerate api.md, mcp.md
 uv run python scripts/check_readme_badges.py --write   # refresh badge counts
 ```
 
 The suite never reads your `.env`. It has to produce the same result on a machine with no credentials at all — an earlier version didn't, and a test meant to cover the no-credential path was quietly exercising a real key and making live calls.
+
+### Why coverage isn't the metric
+
+Coverage tells you a line executed. What matters is whether a test fails when that line is *wrong*. Those are different questions — at 87% coverage, **flattening every landslide advisory to "low" left all 501 tests passing.**
+
+So [`scripts/mutation_audit.py`](scripts/mutation_audit.py) deliberately breaks the code in the direction that hides danger, then checks whether the suite notices. Each mutation is a failure that could really happen: a missing temperature becoming 0°C, a cancelled advisory left active, an earthquake shelter assigned to a flood.
+
+A surviving mutation means no test catches that failure, so CI treats it as a build failure.
 
 ### What CI checks
 
@@ -172,6 +181,7 @@ The suite never reads your `.env`. It has to produce the same result on a machin
 | `test` | Full suite on Python 3.12 and 3.13, with no credential supplied |
 | `lint` | `ruff check` |
 | `guarantees` | That the safety properties below still hold |
+| `mutation` | That every danger-hiding mutation is caught |
 | `live-api` | Real government API calls, on push and daily |
 | `install` | Frozen install on Ubuntu and macOS, then CLI, MCP, and API exercised |
 
