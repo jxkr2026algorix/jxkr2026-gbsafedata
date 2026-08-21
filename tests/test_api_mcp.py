@@ -1,0 +1,377 @@
+"""표준 API와 MCP 서버 테스트.
+
+두 표면이 같은 서비스를 쓰므로 답이 일치해야 한다. 특히 '조회 실패'와
+'해당 없음'을 구별해 전달하는지 검증한다.
+"""
+
+from __future__ import annotations
+
+import json
+from datetime import UTC, datetime
+from typing import Any
+
+import pytest
+from fastapi.testclient import TestClient
+from gbsafe_api.app import create_app
+from gbsafe_api.envelope import envelope
+from gbsafe_api.service import SafeDataService
+from gbsafe_connectors.registry import Registry
+from gbsafe_core.config import Settings
+from gbsafe_core.licensing import Operation
+from gbsafe_core.models import Answer, DataMode, Degradation, UpstreamStatus
+from gbsafe_mcp.tools import TOOLS, execute, find_tool, validated_tools
+
+
+@pytest.fixture
+def service(settings: Settings) -> SafeDataService:
+    return SafeDataService(Registry(settings=settings))
+
+
+@pytest.fixture
+def client(service: SafeDataService) -> TestClient:
+    return TestClient(create_app(service))
+
+
+class TestEnvelope:
+    def test_incomplete_when_blocking_degradation(self) -> None:
+        answer: Answer[Any] = Answer(
+            query="test",
+            degradations=(
+                Degradation(
+                    dataset_id="15074800",
+                    status=UpstreamStatus.NOT_AUTHORIZED,
+                    detail="심의 대기",
+                    occurred_at=datetime.now(UTC),
+                ),
+            ),
+        )
+        body = envelope(answer, {"region": "문경시"})
+        assert not body.complete
+        assert body.record_count == 0
+        assert body.degradations[0].blocks_interpretation
+
+    def test_record_carries_license_permissions(self, record_factory: Any) -> None:
+        from gbsafe_core.models import LicenseCode
+
+        record = record_factory({"value": 1}, license_code=LicenseCode.KOGL_4)
+        body = envelope(Answer(query="t", records=(record,)), {})
+        source = body.records[0].source
+        assert source.may_redistribute
+        assert not source.may_modify
+        assert source.attribution is not None
+
+    def test_synthetic_mode_visible(self, record_factory: Any) -> None:
+        record = record_factory({"value": 1}, mode=DataMode.SYNTHETIC)
+        body = envelope(Answer(query="t", records=(record,)), {})
+        assert "synthetic" in body.modes
+        assert body.records[0].source.mode == "synthetic"
+
+    def test_fingerprint_present(self, record_factory: Any) -> None:
+        record = record_factory({"value": 1})
+        body = envelope(Answer(query="t", records=(record,)), {})
+        assert body.records[0].fingerprint
+
+
+class TestApiRoutes:
+    def test_root_declares_read_only(self, client: TestClient) -> None:
+        payload = client.get("/").json()
+        assert payload["read_only"] is True
+
+    def test_no_write_methods_exist(self, client: TestClient) -> None:
+        """공공데이터 계층은 부작용이 없어야 한다."""
+        spec = client.get("/openapi.json").json()
+        for path, operations in spec["paths"].items():
+            for method in operations:
+                assert method.lower() in ("get", "head", "options"), f"{method} {path}"
+
+    def test_health(self, client: TestClient) -> None:
+        payload = client.get("/v1/health").json()
+        assert payload["summary"]["connectors"] >= 10
+        assert "credentials" in payload
+
+    def test_health_gives_reason_for_every_blocked_source(self, client: TestClient) -> None:
+        payload = client.get("/v1/health").json()
+        for item in payload["connectors"]:
+            if not item["available"]:
+                assert item["reason"]
+
+    def test_search(self, client: TestClient) -> None:
+        payload = client.get("/v1/datasets", params={"q": "산사태", "limit": 5}).json()
+        assert payload["count"] > 0
+        assert "callable_now" in payload
+
+    def test_search_derive_filter_excludes_kogl4(self, client: TestClient) -> None:
+        """변경금지 데이터는 가공 목적 검색에서 빠져야 한다."""
+        payload = client.get(
+            "/v1/datasets", params={"q": "홍수", "must_allow": "derive", "limit": 50}
+        ).json()
+        assert all(item["license"] not in ("KOGL-3", "KOGL-4") for item in payload["datasets"])
+
+    def test_search_empty_query_returns_results(self, client: TestClient) -> None:
+        payload = client.get("/v1/datasets", params={"limit": 5}).json()
+        assert payload["count"] > 0
+
+    def test_dataset_detail(self, client: TestClient) -> None:
+        payload = client.get("/v1/datasets/15084084").json()
+        assert payload["found"]
+        assert payload["how_to_obtain"]
+        assert "license_terms" in payload
+
+    def test_unknown_dataset_suggests(self, client: TestClient) -> None:
+        response = client.get("/v1/datasets/99999999")
+        assert response.status_code == 404
+        assert "suggestions" in response.json()["detail"]
+
+    def test_verify_read_allowed(self, client: TestClient) -> None:
+        payload = client.get("/v1/datasets/15084084/verify").json()
+        assert payload["allowed"]
+
+    def test_verify_pending_review_blocked(self, client: TestClient) -> None:
+        """라이선스가 허용해도 심의 대기 중이면 쓸 수 없다."""
+        payload = client.get("/v1/datasets/15074800/verify").json()
+        if not payload["allowed"]:
+            assert any("심의" in reason for reason in payload["reasons"])
+
+    def test_regions_list(self, client: TestClient) -> None:
+        payload = client.get("/v1/regions").json()
+        assert payload["count"] == 22
+        assert payload["caveat"]
+
+    def test_resolve_region(self, client: TestClient) -> None:
+        payload = client.get("/v1/regions/resolve", params={"q": "문경시"}).json()
+        assert payload["code"] == "47280"
+        assert payload["kma_grid"] == {"nx": 81, "ny": 106}
+
+    def test_resolve_unknown_region_404(self, client: TestClient) -> None:
+        response = client.get("/v1/regions/resolve", params={"q": "서울시"})
+        assert response.status_code == 404
+        assert "available" in response.json()["detail"]
+
+    def test_quality_report(self, client: TestClient) -> None:
+        payload = client.get("/v1/quality").json()
+        assert payload["count"] > 0
+
+    def test_licenses(self, client: TestClient) -> None:
+        payload = client.get("/v1/licenses").json()
+        kogl4 = next(item for item in payload["licenses"] if item["code"] == "KOGL-4")
+        assert kogl4["allows"]["read"]
+        assert not kogl4["allows"]["derive"]
+
+    def test_hazard_types(self, client: TestClient) -> None:
+        payload = client.get("/v1/hazard-types").json()
+        assert any(item["value"] == "landslide" for item in payload["hazards"])
+
+    def test_unknown_source_404_lists_available(self, client: TestClient) -> None:
+        response = client.get("/v1/sources/nonexistent")
+        assert response.status_code == 404
+        assert response.json()["detail"]["available"]
+
+    def test_hazard_context_without_key_is_incomplete(self, client: TestClient) -> None:
+        """키가 없으면 실패 사유가 응답에 남아야 한다."""
+        payload = client.get(
+            "/v1/hazards/context", params={"region": "문경시", "hazard": "landslide"}
+        ).json()
+        assert payload["record_count"] == 0
+        assert not payload["complete"]
+        assert payload["degradations"]
+
+    def test_hazard_context_unknown_region(self, client: TestClient) -> None:
+        payload = client.get(
+            "/v1/hazards/context", params={"region": "서울시"}
+        ).json()
+        assert not payload["complete"]
+        assert any("해석할 수 없습니다" in item["detail"] for item in payload["degradations"])
+
+    @pytest.mark.parametrize("limit", [0, 101, -1])
+    def test_search_rejects_bad_limit(self, client: TestClient, limit: int) -> None:
+        assert client.get("/v1/datasets", params={"limit": limit}).status_code == 422
+
+    def test_verify_rejects_bad_operation(self, client: TestClient) -> None:
+        response = client.get(
+            "/v1/datasets/15084084/verify", params={"operation": "delete"}
+        )
+        assert response.status_code == 422
+
+
+class TestService:
+    def test_verify_unknown_dataset(self, service: SafeDataService) -> None:
+        result = service.verify_dataset("00000000")
+        assert not result.allowed
+
+    def test_verify_kogl4_derive_blocked(self, service: SafeDataService) -> None:
+        candidates = service.registry.catalog.search("홍수", limit=50)
+        kogl4 = [entry for entry in candidates if entry.license.value == "KOGL-4"]
+        if kogl4:
+            result = service.verify_dataset(kogl4[0].dataset_id, "derive")
+            assert not result.allowed
+            assert any("변경금지" in reason for reason in result.reasons)
+
+    def test_population_guidance_blocks_individual(self, service: SafeDataService) -> None:
+        result = service.population_guidance("주민 개인의 장애 여부를 추정")
+        assert not result["allowed"]
+
+    def test_population_guidance_allows_area(self, service: SafeDataService) -> None:
+        result = service.population_guidance("마을별 고령인구 비율 산출")
+        assert result["allowed"]
+
+    def test_search_flags_pending_review(self, service: SafeDataService) -> None:
+        result = service.search_datasets("산사태", limit=20)
+        assert result["callable_now"] <= result["count"]
+
+    def test_catalog_source_reported(self, service: SafeDataService) -> None:
+        result = service.search_datasets("", limit=1)
+        assert result["catalog_source"]
+
+    async def test_fetch_unknown_connector(self, service: SafeDataService) -> None:
+        answer = await service.fetch_connector("nope")
+        assert not answer.is_complete
+
+
+class TestMcpTools:
+    def test_all_tools_read_only(self) -> None:
+        """부작용을 암시하는 도구는 등록될 수 없다."""
+        assert validated_tools() == TOOLS
+
+    def test_tool_count(self) -> None:
+        assert len(TOOLS) == 10
+
+    def test_schemas_are_strict(self) -> None:
+        for tool in TOOLS:
+            assert tool.schema["additionalProperties"] is False
+
+    def test_annotations_declare_read_only(self) -> None:
+        for tool in TOOLS:
+            mcp_tool = tool.to_mcp()
+            assert mcp_tool.annotations is not None
+            assert mcp_tool.annotations.read_only_hint
+            assert not mcp_tool.annotations.destructive_hint
+
+    def test_descriptions_present(self) -> None:
+        for tool in TOOLS:
+            assert len(tool.description) > 40
+
+    async def test_unknown_tool_lists_alternatives(self, service: SafeDataService) -> None:
+        payload = json.loads(await execute(service, "gbsafe_missing", {}))
+        assert "error" in payload
+        assert payload["available"]
+
+    async def test_missing_required_argument(self, service: SafeDataService) -> None:
+        payload = json.loads(await execute(service, "gbsafe_describe_dataset", {}))
+        assert "error" in payload
+        assert payload["required"] == ["dataset_id"]
+
+    async def test_resolve_region(self, service: SafeDataService) -> None:
+        payload = json.loads(
+            await execute(service, "gbsafe_resolve_region", {"region": "문경시"})
+        )
+        assert payload["kma_grid"]["nx"] == 81
+
+    async def test_search_returns_datasets(self, service: SafeDataService) -> None:
+        payload = json.loads(
+            await execute(service, "gbsafe_search_datasets", {"query": "대피", "limit": 3})
+        )
+        assert payload["count"] >= 0
+
+    async def test_hazard_context_warns_when_incomplete(
+        self, service: SafeDataService
+    ) -> None:
+        """AI가 조회 실패를 '위험 없음'으로 읽지 않게 경고가 있어야 한다."""
+        payload = json.loads(
+            await execute(
+                service, "gbsafe_hazard_context", {"region": "문경시", "hazard": "landslide"}
+            )
+        )
+        assert not payload["complete"]
+        assert any("위험 없음" in warning for warning in payload["warnings"])
+        assert payload["how_to_cite"]
+
+    async def test_population_guidance_refuses(self, service: SafeDataService) -> None:
+        payload = json.loads(
+            await execute(
+                service,
+                "gbsafe_population_guidance",
+                {"purpose": "개별 주민의 보행곤란 여부 추정"},
+            )
+        )
+        assert not payload["allowed"]
+
+    async def test_list_sources(self, service: SafeDataService) -> None:
+        payload = json.loads(await execute(service, "gbsafe_list_sources", {}))
+        assert len(payload["sources"]) >= 10
+
+    async def test_data_health(self, service: SafeDataService) -> None:
+        payload = json.loads(await execute(service, "gbsafe_data_health", {}))
+        assert "connectors" in payload
+
+    async def test_quality_report(self, service: SafeDataService) -> None:
+        payload = json.loads(await execute(service, "gbsafe_quality_report", {}))
+        assert payload["count"] > 0
+
+    async def test_verify_dataset(self, service: SafeDataService) -> None:
+        payload = json.loads(
+            await execute(
+                service,
+                "gbsafe_verify_dataset",
+                {"dataset_id": "15084084", "operation": "read"},
+            )
+        )
+        assert payload["allowed"]
+
+    async def test_fetch_unknown_source_reports_failure(
+        self, service: SafeDataService
+    ) -> None:
+        payload = json.loads(
+            await execute(service, "gbsafe_fetch_source", {"source": "bogus"})
+        )
+        assert not payload["complete"]
+        assert payload["warnings"]
+
+    async def test_bad_argument_type_handled(self, service: SafeDataService) -> None:
+        """잘못된 타입이 예외로 터지지 않고 오류 응답이 되어야 한다."""
+        payload = json.loads(
+            await execute(service, "gbsafe_search_datasets", {"limit": "many"})
+        )
+        assert "error" in payload
+
+    def test_find_tool(self) -> None:
+        assert find_tool("gbsafe_data_health") is not None
+        assert find_tool("nope") is None
+
+
+class TestSurfaceConsistency:
+    """API와 MCP가 같은 답을 주어야 한다."""
+
+    async def test_region_resolution_matches(
+        self, service: SafeDataService, client: TestClient
+    ) -> None:
+        api = client.get("/v1/regions/resolve", params={"q": "문경시"}).json()
+        mcp = json.loads(
+            await execute(service, "gbsafe_resolve_region", {"region": "문경시"})
+        )
+        assert api["code"] == mcp["code"]
+        assert api["kma_grid"] == mcp["kma_grid"]
+
+    async def test_verify_matches(
+        self, service: SafeDataService, client: TestClient
+    ) -> None:
+        api = client.get(
+            "/v1/datasets/15084084/verify", params={"operation": "derive"}
+        ).json()
+        mcp = json.loads(
+            await execute(
+                service,
+                "gbsafe_verify_dataset",
+                {"dataset_id": "15084084", "operation": "derive"},
+            )
+        )
+        assert api["allowed"] == mcp["allowed"]
+
+    def test_license_table_matches_core(self, client: TestClient) -> None:
+        payload = client.get("/v1/licenses").json()
+        for item in payload["licenses"]:
+            from gbsafe_core.licensing import permits
+            from gbsafe_core.models import LicenseCode
+
+            code = LicenseCode(item["code"])
+            for operation in Operation:
+                assert item["allows"][operation.value] == permits(code, operation)

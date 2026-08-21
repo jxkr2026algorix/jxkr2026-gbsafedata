@@ -1,0 +1,14 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "gbsafedata": {
+      "type": "local",
+      "command": ["uv", "run", "gbsafe-mcp"],
+      "cwd": "/absolute/path/to/jxkr2026-gbsafedata",
+      "enabled": true,
+      "environment": {
+        "GBSAFE_DATA_GO_KR_SERVICE_KEY": ""
+      }
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "gbsafedata": {
+      "command": "uv",
+      "args": ["run", "gbsafe-mcp"],
+      "cwd": "/absolute/path/to/jxkr2026-gbsafedata",
+      "env": {
+        "GBSAFE_DATA_GO_KR_SERVICE_KEY": "",
+        "GBSAFE_OFFLINE": "false"
+      },
+      "transport": "stdio",
+      "description": "경북 재난대피 공공데이터 — 읽기 전용 조회와 출처 인용"
+    }
+  }
+}

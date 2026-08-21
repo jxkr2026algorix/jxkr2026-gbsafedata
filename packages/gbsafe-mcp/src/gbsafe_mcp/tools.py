@@ -287,7 +287,11 @@ TOOLS: tuple[ToolDef, ...] = (
     ToolDef(
         name="gbsafe_list_sources",
         title="데이터 원천 목록",
-        description="조회 가능한 데이터 원천(커넥터) 목록과 각각이 다루는 재난 유형.",
+        description=(
+            "조회 가능한 데이터 원천(커넥터) 목록과 각각이 다루는 재난 유형을 반환합니다. "
+            "gbsafe_fetch_source에 넘길 이름을 여기서 확인하세요. "
+            "지금 실제로 사용 가능한지는 gbsafe_data_health로 확인합니다."
+        ),
         schema=_object({}),
         handler=_list_sources,
     ),
