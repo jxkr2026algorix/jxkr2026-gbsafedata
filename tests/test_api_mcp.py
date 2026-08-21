@@ -431,6 +431,33 @@ class TestSurfaceConsistency:
         )
         assert api["allowed"] == mcp["allowed"]
 
+    async def test_absence_verdict_matches(
+        self, service: SafeDataService, client: TestClient
+    ) -> None:
+        """세 표면이 빈 결과의 의미를 다르게 말하면 어느 쪽을 믿어야 할지 알 수 없다."""
+        api = client.get(
+            "/v1/hazards/context", params={"region": "문경시", "hazard": "landslide"}
+        ).json()
+        mcp = json.loads(
+            await execute(
+                service,
+                "gbsafe_hazard_context",
+                {"region": "문경시", "hazard": "landslide"},
+            )
+        )
+        assert api["complete"] == mcp["complete"]
+        assert api["absence_confirmed"] == mcp["absence_confirmed"]
+        assert api["record_count"] == mcp["record_count"]
+        api_failed = sorted(
+            item["connector"] for item in api["receipts"] if item["outcome"] == "failed"
+        )
+        mcp_failed = sorted(
+            item["connector"]
+            for item in mcp["sources_checked"]
+            if item["outcome"] == "failed"
+        )
+        assert api_failed == mcp_failed
+
     def test_license_table_matches_core(self, client: TestClient) -> None:
         payload = client.get("/v1/licenses").json()
         for item in payload["licenses"]:
