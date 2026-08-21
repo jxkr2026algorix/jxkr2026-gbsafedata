@@ -431,6 +431,13 @@ class TestSafety:
             "치매 환자 현황",
             # 전각 문자로 키워드 검사를 피하려는 시도
             "ｗｈｅｅｌｃｈａｉｒ per household",
+            # 보호 속성을 직접 말하지 않는 완곡·간접 표현
+            "prioritise the ones who would struggle to leave on their own",
+            "이동이 어려운 사람이 누구인지",
+            "residents who cannot leave by themselves",
+            "스스로 대피하기 어려운 대상자 목록",
+            "flag the people who need assistance evacuating",
+            "먼저 연락해야 할 이동이 어려운 주민",
         ],
     )
     def test_blocks_individual_inference(self, purpose: str) -> None:
@@ -452,6 +459,8 @@ class TestSafety:
             "마을별 장애인 등록 비율 통계",
             "elderly ratio by village",
             "total population for evacuation planning",
+            "읍면동 단위 취약성 지수",
+            "aggregate distribution of elderly by region",
         ],
     )
     def test_allows_area_level_analysis(self, purpose: str) -> None:
@@ -672,6 +681,22 @@ class TestCatalogConfiguration:
         monkeypatch.setenv(CATALOG_ENV_VAR, str(tmp_path / "nope"))
         with pytest.raises(CatalogUnavailable):
             Catalog.load()
+
+    def test_describe_hides_absolute_path(self) -> None:
+        """이 문자열은 원격 AI 클라이언트로 나간다. 서버 경로를 노출하면 안 된다."""
+        from gbsafe_core.catalog import get_catalog
+
+        source = get_catalog().source
+        assert "/" not in source.describe()
+        assert str(source.path) not in source.describe()
+        # 운영자용 설명에는 경로가 있어야 한다
+        assert str(source.path) in source.describe_local()
+
+    def test_summary_hides_absolute_path(self) -> None:
+        from gbsafe_core.catalog import get_catalog
+
+        summary = get_catalog().summary()
+        assert "path" not in summary
 
     def test_auto_discovery_still_works(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from gbsafe_core.catalog import CATALOG_ENV_VAR, Catalog

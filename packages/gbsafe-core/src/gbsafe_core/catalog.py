@@ -194,13 +194,26 @@ class CatalogSource:
     override_count: int
 
     def describe(self) -> str:
+        """사람이 읽을 수 있는 출처 설명.
+
+        절대 경로를 담지 않는다. 이 문자열은 원격 AI 클라이언트와 API 응답으로
+        나가므로 서버의 파일시스템 구조를 노출하면 안 된다.
+        """
         if self.origin is CatalogOrigin.FALLBACK:
             return (
                 f"동봉된 폴백 카탈로그 {self.entry_count}건 — "
                 "최신 검증 결과를 쓰려면 jxkr2026-datasets 저장소를 나란히 두거나 "
                 f"{CATALOG_ENV_VAR}를 지정하세요"
             )
-        return f"{self.path} 카탈로그 {self.entry_count}건 (검증 override {self.override_count}건)"
+        source = {
+            CatalogOrigin.ENV: f"{CATALOG_ENV_VAR}로 지정된 카탈로그",
+            CatalogOrigin.SIBLING_REPO: "나란한 jxkr2026-datasets 카탈로그",
+        }.get(self.origin, "카탈로그")
+        return f"{source} {self.entry_count}건 (검증 override {self.override_count}건)"
+
+    def describe_local(self) -> str:
+        """운영자용 설명. 경로를 포함하므로 로컬 진단에만 쓴다."""
+        return f"{self.path} — {self.describe()}"
 
 
 def _split_multi(raw: str | None) -> tuple[str, ...]:
@@ -436,7 +449,6 @@ class Catalog:
         return {
             "total": len(self._entries),
             "origin": self.source.origin.value,
-            "path": str(self.source.path),
             "verified": sum(1 for entry in self._entries.values() if entry.verified),
             "dev_ready": sum(1 for entry in self._entries.values() if entry.dev_ready),
             "with_defects": len(self.defects()),

@@ -67,6 +67,14 @@ _SENSITIVE_ATTRIBUTES: tuple[str, ...] = (
     "immobile", "evacuate unaided", "unaided", "without assistance",
     "도움 없이", "혼자 대피",
     "산소", "oxygen", "ventilator", "인공호흡", "투석", "dialysis",
+    # 완곡·간접 표현. 보호 속성을 직접 말하지 않고 같은 것을 묻는다.
+    "이동이 어려", "이동에 어려", "나가기 어려", "대피가 어려", "대피하기 어려",
+    "스스로 대피", "자력 대피", "혼자서 나", "도움이 필요", "지원이 필요",
+    "struggle to leave", "struggle to evacuate", "difficulty leaving",
+    "difficulty evacuating", "hard to evacuate", "need help", "needs help",
+    "need assistance", "needs assistance", "cannot leave", "can't leave",
+    "on their own", "on his own", "on her own", "by themselves",
+    "self-evacuate", "self evacuate",
 )
 
 #: 개인·가구 단위를 가리키는 표현. 보호 속성과 함께 나오면 개인 추정이다.
@@ -78,6 +86,10 @@ _INDIVIDUAL_GRAIN: tuple[str, ...] = (
     "per house", "each resident", "each person", "each household", "individual",
     "individuals", "by name", "who needs", "who is", "who cannot", "who can",
     "list of residents", "residents unable", "residents by", "identify",
+    # 사람을 지목하는 표현. "누구인지", "그 사람들", "ones who"
+    "누구인지", "누구를", "누군지", "사람이 누구", "그 사람", "해당자", "대상자",
+    "우선순위를 정", "먼저 연락", "the ones who", "those who", "whoever",
+    "prioritise the", "prioritize the", "flag the", "find the people",
 )
 
 #: 지역 단위 집계를 가리키는 표현. 이것만 있으면 정당한 용도다.

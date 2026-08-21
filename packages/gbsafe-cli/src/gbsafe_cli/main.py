@@ -103,7 +103,7 @@ def doctor(
         Panel(
             f"카탈로그 [bold]{catalog['total']}[/bold]건 "
             f"(검증 {catalog['verified']}건, 결함 {catalog['with_defects']}건)\n"
-            f"출처: {catalog['path']}\n"
+            f"출처: {_get_service().registry.catalog.source.describe_local()}\n"
             f"원천 [bold]{summary['available']}/{summary['connectors']}[/bold] 사용 가능"
             + ("  ·  오프라인 모드" if summary["offline_mode"] else ""),
             title="GB SafeData 상태",
