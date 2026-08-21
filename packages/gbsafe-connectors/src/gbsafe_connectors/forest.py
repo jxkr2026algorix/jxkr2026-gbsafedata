@@ -15,7 +15,13 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, ClassVar
 
-from gbsafe_core.domain import HazardAlert, RiskZone, Severity, parse_severity
+from gbsafe_core.domain import (
+    AlertAction,
+    HazardAlert,
+    RiskZone,
+    Severity,
+    parse_severity,
+)
 from gbsafe_core.models import GeoPoint, QualityFlag
 from gbsafe_core.regions import SIDO_CODE, HazardDomain, find_sigungu
 
@@ -181,6 +187,7 @@ class WildfireRiskConnector(Connector[HazardAlert]):
                         severity=severity,
                         headline=f"산불위험지수 평균 {mean if mean is not None else '미확인'}",
                         area_name=area,
+                        action=AlertAction.CURRENT_STATE,
                         issued_at=analyzed,
                         raw_level=str(peak) if peak is not None else None,
                     ),
@@ -258,6 +265,9 @@ class LandslidePredictionConnector(Connector[HazardAlert]):
                         severity=parse_severity(level),
                         headline=f"산사태 {level or '예보'}",
                         area_name=area,
+                        # 이 API는 통보문이 아니라 현재 예보단계를 준다.
+                        # 발표·해제 개념이 없어 UNKNOWN으로 두면 경보가 묻힌다.
+                        action=AlertAction.CURRENT_STATE,
                         issued_at=analyzed,
                         raw_level=level or None,
                     ),

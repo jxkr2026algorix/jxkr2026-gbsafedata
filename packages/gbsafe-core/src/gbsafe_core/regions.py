@@ -150,13 +150,14 @@ def find_sigungu(query: str) -> Sigungu | None:
 
 
 def resolve_transferred(query: str) -> str | None:
-    """이관된 행정구역인지 확인한다. 코드와 이름 모두 받는다."""
+    """이관된 행정구역인지 확인한다. 코드와 이름 모두 받는다.
+
+    시도명을 떼고 조회하므로 "경상북도 군위군"과 "군위군"과 "47720"이 모두
+    같은 결과를 준다. 코드는 시도명을 포함하지 않아 정규화의 영향을 받지 않는다.
+    """
     text = query.strip()
     if not text:
         return None
-    direct = TRANSFERRED_OUT.get(text)
-    if direct is not None:
-        return direct
     normalized = text.replace(SIDO_NAME_FULL, "").replace(SIDO_NAME_SHORT, "").strip()
     return TRANSFERRED_OUT.get(normalized)
 

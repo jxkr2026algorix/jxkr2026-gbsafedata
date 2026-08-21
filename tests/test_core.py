@@ -904,3 +904,97 @@ class TestSnapshotDurability:
             if path.name.startswith(".") and path.name.endswith(".tmp")
         ]
         assert not leftovers
+
+
+class TestIndividualGrainBranch:
+    """보호 속성 + 개인 단위 표현이 함께 오는 경로를 직접 검사한다.
+
+    `grains` 분기를 무력화해도 통과하는 구멍이 있었다. 단위가 명시되지 않은
+    요청은 다른 분기가 막아주기 때문에, 개인 단위가 **명시된** 요청으로만
+    이 분기를 검증할 수 있다.
+    """
+
+    @pytest.mark.parametrize(
+        ("purpose", "grain"),
+        [
+            ("가구별 장애인 비율 통계", "가구별"),
+            ("세대별 이동 불편 인원 집계", "세대별"),
+            ("각 주민의 보행곤란 여부 분포", "각 주민"),
+            ("per household disability ratio statistics", "per household"),
+            ("each resident's mobility index aggregate", "each resident"),
+            ("주민별 요양 필요 비율", "주민별"),
+        ],
+    )
+    def test_individual_grain_blocked_even_with_aggregate_words(
+        self, purpose: str, grain: str
+    ) -> None:
+        """'비율'·'통계'가 있어도 개인·가구 단위가 명시되면 막는다.
+
+        가구별 집계는 가구 식별로 이어지므로 지역 집계와 다르다.
+        """
+        with pytest.raises(SafetyViolation, match="no_individual_inference") as caught:
+            assert_not_individual_inference(purpose)
+        assert grain in str(caught.value), f"사유에 단위({grain})가 없습니다"
+
+    @pytest.mark.parametrize(
+        "purpose",
+        [
+            "마을별 장애인 등록 비율 통계",
+            "읍면동 단위 고령인구 비율",
+            "시군별 이동 불편 인구 집계",
+            "aggregate disability ratio by region",
+        ],
+    )
+    def test_area_grain_still_allowed(self, purpose: str) -> None:
+        """지역 단위 집계는 정당한 용도다."""
+        assert_not_individual_inference(purpose)
+
+
+class TestCoordinateRangeIsEnforced:
+    """좌표계 혼동은 지도에 엉뚱한 위치를 찍는다."""
+
+    @pytest.mark.parametrize(
+        ("lat", "lon", "note"),
+        [
+            (445123.5, 1050987.2, "EPSG:5186 값"),
+            (200000.0, 500000.0, "EPSG:5179 값"),
+            (0.0, 0.0, "null island"),
+            (128.1867, 36.5866, "위경도 뒤바뀜"),
+            (91.0, 128.0, "위도 범위 초과"),
+            (36.5, 200.0, "경도 범위 초과"),
+            (-36.5, 128.0, "남반구"),
+        ],
+    )
+    def test_out_of_range_rejected(self, lat: float, lon: float, note: str) -> None:
+        with pytest.raises(ValueError, match=r"less than|greater than"):
+            GeoPoint(lat=lat, lon=lon)
+
+    @pytest.mark.parametrize(
+        ("lat", "lon"),
+        [
+            (36.5866, 128.1867),  # 문경
+            (33.1, 126.2),        # 제주 남단
+            (38.5, 128.3),        # 강원 북부
+        ],
+    )
+    def test_korean_coordinates_accepted(self, lat: float, lon: float) -> None:
+        assert GeoPoint(lat=lat, lon=lon).lat == lat
+
+
+class TestTransferredRegionLookup:
+    """군위군은 2023년 대구로 편입됐다. 경북으로 답하면 시점이 틀린다."""
+
+    @pytest.mark.parametrize("query", ["47720", "군위군", "군위", "경상북도 군위군", "경북 군위군"])
+    def test_transfer_is_reported(self, query: str) -> None:
+        note = resolve_transferred(query)
+        assert note is not None, f"{query}: 편입 사실을 알려주지 않습니다"
+        assert "대구" in note
+        assert "2023" in note
+
+    @pytest.mark.parametrize("query", ["문경시", "안동시", "47280", ""])
+    def test_current_regions_are_not_flagged(self, query: str) -> None:
+        assert resolve_transferred(query) is None
+
+    def test_transferred_region_is_not_resolvable(self) -> None:
+        """편입된 지역을 경북 시군으로 해석하면 안 된다."""
+        assert find_sigungu("군위군") is None

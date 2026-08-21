@@ -137,6 +137,22 @@ jobs:
         # 테스트 수·도구 수를 README에 적어두면 낡는다. CI가 실제 값과 비교한다.
         run: uv run python scripts/check_readme_badges.py
 
+  mutation:
+    name: mutation audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --all-packages
+
+      - name: Tests must catch every danger-hiding mutation
+        # 커버리지는 "이 줄이 실행됐다"만 말한다. 여기서는 위험을 은폐하는
+        # 방향으로 코드를 망가뜨리고 테스트가 잡는지 확인한다. 생존한 뮤테이션은
+        # 그 실패를 아무 테스트도 잡지 못한다는 뜻이다.
+        run: uv run python scripts/mutation_audit.py
+
   live-api:
     name: live public APIs
     runs-on: ubuntu-latest
