@@ -135,6 +135,16 @@ MCP는 여기에 명시적 경고를 더한다.
 
 **강제 방식:** `licensing.require()`가 파생 연산 진입부에서 예외를 던진다.
 
+**범위를 정확히 밝힌다.** 이 저장소는 범용 파생 연산 API를 제공하지 않으므로,
+`require()`는 주로 `verify_dataset`에서 "이 연산이 허용되는가"를 판정하는 데 쓰인다.
+즉 **라이브러리가 제공하는 경로에서는 위반을 막지만, 이용자가 `record.payload`를
+꺼내 직접 가공하는 것까지 막지는 못한다.** Python 수준에서 그것을 봉쇄하는 것은
+불가능하며, 그렇게 주장하지 않는다.
+
+정규화(기관별 형식 → 공통 스키마)가 법적으로 '변경'에 해당하는지는 원천기관의
+해석이 필요한 문제다. 이 저장소는 정규화를 수행하므로, KOGL-3·4 데이터를
+가공해야 하는 용도라면 `gbsafe verify`로 확인한 뒤 기관에 문의해야 한다.
+
 ```python
 require(LicenseCode.KOGL_4, Operation.DERIVE, "홍수위험지도")
 # LicenseViolation: 홍수위험지도: 공공누리 제4유형 — 출처표시 + 상업적
@@ -177,6 +187,24 @@ require(LicenseCode.KOGL_4, Operation.DERIVE, "홍수위험지도")
 **다만 공개 배치 시에는 앞단에 게이트웨이를 두어야 한다.** 인증 부재가 문제가 되는 것은 데이터 민감성이 아니라 호출 한도다. 개발계정 한도(AirKorea 일 500건)를 제3자가 소진시킬 수 있다.
 
 CLI의 `serve` 명령이 기동 시 이 사실을 알린다.
+
+## 무엇이 강제되고 무엇이 도우미인가
+
+문서가 '강제된다'고 말하는 것과 실제 호출 경로에 있는 것을 구별한다.
+
+| 함수 | 상태 |
+| --- | --- |
+| `assert_read_only` | **강제** — MCP 서버 기동 시 모든 도구 이름 검사 |
+| `assert_not_individual_inference` | **강제** — `population_guidance` 호출 시 |
+| `assert_mode_consistent` | **강제** — 모든 API 응답 생성 시 |
+| `describe_shelter_caveats` | **강제** — 대피소 정규화 결과에 주의사항 부착 |
+| `licensing.require` | **강제** — 라이브러리 경로 내 파생 연산 판정 |
+| `assert_citable` | 도우미 — 호출자가 판단 근거로 쓰기 전 검사용 |
+| `assert_shelter_suitable` | 도우미 — 배정 로직(운영 플랫폼)에서 사용 |
+| `require_human_approval` | 도우미 — 승인 경로를 만들려는 코드를 막는 표지 |
+
+뒤의 셋은 이 저장소에 배정·승인 로직이 없어서 호출 지점이 없다. 운영 플랫폼이
+쓰도록 공개하며, 여기서 '강제'라고 주장하지 않는다.
 
 ## 검증
 

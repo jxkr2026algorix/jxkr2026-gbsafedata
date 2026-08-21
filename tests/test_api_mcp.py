@@ -440,3 +440,36 @@ class TestSurfaceConsistency:
             code = LicenseCode(item["code"])
             for operation in Operation:
                 assert item["allows"][operation.value] == permits(code, operation)
+
+
+class TestEnforcedGuards:
+    """문서가 '강제된다'고 말하는 것은 실제 호출 경로에 있어야 한다."""
+
+    def test_envelope_blocks_mixed_modes(self, record_factory: Any) -> None:
+        """훈련 합성데이터가 실데이터와 함께 나가면 실제 상황으로 읽힌다."""
+        from gbsafe_core.safety import SafetyViolation
+
+        real = record_factory({"v": 1}, mode=DataMode.REAL)
+        synthetic = record_factory({"v": 2}, mode=DataMode.SYNTHETIC)
+        with pytest.raises(SafetyViolation, match="mode_isolation"):
+            envelope(Answer(query="t", records=(real, synthetic)), {})
+
+    def test_envelope_allows_single_mode(self, record_factory: Any) -> None:
+        real = record_factory({"v": 1}, mode=DataMode.REAL)
+        assert envelope(Answer(query="t", records=(real,)), {}).record_count == 1
+
+    def test_shelter_caveats_flag_hazard_mismatch(self, service: SafeDataService) -> None:
+        """지진 대피소를 호우 대피소로 쓰는 것을 막는다."""
+        csv = (
+            "시설명,위도,경도,대피소구분\n"
+            "지진옥외대피장소,36.59,128.19,지진 옥외\n"
+        ).encode()
+        answer = service.normalize_csv("shelters", csv, hazard="heavy_rain")
+        joined = " ".join(answer.caveats)
+        assert "확인되지 않았습니다" in joined
+
+    def test_shelter_caveats_report_unknown_state(self, service: SafeDataService) -> None:
+        csv = "시설명,위도,경도\n산북면회관,36.68,128.25\n".encode()
+        answer = service.normalize_csv("shelters", csv, hazard="heavy_rain")
+        joined = " ".join(answer.caveats)
+        assert "운영 여부" in joined or "자동 배정 대상이 아닙니다" in joined

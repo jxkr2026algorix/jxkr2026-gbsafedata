@@ -24,7 +24,7 @@ from typing import Any
 from gbsafe_connectors import FetchOutcome, Registry, get_registry
 from gbsafe_connectors.filedata import local_response
 from gbsafe_core.catalog import AccessRoute, DatasetEntry
-from gbsafe_core.domain import DatasetDescriptor
+from gbsafe_core.domain import DatasetDescriptor, Shelter
 from gbsafe_core.licensing import LicenseViolation, Operation, require, terms_for
 from gbsafe_core.models import (
     Answer,
@@ -42,7 +42,11 @@ from gbsafe_core.regions import (
     grid_for,
     resolve_transferred,
 )
-from gbsafe_core.safety import SafetyViolation, assert_not_individual_inference
+from gbsafe_core.safety import (
+    SafetyViolation,
+    assert_not_individual_inference,
+    describe_shelter_caveats,
+)
 
 #: 재난 유형별로 먼저 확인해야 할 커넥터 순서.
 #: 근거: 메인 시나리오(극한호우 + 산사태 + 도로통제)에서 강우가 선행 조건이다.
@@ -485,6 +489,9 @@ class SafeDataService:
         response = local_response(path_or_bytes)
         outcome = connector.parse(response, **kwargs)
         spec = self._registry.spec(connector_name)
+        caveats = list(outcome.caveats)
+        if hazard := kwargs.get("hazard"):
+            caveats.extend(self.shelter_caveats(outcome.records, str(hazard)))
         return Answer(
             query=f"{connector_name} (local file)",
             records=outcome.records,
@@ -497,6 +504,30 @@ class SafeDataService:
             ),
             caveats=outcome.caveats,
         )
+
+    def shelter_caveats(self, records: tuple[Record[Any], ...], hazard: str) -> list[str]:
+        """대피소 후보에 붙일 주의사항.
+
+        재난유형이 확인되지 않은 시설은 자동 배정 대상이 아니라는 사실을
+        명시한다. 지진 옥외대피장소가 호우 대피소로 쓰이는 사고를 막는다.
+        """
+        domain = _parse_hazard(hazard)
+        notes: list[str] = []
+        unsuitable = 0
+        for record in records:
+            shelter = record.payload
+            if not isinstance(shelter, Shelter):
+                continue
+            if domain is not None and not shelter.serves(domain):
+                unsuitable += 1
+            notes.extend(describe_shelter_caveats(shelter))
+        if unsuitable:
+            notes.insert(
+                0,
+                f"{unsuitable}건은 {hazard} 대피시설로 확인되지 않았습니다 — "
+                "재난유형별 적합성을 기관이 확인해야 합니다",
+            )
+        return list(dict.fromkeys(notes))
 
     # ── 상태 ────────────────────────────────────────────────────
     def data_health(self) -> dict[str, Any]:

@@ -27,6 +27,7 @@ from typing import Any
 
 from gbsafe_core.licensing import Operation, attribution_notice, permits, terms_for
 from gbsafe_core.models import Answer, Citation, Degradation, Record
+from gbsafe_core.safety import assert_mode_consistent
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -237,7 +238,12 @@ def to_degradation_info(degradation: Degradation) -> DegradationInfo:
 
 
 def envelope(answer: Answer[Any], query: dict[str, Any]) -> ApiEnvelope:
-    """`Answer`를 API 응답 봉투로 변환한다."""
+    """`Answer`를 API 응답 봉투로 변환한다.
+
+    실데이터와 훈련 합성데이터가 섞인 응답은 내보내지 않는다. 훈련 중 합성
+    강우량이 실제 대피소 정보와 함께 나가면 실제 상황으로 읽힌다.
+    """
+    assert_mode_consistent(answer.records)
     return ApiEnvelope(
         query=query,
         records=[to_record_envelope(record) for record in answer.records],
