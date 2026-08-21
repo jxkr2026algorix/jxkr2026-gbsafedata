@@ -125,10 +125,19 @@ class _CacheEntry:
 
 
 class _MemoryCache:
-    """프로세스 내 TTL 캐시. 개발계정 호출 한도를 지키기 위한 1차 방어선."""
+    """프로세스 내 TTL 캐시 + 동시 요청 병합.
+
+    캐시만으로는 부족하다. 캐시가 비어 있는 동안 동시에 들어온 요청 N개가
+    각각 원천을 호출하면 한도가 N배로 소진된다(cache stampede). AirKorea는
+    개발계정 한도가 일 500건이므로 동시 요청 20개면 4%가 한 번에 사라진다.
+
+    그래서 같은 키에 대한 첫 호출만 실제로 나가고, 나머지는 그 결과를
+    기다린다(single-flight).
+    """
 
     def __init__(self) -> None:
         self._entries: dict[str, _CacheEntry] = {}
+        self._inflight: dict[str, asyncio.Future[RawResponse]] = {}
         self._lock = asyncio.Lock()
 
     async def get(self, key: str) -> RawResponse | None:
@@ -147,9 +156,37 @@ class _MemoryCache:
         async with self._lock:
             self._entries[key] = _CacheEntry(response, time.monotonic() + ttl_seconds)
 
+    async def claim(self, key: str) -> tuple[asyncio.Future[RawResponse], bool]:
+        """이 키의 호출 권한을 요청한다.
+
+        반환값의 두 번째 요소가 True면 호출자가 실제로 원천을 호출하고
+        `settle()`로 결과를 알려야 한다. False면 반환된 future를 기다린다.
+        """
+        async with self._lock:
+            existing = self._inflight.get(key)
+            if existing is not None:
+                return existing, False
+            future: asyncio.Future[RawResponse] = asyncio.get_running_loop().create_future()
+            self._inflight[key] = future
+            return future, True
+
+    async def settle(
+        self, key: str, response: RawResponse | None, error: BaseException | None
+    ) -> None:
+        """진행 중인 호출을 완료 처리하고 대기자를 깨운다."""
+        async with self._lock:
+            future = self._inflight.pop(key, None)
+        if future is None or future.done():
+            return
+        if error is not None:
+            future.set_exception(error)
+        elif response is not None:
+            future.set_result(response)
+
     async def clear(self) -> None:
         async with self._lock:
             self._entries.clear()
+            self._inflight.clear()
 
 
 _CACHE = _MemoryCache()
@@ -291,15 +328,24 @@ class Connector[PayloadT](ABC):
 
         cached = await _CACHE.get(cache_key)
         if cached is not None:
-            return RawResponse(
-                body=cached.body,
-                content_type=cached.content_type,
-                endpoint=cached.endpoint,
-                status=UpstreamStatus.CACHED,
-                retrieved_at=cached.retrieved_at,
-                snapshot_id=cached.snapshot_id,
-            )
+            return _as_cached(cached)
 
+        # 같은 조회가 동시에 들어오면 첫 요청만 원천을 호출한다.
+        waiter, is_leader = await _CACHE.claim(cache_key)
+        if not is_leader:
+            return _as_cached(await waiter)
+        try:
+            response = await self._request_uncached(cache_key, params, url)
+        except BaseException as error:
+            await _CACHE.settle(cache_key, None, error)
+            raise
+        await _CACHE.settle(cache_key, response, None)
+        return response
+
+    async def _request_uncached(
+        self, cache_key: str, params: dict[str, str], url: str
+    ) -> RawResponse:
+        """실제 호출. 동시 요청 병합은 `_request`가 담당한다."""
         if self._settings.offline:
             latest = self._store.latest(self.dataset_id)
             if latest is None:
@@ -564,6 +610,36 @@ def _classify(body: bytes, status_code: int) -> tuple[UpstreamStatus, str]:
         return UpstreamStatus.DEGRADED, detail
 
     return UpstreamStatus.OK, ""
+
+
+#: 캐시 표시로 덮어써서는 안 되는 상태. 이 값을 CACHED로 바꾸면
+#: 권한 거부·장애가 '정상 조회, 결과 없음'으로 읽힌다.
+_PRESERVED_STATUSES = frozenset(
+    {
+        UpstreamStatus.NOT_AUTHORIZED,
+        UpstreamStatus.UNAVAILABLE,
+        UpstreamStatus.DEGRADED,
+    }
+)
+
+
+def _as_cached(response: RawResponse) -> RawResponse:
+    """캐시·병합으로 재사용된 응답임을 표시한다.
+
+    실패 상태는 보존한다. 403을 CACHED로 바꾸면 호출자가 '조회 성공, 자료 없음'
+    으로 해석해 권한 거부가 '위험 없음'이 된다.
+    """
+    if response.status is UpstreamStatus.CACHED or response.status in _PRESERVED_STATUSES:
+        return response
+    return RawResponse(
+        body=response.body,
+        content_type=response.content_type,
+        endpoint=response.endpoint,
+        status=UpstreamStatus.CACHED,
+        retrieved_at=response.retrieved_at,
+        snapshot_id=response.snapshot_id,
+        detail=response.detail,
+    )
 
 
 async def clear_cache() -> None:

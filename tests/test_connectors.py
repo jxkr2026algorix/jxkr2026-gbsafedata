@@ -477,3 +477,84 @@ class TestBaseTimes:
 
     def test_forecast_base_is_valid_hour(self) -> None:
         assert _latest_forecast_base().hour in (2, 5, 8, 11, 14, 17, 20, 23)
+
+
+class TestConcurrencyAndCache:
+    """동시 요청이 호출 한도를 배수로 소진하거나 실패를 성공으로 바꾸면 안 된다."""
+
+    async def test_identical_concurrent_requests_hit_upstream_once(
+        self, settings: Settings, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """20개 동시 요청이 20번 호출하면 AirKorea 일 한도(500)의 4%가 한 번에 사라진다."""
+        import asyncio
+
+        from gbsafe_connectors.base import clear_cache
+
+        await clear_cache()
+        calls = {"n": 0}
+
+        async def fake_send(self, url, params):
+            calls["n"] += 1
+            await asyncio.sleep(0.01)
+            return make_response(KMA_WARNING_BODY)
+
+        monkeypatch.setattr(WeatherWarningConnector, "_send", fake_send)
+        outcomes = await asyncio.gather(
+            *[
+                WeatherWarningConnector(settings=settings).fetch()
+                for _ in range(20)
+            ]
+        )
+        assert calls["n"] == 1
+        assert all(outcome.ok for outcome in outcomes)
+        assert len({len(outcome.records) for outcome in outcomes}) == 1
+        await clear_cache()
+
+    async def test_concurrent_failures_all_report_degradation(
+        self, settings: Settings, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """403이 캐시 표시로 덮이면 권한 거부가 '조회 정상, 자료 없음'이 된다.
+
+        산사태 조회에서 이것이 일어나면 심의 대기가 '산사태 위험 없음'으로 읽힌다.
+        """
+        import asyncio
+
+        from gbsafe_connectors.base import clear_cache
+
+        await clear_cache()
+
+        async def denied(self, url, params):
+            await asyncio.sleep(0.01)
+            return make_response(
+                b"", status=UpstreamStatus.NOT_AUTHORIZED, content_type="text/plain"
+            )
+
+        monkeypatch.setattr(WeatherWarningConnector, "_send", denied)
+        outcomes = await asyncio.gather(
+            *[WeatherWarningConnector(settings=settings).fetch() for _ in range(8)]
+        )
+        assert all(not outcome.ok for outcome in outcomes)
+        assert all(outcome.degradations for outcome in outcomes)
+        assert not any(
+            "없습니다" in caveat for outcome in outcomes for caveat in outcome.caveats
+        )
+        await clear_cache()
+
+    async def test_cached_response_is_labelled(
+        self, settings: Settings, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+
+        from gbsafe_connectors.base import clear_cache
+
+        await clear_cache()
+
+        async def once(self, url, params):
+            return make_response(KMA_WARNING_BODY)
+
+        monkeypatch.setattr(WeatherWarningConnector, "_send", once)
+        first = await WeatherWarningConnector(settings=settings).fetch()
+        second = await WeatherWarningConnector(settings=settings).fetch()
+        assert not any("캐시" in caveat for caveat in first.caveats)
+        assert any("캐시" in caveat for caveat in second.caveats)
+        assert len(second.records) == len(first.records)
+        await clear_cache()
