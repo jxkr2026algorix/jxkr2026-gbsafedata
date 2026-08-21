@@ -162,6 +162,15 @@ class SafeDataService:
             permits_operation=operation,
             limit=limit,
         )
+        blocked = [entry for entry in results if not entry.dev_ready]
+        notes: list[str] = []
+        if blocked and not dev_ready_only:
+            names = ", ".join(f"{entry.dataset_id} {entry.name}" for entry in blocked)
+            notes.append(
+                f"{len(blocked)}건은 라이선스는 허용하지만 개발단계 심의 대기로 지금 호출할 수 "
+                f"없습니다 ({names}). dev_ready_only=true로 제외하거나 "
+                "gbsafe_verify_dataset으로 확인하세요."
+            )
         return {
             "query": query,
             "filters": {
@@ -171,7 +180,9 @@ class SafeDataService:
                 "must_allow": must_allow,
             },
             "count": len(results),
+            "callable_now": len(results) - len(blocked),
             "catalog_source": self._registry.catalog.source.describe(),
+            "notes": notes,
             "datasets": [_describe(entry).model_dump(mode="json") for entry in results],
         }
 
