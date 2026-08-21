@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -96,7 +97,7 @@ class SnapshotStore:
         timestamp = stored_at or datetime.now(UTC)
 
         if not blob.exists():
-            blob.write_bytes(body)
+            _atomic_write(blob, body)
             meta = {
                 "snapshot_id": snapshot_id,
                 "dataset_id": dataset_id,
@@ -106,8 +107,9 @@ class SnapshotStore:
                 "endpoint": endpoint,
                 "request_params": _redact(request_params or {}),
             }
-            blob.with_suffix(blob.suffix + ".meta.json").write_text(
-                json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8"
+            _atomic_write(
+                blob.with_suffix(blob.suffix + ".meta.json"),
+                json.dumps(meta, ensure_ascii=False, indent=1).encode("utf-8"),
             )
             self._append_manifest(dataset_id, meta)
         else:
@@ -128,6 +130,10 @@ class SnapshotStore:
         )
 
     def get(self, dataset_id: str, snapshot_id: str) -> bytes | None:
+        """스냅샷을 읽는다. 내용이 해시와 다르면 None.
+
+        검증하지 않으면 부분 기록된 파일이 '마지막 정상자료'로 제시된다.
+        """
         directory = self._dataset_dir(dataset_id)
         if not directory.is_dir():
             return None
@@ -135,9 +141,12 @@ class SnapshotStore:
             if candidate.name.endswith(".meta.json"):
                 continue
             try:
-                return candidate.read_bytes()
+                body = candidate.read_bytes()
             except OSError:
                 return None
+            if self.digest(body) != snapshot_id:
+                return None
+            return body
         return None
 
     def latest(self, dataset_id: str) -> SnapshotRef | None:
@@ -211,8 +220,8 @@ class SnapshotStore:
             for item in snapshots
         ):
             snapshots.append(entry)
-        manifest.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8"
+        _atomic_write(
+            manifest, json.dumps(payload, ensure_ascii=False, indent=1).encode("utf-8")
         )
 
     @staticmethod
@@ -225,6 +234,24 @@ class SnapshotStore:
         except (json.JSONDecodeError, OSError):
             return None
         return payload if isinstance(payload, dict) else None
+
+
+def _atomic_write(path: Path, body: bytes) -> None:
+    """임시 파일에 쓴 뒤 교체한다.
+
+    직접 쓰다가 중단되면 부분 기록된 파일이 남고, 내용 주소 방식에서는
+    `exists()`가 True라서 복구되지 않는다. 그 파일이 나중에 '마지막 정상자료'로
+    제시되면 잘못된 데이터가 판단 근거가 된다.
+    """
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        with temporary.open("wb") as handle:
+            handle.write(body)
+            handle.flush()
+            os.fsync(handle.fileno())
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 _SUFFIXES: dict[str, str] = {

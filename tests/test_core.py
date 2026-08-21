@@ -882,3 +882,25 @@ class TestSourceReceipts:
         """아무 원천도 조회하지 않았으면 확인된 것이 없다."""
         answer: Answer[dict[str, int]] = Answer(query="t")
         assert not answer.absence_is_confirmed
+
+
+class TestSnapshotDurability:
+    """부분 기록된 스냅샷이 '마지막 정상자료'로 제시되면 안 된다."""
+
+    def test_corrupted_blob_is_rejected(self, store: SnapshotStore) -> None:
+        ref = store.put(dataset_id="15084084", body=b'{"a":1}')
+        ref.path.write_bytes(b'{"a":1} TRUNCATED')
+        assert store.get("15084084", ref.snapshot_id) is None
+
+    def test_intact_blob_is_returned(self, store: SnapshotStore) -> None:
+        ref = store.put(dataset_id="15084084", body=b'{"a":1}')
+        assert store.get("15084084", ref.snapshot_id) == b'{"a":1}'
+
+    def test_no_temporary_files_left(self, store: SnapshotStore) -> None:
+        store.put(dataset_id="15084084", body=b"x" * 5000)
+        leftovers = [
+            path.name
+            for path in store.root.rglob("*")
+            if path.name.startswith(".") and path.name.endswith(".tmp")
+        ]
+        assert not leftovers
