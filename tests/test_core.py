@@ -166,6 +166,46 @@ class TestLicensing:
     def test_parse(self, raw: str | None, expected: LicenseCode) -> None:
         assert parse_license(raw) is expected
 
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            # 실제 카탈로그에 있는 표기. 공백 때문에 14건이 UNKNOWN으로 새어나갔다.
+            ("공공저작물 : 출처표시 (제 1유형)", LicenseCode.KOGL_1),
+            ("공공저작물 : 출처표시, 변경금지 (제 3유형)", LicenseCode.KOGL_3),
+            (
+                "공공저작물 : 출처표시, 상업적 이용금지, 변경금지 (제 4유형)",
+                LicenseCode.KOGL_4,
+            ),
+            ("이용허락범위 제한 없음", LicenseCode.UNRESTRICTED),
+            # 표기 변형
+            ("제 2 유 형", LicenseCode.KOGL_2),
+            ("KOGL - 4", LicenseCode.KOGL_4),
+            ("kogl_1", LicenseCode.KOGL_1),
+            ("Open Database License", LicenseCode.ODBL),
+        ],
+    )
+    def test_parse_real_portal_strings(self, raw: str, expected: LicenseCode) -> None:
+        """표기 변형으로 UNKNOWN이 되면 허용된 연산이 이유 없이 막힌다."""
+        assert parse_license(raw) is expected
+
+    def test_catalog_licence_strings_all_resolve(self) -> None:
+        """실제 카탈로그의 라이선스 표기가 전부 판별되어야 한다.
+
+        데이터셋 저장소가 갱신되면서 새 표기가 들어올 수 있으므로 여기서 잡는다.
+        라이선스가 아예 명시되지 않은 경우만 UNKNOWN이 허용된다.
+        """
+        from gbsafe_core.catalog import get_catalog
+
+        unresolved = [
+            entry.license_raw
+            for entry in get_catalog()
+            if entry.license_raw
+            and entry.license is LicenseCode.UNKNOWN
+            and "표기 없음" not in entry.license_raw
+            and entry.license_raw.upper() != "UNKNOWN"
+        ]
+        assert not unresolved, f"판별하지 못한 라이선스 표기: {unresolved}"
+
     def test_kogl4_forbids_derivation(self) -> None:
         """홍수위험지도 계열이 전부 4유형이고, 재투영조차 위반이다."""
         assert permits(LicenseCode.KOGL_4, Operation.READ)
@@ -417,9 +457,43 @@ class TestSafety:
         """집계 단위가 명시된 정당한 목적은 통과해야 한다."""
         assert_not_individual_inference(purpose)
 
-    def test_read_only_check_resists_unicode_evasion(self) -> None:
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "ｃａｌｌ_resident",
+            # camelCase는 snake_case만 나누면 한 토큰이 되어 검사를 통과했다
+            "callAmbulance",
+            "SendAlert",
+            "dispatchPatrol",
+            "approvePlan",
+            "evacuateVillage",
+            "updateStatus",
+            "ｃａｌｌAmbulance",
+            "ＳｅｎｄAlert",
+        ],
+    )
+    def test_read_only_check_resists_evasion(self, name: str) -> None:
         with pytest.raises(SafetyViolation, match="read_only"):
-            assert_read_only("ｃａｌｌ_resident")
+            assert_read_only(name)
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "searchDatasets",
+            "hazardContext",
+            "resolveRegion",
+            "dataHealth",
+            "listSources",
+            "qualityReport",
+            "populationGuidance",
+            "describeDataset",
+            "verifyDataset",
+            "fetchSource",
+        ],
+    )
+    def test_read_only_check_allows_query_names(self, name: str) -> None:
+        """조회 도구가 오탐으로 막히면 서버가 기동하지 않는다."""
+        assert_read_only(name)
 
     def test_human_approval_always_raises(self) -> None:
         with pytest.raises(SafetyViolation, match="검토·승인"):

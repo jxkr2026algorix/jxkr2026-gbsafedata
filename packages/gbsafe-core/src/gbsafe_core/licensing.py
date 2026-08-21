@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
 
 from .models import LicenseCode
@@ -124,21 +125,25 @@ TERMS: dict[LicenseCode, LicenseTerms] = {
     ),
 }
 
-#: 포털 표기 문자열 → LicenseCode. 표기가 흔들리므로 부분 일치로 처리한다.
-_RAW_PATTERNS: tuple[tuple[str, LicenseCode], ...] = (
+#: 공공누리 유형 번호 → LicenseCode.
+_KOGL_TYPES: dict[str, LicenseCode] = {
+    "1": LicenseCode.KOGL_1,
+    "2": LicenseCode.KOGL_2,
+    "3": LicenseCode.KOGL_3,
+    "4": LicenseCode.KOGL_4,
+}
+
+#: 유형 번호를 찾는다. 포털 표기가 "제1유형", "제 1유형", "KOGL-1",
+#: "공공저작물 : 출처표시 (제 1유형)"처럼 흔들리므로 공백·구두점을 허용한다.
+#: 실제 카탈로그에서 "제 1유형"(공백 포함) 14건이 미인식으로 새어나갔다.
+_KOGL_PATTERN = re.compile(r"(?:제\s*([1-4])\s*유\s*형|kogl\s*[-–—_]?\s*([1-4]))")
+
+#: 유형 번호가 없을 때 문구로 판별하는 표기.
+_TEXT_PATTERNS: tuple[tuple[str, LicenseCode], ...] = (
     ("제한없음", LicenseCode.UNRESTRICTED),
     ("제한 없음", LicenseCode.UNRESTRICTED),
-    ("제4유형", LicenseCode.KOGL_4),
-    ("제 4유형", LicenseCode.KOGL_4),
-    ("kogl-4", LicenseCode.KOGL_4),
-    ("제3유형", LicenseCode.KOGL_3),
-    ("제 3유형", LicenseCode.KOGL_3),
-    ("kogl-3", LicenseCode.KOGL_3),
-    ("제2유형", LicenseCode.KOGL_2),
-    ("kogl-2", LicenseCode.KOGL_2),
-    ("제1유형", LicenseCode.KOGL_1),
-    ("kogl-1", LicenseCode.KOGL_1),
     ("odbl", LicenseCode.ODBL),
+    ("open database license", LicenseCode.ODBL),
 )
 
 
@@ -162,13 +167,25 @@ class LicenseViolation(RuntimeError):
 def parse_license(raw: str | None) -> LicenseCode:
     """포털의 라이선스 표기 문자열을 코드로 정규화한다.
 
-    판별할 수 없으면 UNKNOWN이며, UNKNOWN은 조회만 허용된다.
-    관대하게 추정해서 위반을 통과시키는 것보다 막고 확인하게 하는 편이 안전하다.
+    판별할 수 없으면 UNKNOWN이며, UNKNOWN은 조회만 허용된다. 관대하게 추정해서
+    위반을 통과시키는 것보다 막고 확인하게 하는 편이 안전하다.
+
+    다만 **표기 변형 때문에 UNKNOWN이 되는 것은 다른 문제다.** 실제로 허용된
+    연산이 막혀 사용자가 이유를 알 수 없게 된다. 그래서 유형 번호는 공백·구두점
+    변형을 흡수해 찾는다.
     """
     if not raw:
         return LicenseCode.UNKNOWN
     text = raw.strip().lower()
-    for needle, code in _RAW_PATTERNS:
+
+    match = _KOGL_PATTERN.search(text)
+    if match is not None:
+        number = match.group(1) or match.group(2)
+        resolved = _KOGL_TYPES.get(number)
+        if resolved is not None:
+            return resolved
+
+    for needle, code in _TEXT_PATTERNS:
         if needle in text:
             return code
     return LicenseCode.UNKNOWN

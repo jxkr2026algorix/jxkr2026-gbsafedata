@@ -103,6 +103,20 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", stripped)
 
 
+def _split_identifier(name: str) -> frozenset[str]:
+    """식별자를 단어로 쪼갠다.
+
+    snake_case만 나누면 `callAmbulance`가 한 토큰이 되어 금지어 검사를 통과한다.
+    camelCase 경계에서도 잘라야 한다.
+    """
+    # NFKC를 먼저 적용해야 전각 문자가 ASCII가 된다. 순서를 바꾸면
+    # `ｃａｌｌAmbulance`의 camelCase 경계를 찾지 못한다.
+    folded = unicodedata.normalize("NFKC", name)
+    spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", folded)
+    normalized = _normalize(spaced)
+    return frozenset(token for token in re.split(r"[^a-z0-9]+", normalized) if token)
+
+
 def assert_read_only(tool_name: str) -> None:
     """MCP 도구·API 엔드포인트가 부작용 없는 조회인지 확인한다.
 
@@ -110,8 +124,7 @@ def assert_read_only(tool_name: str) -> None:
     운영 플랫폼(접근 B)의 책임이며, 그 경계가 흐려지면 인프라가 주민에게
     직접 명령을 내리는 사고가 가능해진다.
     """
-    normalized = _normalize(tool_name).replace("-", "_")
-    tokens = {token for token in normalized.split("_") if token}
+    tokens = _split_identifier(tool_name)
     offending = tokens & FORBIDDEN_EFFECTS
     if offending:
         raise SafetyViolation(
