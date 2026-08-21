@@ -5,6 +5,7 @@
 [![python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue?logo=python&logoColor=white)](pyproject.toml)
 [![uv](https://img.shields.io/badge/uv-managed-261230?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
 [![ruff](https://img.shields.io/badge/ruff-checked-261230?logo=ruff&logoColor=white)](https://docs.astral.sh/ruff/)
+[![live APIs](https://img.shields.io/badge/live%20APIs-6%20verified%20daily-0a7bbb)](scripts/smoke_live_apis.py)
 [![MCP](https://img.shields.io/badge/MCP-11%20read--only%20tools-000000)](docs/mcp.md)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![last commit](https://img.shields.io/github/last-commit/jxkr2026algorix/jxkr2026-gbsafedata?logo=git&logoColor=white)](https://github.com/jxkr2026algorix/jxkr2026-gbsafedata/commits/main)
@@ -192,7 +193,14 @@ uv run python scripts/check_readme_badges.py --write  # 뱃지 숫자 갱신
 | `test` | Python 3.12·3.13에서 전체 테스트 (인증키 없이) |
 | `lint` | `ruff check` |
 | `guarantees` | 아래 안전 보장이 코드에 남아 있는지 |
+| `live-api` | **실제 공공 API 호출** (매일 + 푸시마다) |
 | `install` | Ubuntu·macOS에서 lockfile 기준 클린 설치 후 CLI·MCP·API 실제 실행 |
+
+**`test`가 인증키 없이 도는 이유**는 테스트가 고정 응답을 쓰기 때문이다. 키가 필요 없는데도 굳이 주지 않고 돌리는 것은, 테스트가 개발자의 `.env`를 몰래 읽지 않는지 함께 검증되기 때문이다 — 실제로 그 버그가 한 번 있었다.
+
+**그것만으로는 부족하다.** 고정 응답 테스트는 원천이 응답 형태를 바꿔도 계속 통과하고, 그때 깨지는 것은 프로덕션이다. 그래서 `live-api` job이 `GBSAFE_DATA_GO_KR_SERVICE_KEY` 시크릿으로 실제 정부 API를 호출한다. 원천별 1회만 부르고(AirKorea 개발계정 한도 일 500건), 심의 대기 3종이 여전히 `not_authorized`인지도 확인한다 — 승인되면 그 사실을 알려준다.
+
+푸시가 없어도 원천은 변하므로 매일 09:00 KST에도 돈다. 포크 PR에는 시크릿이 전달되지 않아 이 job은 건너뛴다.
 
 `guarantees` job이 검사하는 것은 이 프로젝트가 문서에서 주장하는 내용 그 자체다.
 
