@@ -852,3 +852,48 @@ class TestOfflineSnapshotFailures:
         assert all(item.outcome is SourceOutcome.FAILED for item in outcomes)
         assert all(item.degradations for item in outcomes)
         await clear_cache()
+
+
+class TestProvenanceIsNotFabricated:
+    """출처가 조작되면 인용이 거짓말이 된다."""
+
+    def test_provenance_matches_the_source(self, settings: Settings) -> None:
+        connector = UltraShortNowcastConnector(settings=settings)
+        outcome = connector.parse(make_response(KMA_NOWCAST_BODY), location="문경시")
+        provenance = outcome.records[0].provenance
+        assert provenance.dataset_id == UltraShortNowcastConnector.dataset_id
+        assert provenance.provider == "기상청"
+        # 관측 시각은 원천이 준 baseDate/baseTime이어야 하고 수집 시각과 달라야 한다
+        assert provenance.observed_at is not None
+        assert provenance.observed_at != provenance.retrieved_at
+
+    def test_missing_update_time_is_not_invented(self, settings: Settings) -> None:
+        """hvidate가 없으면 실시간으로 표시할 수 없다."""
+        xml = (
+            '<?xml version="1.0"?><response><header><resultCode>00</resultCode>'
+            "</header><body><items><item><hpid>A1</hpid><dutyName>병원</dutyName>"
+            "<hvec>5</hvec></item></items></body></response>"
+        )
+        outcome = EmergencyBedsConnector(settings=settings).parse(
+            make_response(xml, content_type="application/xml")
+        )
+        record = outcome.records[0]
+        assert record.provenance.observed_at is None
+        assert not record.payload.is_realtime
+        assert not record.freshness.is_usable_for_decision
+        assert QualityFlag.PARTIAL_RESPONSE in record.quality_flags
+
+    def test_unknown_dataset_gets_restrictive_licence(self, settings: Settings) -> None:
+        """카탈로그에 없는 데이터셋을 관대하게 처리하면 위반이 통과한다."""
+        from gbsafe_core.licensing import Operation, permits
+        from gbsafe_core.models import LicenseCode
+
+        class Ghost(UltraShortNowcastConnector):
+            dataset_id = "99999999"
+
+        outcome = Ghost(settings=settings).parse(
+            make_response(KMA_NOWCAST_BODY), location="문경시"
+        )
+        licence = outcome.records[0].provenance.license
+        assert licence is LicenseCode.UNKNOWN
+        assert not permits(licence, Operation.DERIVE)
