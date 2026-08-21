@@ -80,13 +80,44 @@ class Observation(Frozen):
         return self
 
 
+class AlertAction(StrEnum):
+    """특보 통보문의 종류.
+
+    같은 '호우주의보' 문구가 발표와 해제 양쪽에 나타난다. 해제를 발효 중으로
+    읽으면 이미 끝난 위험을 현재 위험으로 표시하게 되므로 반드시 구별한다.
+    """
+
+    ISSUED = "issued"
+    CANCELLED = "cancelled"
+    EXTENDED = "extended"
+    UNKNOWN = "unknown"
+
+
+def parse_alert_action(raw: str | None) -> AlertAction:
+    if not raw:
+        return AlertAction.UNKNOWN
+    text = raw.strip()
+    if "해제" in text:
+        return AlertAction.CANCELLED
+    if "연장" in text or "변경" in text:
+        return AlertAction.EXTENDED
+    if "발표" in text or "발효" in text:
+        return AlertAction.ISSUED
+    return AlertAction.UNKNOWN
+
+
 class HazardAlert(Frozen):
-    """발효 중인 경보·특보·예보 단계."""
+    """경보·특보·예보 통보문 하나.
+
+    `action`이 `CANCELLED`이면 위험이 종료됐다는 뜻이다. `is_active`로
+    발효 중인 것만 걸러 쓴다.
+    """
 
     hazard: HazardDomain
     severity: Severity
     headline: str
     area_name: str
+    action: AlertAction = AlertAction.UNKNOWN
     area_code: str | None = None
     location: GeoPoint | None = None
     issued_at: datetime | None = None
@@ -95,9 +126,14 @@ class HazardAlert(Frozen):
     raw_level: str | None = Field(default=None, description="원천의 원본 단계 표기")
 
     @property
+    def is_active(self) -> bool:
+        """지금 발효 중인지. 해제 통보문은 False."""
+        return self.action is not AlertAction.CANCELLED
+
+    @property
     def is_actionable(self) -> bool:
         """검토를 시작할 수준인지. 명령 근거가 아니라 우선순위 힌트다."""
-        return self.severity in (Severity.WARNING, Severity.EMERGENCY)
+        return self.is_active and self.severity in (Severity.WARNING, Severity.EMERGENCY)
 
 
 class RiskZone(Frozen):

@@ -18,6 +18,7 @@ from __future__ import annotations
 from .catalog import AccessRoute, Catalog, DatasetEntry, ReviewType, get_catalog
 from .config import CredentialName, Settings, get_settings
 from .domain import (
+    AlertAction,
     DatasetDescriptor,
     HazardAlert,
     MedicalCapacity,
@@ -28,6 +29,7 @@ from .domain import (
     Severity,
     Shelter,
     ShelterKind,
+    parse_alert_action,
 )
 from .freshness import evaluate as evaluate_freshness
 from .freshness import parse_update_cycle
@@ -67,6 +69,7 @@ __all__ = [
     "GYEONGBUK_BBOX",
     "SIGUNGU",
     "AccessRoute",
+    "AlertAction",
     "Answer",
     "BBox",
     "Catalog",
@@ -111,6 +114,7 @@ __all__ = [
     "get_settings",
     "haversine_km",
     "license_permits",
+    "parse_alert_action",
     "parse_license",
     "parse_update_cycle",
     "require_license",
