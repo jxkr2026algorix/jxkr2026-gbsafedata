@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -26,9 +27,37 @@ app = typer.Typer(
     help="경북 재난대피 공공데이터 — 검색·검증·인용·진단",
     no_args_is_help=True,
     add_completion=False,
+    pretty_exceptions_enable=False,
 )
+
+
+class HazardChoice(StrEnum):
+    """`--type`으로 받는 재난 유형.
+
+    문자열로 받으면 오타가 조용히 통과해 다른 재난의 데이터가 '완전'으로
+    표시된다. enum이면 typer가 거부한다.
+    """
+
+    HEAVY_RAIN = "heavy_rain"
+    LANDSLIDE = "landslide"
+    WILDFIRE = "wildfire"
+    FLOOD = "flood"
+    EARTHQUAKE = "earthquake"
+    HEATWAVE = "heatwave"
+
+
+class OperationChoice(StrEnum):
+    """`--operation`으로 받는 연산."""
+
+    READ = "read"
+    DERIVE = "derive"
+    REDISTRIBUTE = "redistribute"
+    COMMERCIAL = "commercial"
 console = Console()
 _service = SafeDataService()
+
+#: CSV 정규화를 지원하는 커넥터. 나머지는 API 조회 대상이다.
+_CSV_SOURCES = frozenset({"shelters", "landslide_zones"})
 
 _OK = "[green]OK[/green]"
 _BLOCKED = "[yellow]대기[/yellow]"
@@ -108,10 +137,9 @@ def doctor(
 @app.command()
 def search(
     query: Annotated[str, typer.Argument(help="검색어 (예: 산사태 대피소)")] = "",
-    hazard: Annotated[str | None, typer.Option(help="재난 유형")] = None,
+    hazard: Annotated[HazardChoice | None, typer.Option(help="재난 유형")] = None,
     must_allow: Annotated[
-        str | None,
-        typer.Option(help="이 연산이 허용되는 것만 (read/derive/redistribute/commercial)"),
+        OperationChoice | None, typer.Option(help="이 연산이 허용되는 데이터셋만")
     ] = None,
     ready: Annotated[bool, typer.Option("--ready", help="지금 호출 가능한 것만")] = False,
     limit: Annotated[int, typer.Option(help="최대 개수")] = 15,
@@ -119,7 +147,11 @@ def search(
 ) -> None:
     """공공데이터셋을 검색한다."""
     result = _service.search_datasets(
-        query, hazard=hazard, dev_ready_only=ready, must_allow=must_allow, limit=limit
+        query,
+        hazard=hazard,
+        dev_ready_only=ready,
+        must_allow=must_allow.value if must_allow else None,
+        limit=limit,
     )
     if as_json:
         _print_json(result)
@@ -151,32 +183,36 @@ def search(
 @app.command()
 def describe(
     dataset_id: Annotated[str, typer.Argument(help="데이터셋 ID")],
-    as_json: Annotated[bool, typer.Option("--json")] = False,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="기본 출력이 이미 JSON이며 호환용 플래그")
+    ] = False,
 ) -> None:
-    """데이터셋 상세 정보를 본다."""
+    """데이터셋 상세 정보를 본다. 출력은 항상 JSON이다."""
     result = _service.describe_dataset(dataset_id)
-    if as_json or not result.get("found"):
-        _print_json(result)
-        raise typer.Exit(0 if result.get("found") else 1)
     _print_json(result)
+    raise typer.Exit(0 if result.get("found") else 1)
 
 
 @app.command()
 def verify(
     dataset_id: Annotated[str, typer.Argument(help="데이터셋 ID")],
     operation: Annotated[
-        str, typer.Option(help="read | derive | redistribute | commercial")
-    ] = "read",
+        OperationChoice, typer.Option(help="확인할 연산")
+    ] = OperationChoice.READ,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """이 데이터셋을 이 용도로 써도 되는지 판정한다."""
-    result = _service.verify_dataset(dataset_id, operation)
+    result = _service.verify_dataset(dataset_id, operation.value)
+    if as_json:
+        _print_json(result.to_dict())
+        raise typer.Exit(0 if result.allowed else 1)
     verdict = "[green]허용[/green]" if result.allowed else "[red]불가[/red]"
     console.print(
         Panel(
             f"{verdict}  ·  {result.dataset_name}\n"
             f"라이선스: {result.license_summary}\n"
             f"취득: {result.obtain_via}",
-            title=f"{result.dataset_id} — {operation}",
+            title=f"{result.dataset_id} — {operation.value}",
             expand=False,
         )
     )
@@ -188,8 +224,13 @@ def verify(
 
 
 @app.command()
-def region(query: Annotated[str, typer.Argument(help="시군명 또는 코드")]) -> None:
-    """지역명을 코드·좌표·기상격자로 변환한다."""
+def region(
+    query: Annotated[str, typer.Argument(help="시군명 또는 코드")],
+    as_json: Annotated[
+        bool, typer.Option("--json", help="기본 출력이 이미 JSON이며 호환용 플래그")
+    ] = False,
+) -> None:
+    """지역명을 코드·좌표·기상격자로 변환한다. 출력은 항상 JSON이다."""
     result = _service.resolve_region(query)
     _print_json(result)
     raise typer.Exit(0 if result.get("found") else 1)
@@ -198,15 +239,17 @@ def region(query: Annotated[str, typer.Argument(help="시군명 또는 코드")]
 @app.command()
 def hazard(
     region_name: Annotated[str, typer.Argument(help="경북 시군")],
-    kind: Annotated[str, typer.Option("--type", help="재난 유형")] = "heavy_rain",
+    kind: Annotated[
+        HazardChoice, typer.Option("--type", help="재난 유형")
+    ] = HazardChoice.HEAVY_RAIN,
     as_json: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """특정 지역의 현재 위험 상황을 조회한다."""
-    answer = asyncio.run(_service.hazard_context(region_name, hazard=kind))
+    answer = asyncio.run(_service.hazard_context(region_name, hazard=kind.value))
     body = envelope(answer, {"region": region_name, "hazard": kind})
     if as_json:
         _print_json(body.model_dump(mode="json"))
-        return
+        raise typer.Exit(0 if body.complete else 2)
 
     status = "[green]완전[/green]" if body.complete else "[yellow]불완전[/yellow]"
     console.print(
@@ -227,12 +270,17 @@ def hazard(
     console.print("\n[bold]출처[/bold]")
     for citation in body.citations[:10]:
         console.print(f"  · {citation.text}")
+    # 스크립트가 불완전한 결과를 감지할 수 있어야 한다
+    raise typer.Exit(0 if body.complete else 2)
 
 
 @app.command()
-def quality() -> None:
+def quality(as_json: Annotated[bool, typer.Option("--json")] = False) -> None:
     """검증으로 확인된 데이터 품질 결함을 본다."""
     result = _service.quality_report()
+    if as_json:
+        _print_json(result)
+        return
     table = Table(title=f"확인된 결함 {result['count']}건")
     table.add_column("ID", style="cyan", width=10)
     table.add_column("이름", overflow="fold")
@@ -249,8 +297,22 @@ def quality() -> None:
 
 
 @app.command()
-def sources() -> None:
+def sources(as_json: Annotated[bool, typer.Option("--json")] = False) -> None:
     """조회 가능한 데이터 원천 목록."""
+    if as_json:
+        _print_json(
+            [
+                {
+                    "name": spec.name,
+                    "dataset_id": spec.dataset_id,
+                    "summary": spec.summary,
+                    "hazards": [hazard.value for hazard in spec.hazards],
+                    "requires_local_file": spec.requires_local_file,
+                }
+                for spec in _service.registry.all_specs()
+            ]
+        )
+        return
     table = Table(title="데이터 원천")
     table.add_column("이름", style="cyan")
     table.add_column("데이터셋", width=10)
@@ -275,8 +337,17 @@ def fetch(
             kwargs["sigungu"] = region_name
         else:
             kwargs["region"] = region_name
+    known = _service.registry.names()
+    if source not in known:
+        console.print(f"[red]'{source}' 원천이 없습니다.[/red] 사용 가능:")
+        for name in known:
+            console.print(f"  · {name}")
+        raise typer.Exit(2)
+
     answer = asyncio.run(_service.fetch_connector(source, **kwargs))
-    _print_json(envelope(answer, {"source": source, **kwargs}).model_dump(mode="json"))
+    body = envelope(answer, {"source": source, **kwargs})
+    _print_json(body.model_dump(mode="json"))
+    raise typer.Exit(0 if body.complete else 1)
 
 
 @app.command(name="normalize-csv")
@@ -289,14 +360,31 @@ def normalize_csv(
 
     파일데이터는 세션 의존 때문에 자동 다운로드가 어려워 취득은 사용자가 한다.
     """
+    if path.is_dir():
+        console.print(f"[red]디렉터리가 아니라 CSV 파일을 지정하세요:[/red] {path}")
+        raise typer.Exit(2)
     if not path.is_file():
         console.print(f"[red]파일을 찾을 수 없습니다:[/red] {path}")
-        raise typer.Exit(1)
+        raise typer.Exit(2)
     kwargs: dict[str, Any] = {}
     if region_name:
         kwargs["region"] = region_name
+    if source not in _CSV_SOURCES:
+        console.print(
+            f"[red]'{source}'는 CSV 정규화 대상이 아닙니다.[/red] "
+            f"사용 가능: {', '.join(sorted(_CSV_SOURCES))}"
+        )
+        raise typer.Exit(2)
+
     answer = _service.normalize_csv(source, path, **kwargs)
-    _print_json(envelope(answer, {"source": source, "file": str(path)}).model_dump(mode="json"))
+    body = envelope(answer, {"source": source, "file": str(path)})
+    _print_json(body.model_dump(mode="json"))
+    if not body.records:
+        console.print(
+            "[yellow]정규화된 레코드가 없습니다.[/yellow] "
+            "파일이 비었거나 컬럼 이름이 예상과 다를 수 있습니다."
+        )
+        raise typer.Exit(1)
 
 
 @app.command()
@@ -323,9 +411,21 @@ def mcp() -> None:
 
 
 @app.command()
-def keys() -> None:
+def keys(as_json: Annotated[bool, typer.Option("--json")] = False) -> None:
     """필요한 인증 정보와 발급 경로를 본다."""
     settings = get_settings()
+    if as_json:
+        _print_json(
+            {
+                name.value: {
+                    "present": settings.has(name),
+                    "env_var": f"GBSAFE_{name.value.upper()}",
+                    "source": CREDENTIAL_SOURCES[name],
+                }
+                for name in CredentialName
+            }
+        )
+        return
     table = Table(title="인증 정보")
     table.add_column("보유", width=6)
     table.add_column("환경변수", style="cyan")
