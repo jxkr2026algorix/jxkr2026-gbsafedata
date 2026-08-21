@@ -155,6 +155,7 @@ class UltraShortNowcastConnector(Connector[Observation]):
     service_key_param: ClassVar[str] = "serviceKey"
     region_param: ClassVar[str] = "location"
     update_cycle_seconds: ClassVar[int] = 3600
+    max_decision_age_seconds: ClassVar[int] = 5400
 
     def base_url(self) -> str:
         return (
@@ -313,6 +314,7 @@ class WeatherWarningConnector(Connector[HazardAlert]):
     dataset_id: ClassVar[str] = "15000415"
     service_key_param: ClassVar[str] = "serviceKey"
     update_cycle_seconds: ClassVar[int] = 3600
+    max_decision_age_seconds: ClassVar[int] = 10800
 
     def base_url(self) -> str:
         return "https://apis.data.go.kr/1360000/WthrWrnInfoService/getWthrWrnList"

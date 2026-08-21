@@ -260,6 +260,11 @@ class Connector[PayloadT](ABC):
     #: 카탈로그 값을 따르고 그것도 없으면 절대 임계값으로 판정한다.
     update_cycle_seconds: ClassVar[int | None] = None
 
+    #: 판단 근거로 쓸 수 있는 최대 나이(초). 갱신주기와 다른 개념이다 —
+    #: 갱신주기는 "얼마나 자주 나오는가", 이 값은 "얼마나 오래된 것까지
+    #: 대피 판단에 쓸 수 있는가"다. None이면 등급 판정만 따른다.
+    max_decision_age_seconds: ClassVar[int | None] = None
+
     def __init__(
         self,
         *,
@@ -636,6 +641,7 @@ class Connector[PayloadT](ABC):
             evaluate_freshness(
                 as_of=provenance.effective_time,
                 expected_cycle_seconds=provenance.expected_cycle_seconds,
+                max_decision_age_seconds=self.max_decision_age_seconds,
             )
             if observed_at or published_at
             else unknown_freshness()

@@ -30,6 +30,7 @@ def evaluate(
     *,
     as_of: datetime,
     expected_cycle_seconds: int | None,
+    max_decision_age_seconds: int | None = None,
     now: datetime | None = None,
 ) -> Freshness:
     """관측 시각과 갱신주기로 신선도를 판정한다.
@@ -55,6 +56,7 @@ def evaluate(
                 f"관측 시각이 현재보다 {-age} 미래입니다 — 시각 표기 오류로 보이며 "
                 "신선도를 판정할 수 없습니다"
             ),
+            max_decision_age_seconds=max_decision_age_seconds,
         )
     age_seconds = max(0, int(age.total_seconds()))
 
@@ -94,6 +96,7 @@ def evaluate(
         as_of=as_of,
         evaluated_at=evaluated_at,
         reason=reason,
+        max_decision_age_seconds=max_decision_age_seconds,
     )
 
 

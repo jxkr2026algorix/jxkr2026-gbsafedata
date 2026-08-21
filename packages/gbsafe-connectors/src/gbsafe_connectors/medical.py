@@ -69,6 +69,7 @@ class EmergencyBedsConnector(Connector[MedicalCapacity]):
     service_key_param: ClassVar[str] = "serviceKey"
     region_param: ClassVar[str] = "sigungu"
     update_cycle_seconds: ClassVar[int] = 900
+    max_decision_age_seconds: ClassVar[int] = 1800
 
     def base_url(self) -> str:
         return (

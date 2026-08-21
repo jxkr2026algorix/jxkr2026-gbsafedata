@@ -262,11 +262,29 @@ class TestFreshness:
         assert result.status is FreshnessStatus.FRESH
         assert result.is_usable_for_decision
 
-    def test_aging_between_two_and_six(self) -> None:
+    def test_aging_is_not_decision_usable(self) -> None:
+        """갱신주기의 3배는 시간당 자료로 3시간 전 값이다.
+
+        대피 판단에서 3시간 전 강우를 현재로 제시하면 안 되므로, AGING은
+        시점을 함께 밝혀야 하는 상태로 다룬다.
+        """
         now = datetime.now(UTC)
         result = evaluate(as_of=now - timedelta(hours=3), expected_cycle_seconds=3600, now=now)
         assert result.status is FreshnessStatus.AGING
-        assert result.is_usable_for_decision
+        assert not result.is_usable_for_decision
+        assert result.needs_timestamp_disclosure
+
+    def test_max_decision_age_overrides_fresh(self) -> None:
+        """등급이 FRESH여도 판단 허용 나이를 넘으면 재확인이 필요하다."""
+        now = datetime.now(UTC)
+        result = evaluate(
+            as_of=now - timedelta(minutes=50),
+            expected_cycle_seconds=3600,
+            max_decision_age_seconds=1800,
+            now=now,
+        )
+        assert result.status is FreshnessStatus.FRESH
+        assert not result.is_usable_for_decision
 
     def test_stale_beyond_six_cycles(self) -> None:
         now = datetime.now(UTC)

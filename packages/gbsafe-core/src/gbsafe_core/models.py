@@ -205,11 +205,31 @@ class Freshness(Frozen):
     as_of: datetime
     evaluated_at: datetime
     reason: str
+    max_decision_age_seconds: int | None = Field(
+        default=None,
+        description="이 값을 넘으면 판단 근거로 쓰기 전 재확인이 필요하다",
+    )
 
     @property
     def is_usable_for_decision(self) -> bool:
-        """대피 판단 근거로 제시해도 되는 상태인지."""
-        return self.status in (FreshnessStatus.FRESH, FreshnessStatus.AGING)
+        """대피 판단 근거로 제시해도 되는 상태인지.
+
+        `AGING`을 허용하지 않는다. 갱신주기의 2~6배는 '갱신이 늦는 중'이라는
+        뜻이고, 시간당 갱신 기상자료라면 최대 6시간 전 값이다. 대피 판단에서
+        6시간 전 강우를 현재로 제시하는 것은 위험하다.
+
+        `max_decision_age_seconds`가 있으면 그 기준을 함께 본다.
+        """
+        if self.status is not FreshnessStatus.FRESH:
+            return False
+        if self.max_decision_age_seconds is None or self.age_seconds is None:
+            return True
+        return self.age_seconds <= self.max_decision_age_seconds
+
+    @property
+    def needs_timestamp_disclosure(self) -> bool:
+        """값과 함께 시점을 반드시 밝혀야 하는지."""
+        return not self.is_usable_for_decision
 
 
 class Record[PayloadT](BaseModel):
