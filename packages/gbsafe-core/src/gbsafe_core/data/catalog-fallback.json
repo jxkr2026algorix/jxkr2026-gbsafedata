@@ -1,6 +1,6 @@
 {
  "_comment": "jxkr2026-datasets/catalog에서 생성한 폴백 스냅샷. 데이터셋 저장소가 없을 때만 사용된다. scripts/sync_fallback_catalog.py로 재생성한다.",
- "generated_at": "2026-08-21T18:17:11+00:00",
+ "generated_at": "2026-08-21T21:46:59+00:00",
  "source": "/Users/ryankwon/dev/jxkr2026-datasets/catalog",
  "datasets": [
   {
@@ -44,7 +44,7 @@
    "url": "https://www.data.go.kr/data/15000563/openapi.do",
    "keywords": "응급의료기관,응급실,응급의료,주소(시도),주소(시군구),질환수술(시술명),페이지번호,목록건수",
    "apply_status": "개발계정 신청완료",
-   "note": "개발계정 활용신청 완료 — 자동승인으로 즉시 발급, 승인일로부터 24개월 활용 가능",
+   "note": "개발계정 활용신청 완료 — 자동승인으로 즉시 발급, 승인일로부터 24개월 활용 가능 / XML 전용. STAGE1/STAGE2 필수. hvidate가 실제 갱신 시각이므로 화면에 병기 필요. 문경 조회 검증 완료",
    "verified": true
   },
   {
@@ -74,6 +74,7 @@
    "provider": "지방자치단체",
    "access_route": "포털 직접 다운로드",
    "format": "XLS/XML/JSON/RDF/CSV",
+   "license": "UNKNOWN",
    "update_cycle": "반기",
    "rows": "18879",
    "modified": "2026-04-20",
@@ -90,6 +91,7 @@
    "provider": "지방자치단체",
    "access_route": "포털 직접 다운로드",
    "format": "XLS/XML/JSON/RDF/CSV",
+   "license": "UNKNOWN",
    "update_cycle": "분기",
    "rows": "7329",
    "modified": "2026-06-05",
@@ -168,6 +170,7 @@
    "provider": "한국교육시설안전원",
    "access_route": "포털 직접 다운로드",
    "format": "XLS/XML/JSON/RDF/CSV",
+   "license": "UNKNOWN",
    "update_cycle": "수시",
    "rows": "17985",
    "modified": "2026-05-06",
@@ -224,6 +227,7 @@
    "provider": "지방자치단체",
    "access_route": "포털 직접 다운로드",
    "format": "XLS/XML/JSON/RDF/CSV",
+   "license": "UNKNOWN",
    "update_cycle": "연간",
    "rows": "176",
    "modified": "2023-05-31",
@@ -241,6 +245,7 @@
    "provider": "소방청",
    "access_route": "포털 직접 다운로드",
    "format": "XLS/XML/JSON/RDF/CSV",
+   "license": "UNKNOWN",
    "update_cycle": "수시",
    "rows": "199507",
    "modified": "2024-02-13",
@@ -268,7 +273,8 @@
    "modified": "2025-06-24",
    "url": "https://www.data.go.kr/data/15040465/openapi.do",
    "keywords": "실시간정보,도로공사정보,도로사고정보,공사구간,차량정체,우회안내",
-   "verified": false
+   "note": "ITS 공식 문서에서 type 허용값 확인 — all/ex(고속도로)/its(국도)/loc(지방도)/sgg(시군도)/etc. 경북 농촌 도로 커버됨. 단 소통정보(trafficInfo)는 ex/its만 지원",
+   "verified": true
   },
   {
    "pk": "15043648",
@@ -306,7 +312,7 @@
    "modified": "2026-03-10",
    "url": "https://www.data.go.kr/data/15044819/fileData.do",
    "keywords": "교량,도로시설,노선정보,교량규모,설계하중,준공년도,노선관리,구조형식",
-   "verified": false
+   "verified": true
   },
   {
    "pk": "15044822",
@@ -362,7 +368,7 @@
    "modified": "2026-02-26",
    "url": "https://www.data.go.kr/data/15056378/fileData.do",
    "keywords": "음용수,펌프,배수시설,침수예방,우수관리,수방시설,저류용량,위험지도",
-   "verified": false
+   "verified": true
   },
   {
    "pk": "15056674",
@@ -383,7 +389,8 @@
    "modified": "2025-07-01",
    "url": "https://www.data.go.kr/data/15056674/openapi.do",
    "keywords": "교통,공간정보,지도",
-   "verified": false
+   "note": "표준노드링크 파일 목록은 무인증 조회되나 다운로드는 로그인 필요(최신 [2026-08-12]NODELINKDATA.zip, 257MB). OSM으로 대체 — 문경 도로 16,095개 중 79.7%가 농로·마을길 계열이라 오히려 적합",
+   "verified": true
   },
   {
    "pk": "15057084",
@@ -489,7 +496,7 @@
    "url": "https://www.data.go.kr/data/15059093/openapi.do",
    "keywords": "날씨,기상관측,일자료,기온,강수량",
    "apply_status": "개발계정 신청완료",
-   "note": "개발계정 활용신청 완료 — 자동승인으로 즉시 발급, 승인일로부터 24개월 활용 가능",
+   "note": "개발계정 활용신청 완료 — 자동승인으로 즉시 발급, 승인일로부터 24개월 활용 가능 / 당일·전일은 확정 전이라 NO_DATA. 일주일 전 날짜로 조회해야 한다",
    "verified": true
   },
   {
@@ -549,7 +556,8 @@
    "modified": "2025-06-17",
    "url": "https://www.data.go.kr/data/15059920/fileData.do",
    "keywords": "수치표고모델,위성영상,공간정보,공개 DEM,입체화",
-   "verified": false
+   "note": "전용 대용량 전송 S/W 필요, 격자 해상도·EPSG 미표기. SRTM 30m로 대체 검증 완료 — 경북 4타일(N35/36 E128/129), EPSG:4326, 문경 표고 69~675m 확인",
+   "verified": true
   },
   {
    "pk": "15061065",
@@ -591,7 +599,8 @@
    "modified": "2025-08-21",
    "url": "https://www.data.go.kr/data/15062048/openapi.do",
    "keywords": "고속도로,위치정보,노선데이터,좌표,도로망,공간데이터,경로정보,교통시스템",
-   "verified": false
+   "note": "소통정보는 type이 ex/its만 허용 — 고속도로·국도까지만이고 지방도는 미지원. 지방도 통제는 돌발정보(eventInfo)를 써야 한다",
+   "verified": true
   },
   {
    "pk": "15063014",
@@ -609,7 +618,7 @@
    "modified": "2026-03-10",
    "url": "https://www.data.go.kr/data/15063014/fileData.do",
    "keywords": "장애인등록,인구현황,장애유형,심한장애,성별구분,복지통,복지수요,기초자료",
-   "verified": false
+   "verified": true
   },
   {
    "pk": "15063268",
@@ -627,7 +636,7 @@
    "modified": "2025-12-11",
    "url": "https://www.data.go.kr/data/15063268/fileData.do",
    "keywords": "방재시설,침수예방,사업현황,저류용량,지역시설,안전관리,사업정보,시설규모",
-   "verified": false
+   "verified": true
   },
   {
    "pk": "15072620",
@@ -694,7 +703,7 @@
    "url": "https://www.data.go.kr/data/15073861/openapi.do",
    "keywords": "미세먼지,코로나,오존,초미세먼지,에어코리아",
    "apply_status": "개발계정 신청완료",
-   "note": "개발계정 활용신청 완료 — 자동승인으로 즉시 발급, 승인일로부터 24개월 활용 가능",
+   "note": "개발계정 활용신청 완료 — 자동승인으로 즉시 발급, 승인일로부터 24개월 활용 가능 / 간헐적 HTTP 504 발생 — 재시도 필요. 시도별 조회는 53건 정상 반환. 개발계정 일 500건으로 가장 낮다",
    "verified": true
   },
   {
@@ -715,7 +724,9 @@
    "modified": "2025-11-19",
    "url": "https://www.data.go.kr/data/15074800/openapi.do",
    "keywords": "산림청,산사태,산사태예측정보,예보정보,예보분석,위험단계,선제대응,예찰 강화",
-   "verified": false
+   "apply_status": "미신청(개발단계 심의)",
+   "note": "개발단계 심의승인. 미승인 상태에서 호출하면 HTTP 403. 승인 전까지는 산사태위험지도(FGIS) + 선행 누적 강우 임계값으로 대체",
+   "verified": true
   },
   {
    "pk": "15074803",
@@ -881,7 +892,7 @@
    "endpoint": "https://apis.data.go.kr/1400377/forestPointV2",
    "keywords": "산불위험지수,산불위험예보,산불위험등급,통계,임상,지형,지수,기상",
    "apply_status": "개발계정 신청완료",
-   "note": "호스트가 다른 산림청 API의 /1400000/이 아니라 /1400377/forestPointV2 — 혼동 주의. 오퍼레이션 3종(전국/시도/시군구), 개발계정 1,000건 / 개발계정 활용신청 완료 — 자동승인으로 즉시 발급, 승인일로부터 24개월 활용 가능",
+   "note": "호스트가 다른 산림청 API의 /1400000/이 아니라 /1400377/forestPointV2 — 혼동 주의. 오퍼레이션 3종(전국/시도/시군구), 개발계정 1,000건 / 개발계정 활용신청 완료 — 자동승인으로 즉시 발급, 승인일로부터 24개월 활용 가능 / 호스트가 /1400377/forestPointV2 — 다른 산림청 API의 /1400000/이 아니다. 호출 검증 완료",
    "verified": true
   },
   {
@@ -1009,7 +1020,7 @@
    "url": "https://www.data.go.kr/data/15098533/openapi.do",
    "keywords": "시내버스,버스위치정보,버스정보",
    "apply_status": "개발계정 신청완료",
-   "note": "개발계정 활용신청 완료 — 자동승인으로 즉시 발급, 승인일로부터 24개월 활용 가능",
+   "note": "개발계정 활용신청 완료 — 자동승인으로 즉시 발급, 승인일로부터 24개월 활용 가능 / getCtyCodeList로 지원도시 138개 확인 — 경북 20개 시군 전부 포함, 문경시 코드 37090. routeId는 별도 데이터셋(버스노선정보)에서 얻어야 하므로 자기완결적이지 않다",
    "verified": true
   },
   {
@@ -1031,7 +1042,7 @@
    "url": "https://www.data.go.kr/data/15099110/openapi.do",
    "keywords": "댐,보,수문,강수량,저수량",
    "apply_status": "개발계정 신청완료",
-   "note": "개발계정 활용신청 완료 — 자동승인으로 즉시 발급, 승인일로부터 24개월 활용 가능",
+   "note": "개발계정 활용신청 완료 — 자동승인으로 즉시 발급, 승인일로부터 24개월 활용 가능 / 실제 경로는 /B500001/dam/sluicePresentCondition/hourlist. 호출 검증 완료(현재 반환 0건)",
    "verified": true
   },
   {
@@ -1182,7 +1193,7 @@
    "modified": "2025-10-31",
    "url": "https://www.data.go.kr/data/15114046/fileData.do",
    "keywords": "재난안전,대피소,인명피해,재난대응,취약지,안전,기후위기,대피계획",
-   "verified": false
+   "verified": true
   },
   {
    "pk": "15122588",
@@ -1262,7 +1273,7 @@
    "modified": "2026-06-04",
    "url": "https://www.data.go.kr/data/15126579/fileData.do",
    "keywords": "산사태,취약지,지정,재해예방,위험지역,면적,지형유형,지번정보",
-   "verified": false
+   "verified": true
   },
   {
    "pk": "15134001",
@@ -1315,6 +1326,7 @@
    "provider": "지방자치단체",
    "access_route": "포털 직접 다운로드",
    "format": "XLS/XML/JSON/RDF/CSV",
+   "license": "UNKNOWN",
    "update_cycle": "연간",
    "rows": "4866",
    "modified": "2026-07-28",
@@ -1839,7 +1851,7 @@
    "modified": "2025-11-13",
    "url": "https://www.data.go.kr/data/3083902/fileData.do",
    "keywords": "전쟁,대피,지하,민방위,재난관리,방재,시설정보",
-   "verified": false
+   "verified": true
   },
   {
    "pk": "81179",
@@ -1849,8 +1861,12 @@
    "provider": "한국임업진흥원",
    "access_route": "기관 사이트 다운로드",
    "external_portal": "산림빅데이터거래소 (bigdata-forest.kr)",
+   "license": "UNKNOWN",
+   "license_raw": "포털에 이용허락범위 표기 없음 (확장자·전체 행·제공형태도 모두 \"-\")",
+   "rows": "-",
    "modified": "2026-08-16",
    "url": "https://www.data.go.kr/data/81179/linkedData.do",
+   "keywords": "산불,산불발생,산불신고,신고위치,산불발생정보",
    "note": "URL 접미사가 linked.do가 아니라 linkedData.do — 그래서 HTTP 500/404가 났다. 포털에 파일·API 없이 리다이렉트만 존재하며, 목적지(bigdata-forest.kr/product/FRT000501)는 로그인·구매가 필요해 익명 취득 불가. 확장자·전체 행·제공형태가 모두 '-'",
    "verified": true
   }
