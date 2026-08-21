@@ -1,0 +1,47 @@
+[project]
+name = "gbsafedata"
+version = "0.1.0"
+description = "GB SafeData — 경북 재난대피 공공데이터를 AI가 출처와 함께 조회할 수 있게 만드는 오픈소스 인프라"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+dependencies = [
+    "gbsafe-core",
+    "gbsafe-connectors",
+    "gbsafe-api",
+    "gbsafe-mcp",
+    "gbsafe-cli",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.8",
+    "httpx>=0.28",
+]
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+gbsafe-core = { workspace = true }
+gbsafe-connectors = { workspace = true }
+gbsafe-api = { workspace = true }
+gbsafe-mcp = { workspace = true }
+gbsafe-cli = { workspace = true }
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+filterwarnings = ["error::DeprecationWarning"]

@@ -1,0 +1,48 @@
+# 인증 정보 — 절대 커밋 금지
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets.*
+**/serviceKey*
+**/authKey*
+
+# 원본 데이터 스냅샷 (라이선스·용량 제약으로 저장소에 포함하지 않음)
+var/
+data/raw/
+data/interim/
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+*.gpkg
+*.osm.pbf
+*.tif
+*.tiff
+*.nc
+*.grib2
+*.zip
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# 에이전트·도구 산출물
+.omo/
+.codegraph/
+.playwright-mcp/
+
+# OS·에디터
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
