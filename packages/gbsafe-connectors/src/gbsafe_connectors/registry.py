@@ -204,6 +204,14 @@ class Registry:
             settings=self._settings, catalog=self._catalog, store=self._store
         )
 
+    def all_specs(self) -> tuple[ConnectorSpec, ...]:
+        return SPECS
+
+    def specs_for_dataset(self, dataset_id: str) -> tuple[ConnectorSpec, ...]:
+        """한 데이터셋을 다루는 커넥터들. 같은 데이터셋에 여러 오퍼레이션이 있다."""
+        target = dataset_id.strip()
+        return tuple(spec for spec in SPECS if spec.dataset_id == target)
+
     def for_hazard(self, hazard: HazardDomain) -> tuple[ConnectorSpec, ...]:
         return tuple(spec for spec in SPECS if hazard in spec.hazards)
 
