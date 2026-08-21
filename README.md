@@ -1,5 +1,14 @@
 # GB SafeData
 
+[![CI](https://img.shields.io/github/actions/workflow/status/jxkr2026algorix/jxkr2026-gbsafedata/ci.yml?branch=main&label=CI&logo=githubactions&logoColor=white)](https://github.com/jxkr2026algorix/jxkr2026-gbsafedata/actions/workflows/ci.yml)
+[![tests](https://img.shields.io/badge/tests-501%20passing-brightgreen)](tests)
+[![python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue?logo=python&logoColor=white)](pyproject.toml)
+[![uv](https://img.shields.io/badge/uv-managed-261230?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
+[![ruff](https://img.shields.io/badge/ruff-checked-261230?logo=ruff&logoColor=white)](https://docs.astral.sh/ruff/)
+[![MCP](https://img.shields.io/badge/MCP-11%20read--only%20tools-000000)](docs/mcp.md)
+[![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![last commit](https://img.shields.io/github/last-commit/jxkr2026algorix/jxkr2026-gbsafedata?logo=git&logoColor=white)](https://github.com/jxkr2026algorix/jxkr2026-gbsafedata/commits/main)
+
 경북 재난대피에 필요한 공공데이터를 **AI와 외부 시스템이 출처와 함께 즉시 활용할 수 있게** 만드는 오픈소스 데이터 인프라다.
 
 MCP 서버, 표준 API, 정제·통합 계층, 검색·검증·인용 도구, AI용 Skill, MCP 클라이언트 플러그인을 하나의 모노레포로 제공한다.
@@ -167,10 +176,34 @@ data.go.kr 개발계정 키 하나로 동작하는 것들이다.
 ```bash
 uv run pytest tests/ -q        # 네트워크를 사용하지 않는다
 uv run ruff check .
-uv run python scripts/sync_fallback_catalog.py   # 폴백 카탈로그 갱신
+uv run python scripts/sync_fallback_catalog.py       # 폴백 카탈로그 갱신
+uv run python scripts/check_generated_docs.py --write # docs/api.md·mcp.md 재생성
+uv run python scripts/check_readme_badges.py --write  # 뱃지 숫자 갱신
 ```
 
 테스트는 개발자의 `.env`를 읽지 않는다. 키가 없는 환경에서도 같은 결과가 나와야 하기 때문이다.
+
+### CI가 검사하는 것
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml)이 푸시와 PR마다 돌아간다. 테스트가 네트워크·인증키·형제 저장소 없이 동작하므로 러너에 별도 설정이 없다.
+
+| Job | 검사 |
+| --- | --- |
+| `test` | Python 3.12·3.13에서 전체 테스트 (인증키 없이) |
+| `lint` | `ruff check` |
+| `guarantees` | 아래 안전 보장이 코드에 남아 있는지 |
+| `install` | Ubuntu·macOS에서 lockfile 기준 클린 설치 후 CLI·MCP·API 실제 실행 |
+
+`guarantees` job이 검사하는 것은 이 프로젝트가 문서에서 주장하는 내용 그 자체다.
+
+- 표준 API에 **쓰기 라우트가 없다** — POST·PUT·DELETE가 생기면 실패
+- MCP 도구가 **전부 읽기 전용**으로 등록된다
+- 카탈로그의 **모든 라이선스 표기가 판별된다** — 표기 변형으로 UNKNOWN이 되면 허용된 연산이 이유 없이 막힌다
+- **기상 격자 변환이 공개 기준값과 일치한다** — 잘못된 격자는 다른 도시의 날씨를 성공적으로 반환하므로 조용한 오류가 된다
+- `docs/api.md`·`docs/mcp.md`가 **구현에서 생성된 최신 상태다**
+- README 뱃지의 **숫자가 실제 값과 같다**
+
+마지막 둘은 문서가 코드보다 낡는 것을 막는다. 손으로 고치면 CI가 실패하고, `--write`로 갱신한다.
 
 ## 라이선스
 

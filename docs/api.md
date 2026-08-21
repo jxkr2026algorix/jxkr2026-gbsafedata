@@ -1,7 +1,8 @@
 # 표준 API 명세
 
 `uv run gbsafe serve` 로 기동하고 `/docs`에서 대화형으로 확인할 수 있다.
-이 문서는 실제 OpenAPI 스펙에서 생성했다.
+이 문서는 실제 OpenAPI 스펙에서 생성했다 —
+`uv run python scripts/check_generated_docs.py --write` 로 갱신한다.
 
 ## 공통 응답 봉투
 

@@ -1,7 +1,8 @@
 # MCP 도구 명세
 
 `uv run gbsafe-mcp` 로 기동한다. 설정은 [`plugins/`](../plugins)에 있다.
-이 문서는 실제 도구 정의에서 생성했다.
+이 문서는 실제 도구 정의에서 생성했다 —
+`uv run python scripts/check_generated_docs.py --write` 로 갱신한다.
 
 **11개 모두 읽기 전용이다.** 서버가 기동 시점에 도구 이름을 검사한다 — 조회 동사를
 포함하고 변경 동사가 없어야 통과한다.

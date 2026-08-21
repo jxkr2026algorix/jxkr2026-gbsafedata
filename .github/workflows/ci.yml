@@ -1,0 +1,188 @@
+name: CI
+
+# 푸시와 PR마다 검증한다. 테스트는 네트워크·인증키·형제 저장소 없이 돌아가므로
+# 러너에서 별도 설정이 필요 없다.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sync workspace
+        run: uv sync --all-packages --python ${{ matrix.python }}
+
+      - name: Run tests
+        # 인증키를 주지 않는다. 테스트가 개발자 환경에 의존하지 않는지 함께 검증된다.
+        run: uv run --python ${{ matrix.python }} pytest tests/ -q
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --all-packages
+      - name: Ruff check
+        # 프로젝트가 강제하는 규칙은 ruff check이다. `ruff format`은 도입하지
+        # 않았으므로 통과할 수 없는 검사를 `|| true`로 위장해 두지 않는다.
+        run: uv run ruff check . --output-format=github
+
+  guarantees:
+    name: safety guarantees
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --all-packages
+
+      - name: API exposes no write routes
+        # 공공데이터 계층은 조회만 제공한다. POST·PUT·DELETE가 생기면 실패한다.
+        run: |
+          uv run python - <<'PY'
+          from fastapi.testclient import TestClient
+          from gbsafe_api.app import create_app
+          spec = TestClient(create_app()).get("/openapi.json").json()
+          offending = [
+              f"{method.upper()} {path}"
+              for path, operations in spec["paths"].items()
+              for method in operations
+              if method.lower() not in ("get", "head", "options")
+          ]
+          assert not offending, f"write routes found: {offending}"
+          print(f"{len(spec['paths'])} routes, all read-only")
+          PY
+
+      - name: MCP tools pass the read-only gate
+        run: |
+          uv run python - <<'PY'
+          from gbsafe_mcp.tools import validated_tools
+          tools = validated_tools()
+          assert all(
+              tool.to_mcp().annotations.read_only_hint for tool in tools
+          ), "a tool is not marked read-only"
+          print(f"{len(tools)} tools registered, all read-only")
+          PY
+
+      - name: Every catalogue licence string resolves
+        # 표기 변형으로 UNKNOWN이 되면 허용된 연산이 이유 없이 막힌다.
+        run: |
+          uv run python - <<'PY'
+          from gbsafe_core.catalog import get_catalog
+          from gbsafe_core.models import LicenseCode
+          unresolved = [
+              entry.license_raw
+              for entry in get_catalog()
+              if entry.license_raw
+              and entry.license is LicenseCode.UNKNOWN
+              and "표기 없음" not in entry.license_raw
+              and entry.license_raw.upper() != "UNKNOWN"
+          ]
+          assert not unresolved, f"unresolved licence strings: {unresolved}"
+          print("all licence strings resolve")
+          PY
+
+      - name: KMA grid conversion matches published cells
+        # 잘못된 격자는 다른 도시의 날씨를 성공적으로 반환한다.
+        run: |
+          uv run python - <<'PY'
+          from gbsafe_core.models import GeoPoint
+          from gbsafe_core.regions import to_kma_grid
+          expected = {
+              "Seoul": ((37.5665, 126.9780), (60, 127)),
+              "Busan": ((35.1796, 129.0756), (98, 76)),
+              "Jeju": ((33.4996, 126.5312), (53, 38)),
+              "Mungyeong": ((36.5866, 128.1867), (81, 106)),
+          }
+          for name, ((lat, lon), cell) in expected.items():
+              grid = to_kma_grid(GeoPoint(lat=lat, lon=lon))
+              assert (grid.nx, grid.ny) == cell, f"{name}: {(grid.nx, grid.ny)} != {cell}"
+          print("grid conversion matches all reference cells")
+          PY
+
+      - name: Generated docs are current
+        # docs/api.md 와 docs/mcp.md 는 코드에서 생성된다. 손으로 고치면 어긋난다.
+        run: uv run python scripts/check_generated_docs.py
+
+      - name: README badges match reality
+        # 테스트 수·도구 수를 README에 적어두면 낡는다. CI가 실제 값과 비교한다.
+        run: uv run python scripts/check_readme_badges.py
+
+  install:
+    name: clean install
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sync from the lockfile
+        run: uv sync --all-packages --frozen
+
+      - name: CLI reports source status without credentials
+        # 키가 없는 상태가 정상 동작이어야 한다. 크래시하면 실패다.
+        run: uv run gbsafe doctor
+
+      - name: MCP server answers a real client
+        run: |
+          uv run python - <<'PY'
+          import asyncio, json
+          from mcp import ClientSession, StdioServerParameters
+          from mcp.client.stdio import stdio_client
+
+          async def main() -> None:
+              params = StdioServerParameters(command="uv", args=["run", "gbsafe-mcp"])
+              async with stdio_client(params) as (read, write):
+                  async with ClientSession(read, write) as session:
+                      info = await session.initialize()
+                      tools = await session.list_tools()
+                      result = await session.call_tool(
+                          "gbsafe_resolve_region", {"region": "문경시"}
+                      )
+                      payload = json.loads(result.content[0].text)
+                      assert payload["kma_grid"] == {"nx": 81, "ny": 106}, payload
+                      print(f"{info.server_info.name}: {len(tools.tools)} tools, call verified")
+
+          asyncio.run(main())
+          PY
+
+      - name: API serves health
+        run: |
+          uv run python - <<'PY'
+          from fastapi.testclient import TestClient
+          from gbsafe_api.app import create_app
+          payload = TestClient(create_app()).get("/v1/health").json()
+          assert payload["summary"]["connectors"] >= 10, payload
+          print(f"health: {payload['summary']['connectors']} connectors reported")
+          PY
