@@ -179,6 +179,8 @@ class _MemoryCache:
     def __init__(self) -> None:
         self._entries: dict[str, _CacheEntry] = {}
         self._inflight: dict[str, asyncio.Future[RawResponse]] = {}
+        #: 키별로 결과를 기다리는 호출자 수. 0이면 리더뿐이라 예외를 심지 않는다.
+        self._waiters: dict[str, int] = {}
         self._lock = asyncio.Lock()
 
     async def get(self, key: str) -> RawResponse | None:
@@ -206,21 +208,33 @@ class _MemoryCache:
         async with self._lock:
             existing = self._inflight.get(key)
             if existing is not None:
+                self._waiters[key] = self._waiters.get(key, 0) + 1
                 return existing, False
             future: asyncio.Future[RawResponse] = asyncio.get_running_loop().create_future()
             self._inflight[key] = future
+            self._waiters[key] = 0
             return future, True
 
     async def settle(
         self, key: str, response: RawResponse | None, error: BaseException | None
     ) -> None:
-        """진행 중인 호출을 완료 처리하고 대기자를 깨운다."""
+        """진행 중인 호출을 완료 처리하고 대기자를 깨운다.
+
+        대기자가 없을 때 예외를 future에 심으면 아무도 회수하지 않아 asyncio가
+        "Future exception was never retrieved" 경고와 함께 스택 트레이스를
+        stderr로 출력한다. 리더는 어차피 예외를 직접 처리하므로, 대기자가 없으면
+        future를 조용히 버린다.
+        """
         async with self._lock:
             future = self._inflight.pop(key, None)
+            waiters = self._waiters.pop(key, 0)
         if future is None or future.done():
             return
         if error is not None:
-            future.set_exception(error)
+            if waiters:
+                future.set_exception(error)
+            else:
+                future.cancel()
         elif response is not None:
             future.set_result(response)
 
@@ -228,6 +242,7 @@ class _MemoryCache:
         async with self._lock:
             self._entries.clear()
             self._inflight.clear()
+            self._waiters.clear()
 
 
 _CACHE = _MemoryCache()

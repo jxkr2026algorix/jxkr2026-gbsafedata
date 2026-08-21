@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 
 import pytest
@@ -766,3 +767,88 @@ class TestMalformedInputNeverConfirmsAbsence:
             make_response(KMA_NOWCAST_BODY), location="문경시"
         )
         assert outcome.outcome is SourceOutcome.RECORDS
+
+
+class TestOfflineSnapshotFailures:
+    """스냅샷 부재·손상이 '해당 없음'으로 보이면 안 된다."""
+
+    async def test_missing_snapshot_is_failure(self, tmp_path) -> None:
+        from gbsafe_core.config import Settings
+        from pydantic_settings import SettingsConfigDict
+
+        class Offline(Settings):
+            model_config = SettingsConfigDict(
+                env_prefix="GBSAFE_", env_file=None, extra="ignore", frozen=True
+            )
+
+        settings = Offline(
+            data_go_kr_service_key="k",
+            store_dir=tmp_path / "store",
+            offline=True,
+        )
+        from gbsafe_connectors.base import clear_cache
+
+        await clear_cache()
+        outcome = await WeatherWarningConnector(settings=settings).fetch()
+        assert outcome.outcome is SourceOutcome.FAILED
+        assert not outcome.ok
+        assert "스냅샷이 없습니다" in outcome.degradations[0].detail
+        await clear_cache()
+
+    async def test_corrupted_snapshot_is_failure(self, tmp_path) -> None:
+        """손상된 스냅샷이 '마지막 정상자료'로 제시되면 잘못된 판단 근거가 된다."""
+        from gbsafe_core.config import Settings
+        from gbsafe_core.snapshot import SnapshotStore
+        from pydantic_settings import SettingsConfigDict
+
+        class Offline(Settings):
+            model_config = SettingsConfigDict(
+                env_prefix="GBSAFE_", env_file=None, extra="ignore", frozen=True
+            )
+
+        settings = Offline(
+            data_go_kr_service_key="k",
+            store_dir=tmp_path / "store",
+            offline=True,
+        )
+        store = SnapshotStore.from_settings(settings)
+        ref = store.put(
+            dataset_id="15000415",
+            body=json.dumps(KMA_WARNING_BODY, ensure_ascii=False).encode(),
+        )
+        ref.path.write_bytes(b'{"truncated')
+
+        from gbsafe_connectors.base import clear_cache
+
+        await clear_cache()
+        outcome = await WeatherWarningConnector(settings=settings, store=store).fetch()
+        assert outcome.outcome is SourceOutcome.FAILED
+        assert "읽을 수 없습니다" in outcome.degradations[0].detail
+        await clear_cache()
+
+    async def test_concurrent_offline_misses_all_report_failure(self, tmp_path) -> None:
+        """대기자 없는 실패에서 asyncio 경고가 stderr로 새지 않아야 한다."""
+        import asyncio
+
+        from gbsafe_core.config import Settings
+        from pydantic_settings import SettingsConfigDict
+
+        class Offline(Settings):
+            model_config = SettingsConfigDict(
+                env_prefix="GBSAFE_", env_file=None, extra="ignore", frozen=True
+            )
+
+        settings = Offline(
+            data_go_kr_service_key="k",
+            store_dir=tmp_path / "store",
+            offline=True,
+        )
+        from gbsafe_connectors.base import clear_cache
+
+        await clear_cache()
+        outcomes = await asyncio.gather(
+            *[WeatherWarningConnector(settings=settings).fetch() for _ in range(6)]
+        )
+        assert all(item.outcome is SourceOutcome.FAILED for item in outcomes)
+        assert all(item.degradations for item in outcomes)
+        await clear_cache()
