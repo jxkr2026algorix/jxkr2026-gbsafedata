@@ -272,9 +272,24 @@ MUTATIONS: tuple[Mutation, ...] = (
     Mutation(
         "cancelled-alert-active",
         CORE / "domain.py",
-        "        return self.action in (AlertAction.ISSUED, AlertAction.EXTENDED)",
+        """        return self.action in (
+            AlertAction.ISSUED,
+            AlertAction.EXTENDED,
+            AlertAction.CURRENT_STATE,
+        )""",
         "        return True",
         "해제된 특보를 발효 중으로 보고한다",
+    ),
+    Mutation(
+        "current-state-treated-as-inactive",
+        CORE / "domain.py",
+        """        return self.action in (
+            AlertAction.ISSUED,
+            AlertAction.EXTENDED,
+            AlertAction.CURRENT_STATE,
+        )""",
+        "        return self.action in (AlertAction.ISSUED, AlertAction.EXTENDED)",
+        "산사태 예보단계처럼 현재 상태를 주는 원천의 경보를 조용히 묻는다",
     ),
     Mutation(
         "unverified-occupancy-trusted",
@@ -364,8 +379,8 @@ MUTATIONS: tuple[Mutation, ...] = (
     Mutation(
         "transferred-region-hidden",
         CORE / "regions.py",
-        "    direct = TRANSFERRED_OUT.get(text)\n    if direct is not None:\n        return direct",
-        "    direct = None\n    if direct is not None:\n        return direct",
+        "    return TRANSFERRED_OUT.get(normalized)",
+        "    return None",
         "대구로 편입된 군위군을 여전히 경북으로 답한다",
     ),
     # ── 스냅샷 ───────────────────────────────────────────────────

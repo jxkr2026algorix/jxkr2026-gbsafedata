@@ -538,3 +538,39 @@ class TestCitationCommand:
 
     def test_tool_count_includes_cite(self) -> None:
         assert len(TOOLS) == 11
+
+
+class TestSearchDisclosesPendingReview:
+    """라이선스가 허용해도 심의 대기 중이면 지금 호출할 수 없다."""
+
+    def test_pending_review_datasets_are_counted(self, service: SafeDataService) -> None:
+        result = service.search_datasets("산사태", limit=20)
+        assert result["callable_now"] <= result["count"]
+        blocked = result["count"] - result["callable_now"]
+        if blocked:
+            assert result["notes"], "심의 대기가 있는데 알리지 않습니다"
+            joined = " ".join(result["notes"])
+            assert "심의" in joined
+
+    def test_notes_name_the_blocked_datasets(self, service: SafeDataService) -> None:
+        """어느 데이터셋이 막혔는지 알려주지 않으면 사용자가 찾아야 한다."""
+        result = service.search_datasets("산사태", limit=20)
+        blocked = [
+            entry
+            for entry in service.registry.catalog.search("산사태", limit=20)
+            if not entry.dev_ready
+        ]
+        if blocked:
+            joined = " ".join(result["notes"])
+            assert blocked[0].dataset_id in joined
+
+    def test_ready_filter_excludes_them(self, service: SafeDataService) -> None:
+        result = service.search_datasets("산사태", dev_ready_only=True, limit=20)
+        assert result["callable_now"] == result["count"]
+
+    def test_api_exposes_callable_now(self, client: TestClient) -> None:
+        payload = client.get(
+            "/v1/datasets", params={"q": "산사태", "limit": 20}
+        ).json()
+        assert "callable_now" in payload
+        assert payload["callable_now"] <= payload["count"]

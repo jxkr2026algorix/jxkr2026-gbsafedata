@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import pytest
 from gbsafe_connectors.base import _classify
@@ -21,6 +21,7 @@ from gbsafe_connectors.filedata import (
 )
 from gbsafe_connectors.forest import WildfireRiskConnector, _fire_severity
 from gbsafe_connectors.kma import (
+    ShortTermForecastConnector,
     UltraShortNowcastConnector,
     WeatherWarningConnector,
     _latest_forecast_base,
@@ -1038,3 +1039,191 @@ class TestWarningStateReconstruction:
         )
         assert len(outcome.records) == 2
         assert any(not item.payload.is_active for item in outcome.records)
+
+
+class TestTransportFailuresNeverBecomeData:
+    """전송 계층 실패가 데이터로 바뀌면 조회 실패가 '해당 없음'이 된다."""
+
+    async def test_degraded_response_is_not_parsed(
+        self, settings: Settings, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """한도 초과 응답을 파싱하면 빈 목록이 나와 '자료 없음'으로 보고된다.
+
+        파싱 전에 실패로 확정해야 한다.
+        """
+        from gbsafe_connectors.base import clear_cache
+
+        await clear_cache()
+        parsed = {"called": False}
+
+        async def quota_exceeded(self, url, params):
+            return make_response(
+                "LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS_ERROR",
+                status=UpstreamStatus.DEGRADED,
+                content_type="text/plain",
+            )
+
+        original_parse = WeatherWarningConnector.parse
+
+        def tracking_parse(self, response, **kwargs):
+            parsed["called"] = True
+            return original_parse(self, response, **kwargs)
+
+        monkeypatch.setattr(WeatherWarningConnector, "_send", quota_exceeded)
+        monkeypatch.setattr(WeatherWarningConnector, "parse", tracking_parse)
+
+        outcome = await WeatherWarningConnector(settings=settings).fetch()
+        assert not parsed["called"], "오류 응답을 파싱했습니다"
+        assert outcome.outcome is SourceOutcome.FAILED
+        assert outcome.degradations[0].status is UpstreamStatus.DEGRADED
+        await clear_cache()
+
+    async def test_error_body_is_not_stored_as_snapshot(
+        self, settings: Settings, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """오류 본문이 스냅샷에 남으면 나중에 '마지막 정상자료'로 제시된다."""
+        from gbsafe_connectors.base import clear_cache
+        from gbsafe_core.snapshot import SnapshotStore
+
+        await clear_cache()
+        store = SnapshotStore.from_settings(settings)
+
+        async def degraded(self, url, params):
+            return make_response(
+                '{"response":{"header":{"resultCode":"99","resultMsg":"ERR"}}}',
+                status=UpstreamStatus.DEGRADED,
+            )
+
+        monkeypatch.setattr(WeatherWarningConnector, "_send", degraded)
+        await WeatherWarningConnector(settings=settings, store=store).fetch()
+
+        assert not store.history("15000415"), "오류 응답이 스냅샷으로 저장됐습니다"
+        assert store.latest("15000415") is None
+        await clear_cache()
+
+    async def test_cached_marker_preserves_failure_status(
+        self, settings: Settings, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """캐시 표시가 403을 덮으면 권한 거부가 '조회 정상'이 된다.
+
+        동시 요청 8건 중 리더 하나만 실패하고 나머지가 성공으로 보이는 상황을
+        재현한다.
+        """
+        import asyncio
+
+        from gbsafe_connectors.base import clear_cache
+
+        await clear_cache()
+
+        async def denied(self, url, params):
+            await asyncio.sleep(0.01)
+            return make_response(
+                b"", status=UpstreamStatus.NOT_AUTHORIZED, content_type="text/plain"
+            )
+
+        monkeypatch.setattr(WeatherWarningConnector, "_send", denied)
+        outcomes = await asyncio.gather(
+            *[WeatherWarningConnector(settings=settings).fetch() for _ in range(8)]
+        )
+
+        assert all(item.outcome is SourceOutcome.FAILED for item in outcomes)
+        assert all(
+            item.degradations[0].status is UpstreamStatus.NOT_AUTHORIZED
+            for item in outcomes
+        )
+        assert not any(
+            "없습니다" in caveat for item in outcomes for caveat in item.caveats
+        )
+        await clear_cache()
+
+    async def test_successful_response_is_stored(
+        self, settings: Settings, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """정상 응답은 보존돼야 한다 — 위 검사가 과하게 막지 않는지 확인한다."""
+        from gbsafe_connectors.base import clear_cache
+        from gbsafe_core.snapshot import SnapshotStore
+
+        await clear_cache()
+        store = SnapshotStore.from_settings(settings)
+
+        async def ok(self, url, params):
+            return make_response(KMA_WARNING_BODY)
+
+        monkeypatch.setattr(WeatherWarningConnector, "_send", ok)
+        outcome = await WeatherWarningConnector(settings=settings, store=store).fetch()
+
+        assert outcome.records
+        assert store.history("15000415"), "정상 응답이 저장되지 않았습니다"
+        await clear_cache()
+
+
+class TestForecastIsNotObservation:
+    """예보를 관측으로 제시하면 대응 시점 판단이 틀어진다."""
+
+    FORECAST_BODY: ClassVar[dict[str, Any]] = {
+        "response": {
+            "header": {"resultCode": "00"},
+            "body": {
+                "items": {
+                    "item": [
+                        {
+                            "baseDate": "20260822",
+                            "baseTime": "0200",
+                            "fcstDate": "20260822",
+                            "fcstTime": "1400",
+                            "category": "TMP",
+                            "fcstValue": "28",
+                        },
+                        {
+                            "baseDate": "20260822",
+                            "baseTime": "0200",
+                            "fcstDate": "20260822",
+                            "fcstTime": "1500",
+                            "category": "PCP",
+                            "fcstValue": "5mm",
+                        },
+                    ]
+                }
+            },
+        }
+    }
+
+    def test_every_forecast_record_is_flagged(self, settings: Settings) -> None:
+        outcome = ShortTermForecastConnector(settings=settings).parse(
+            make_response(self.FORECAST_BODY), location="문경시"
+        )
+        assert outcome.records
+        assert all(record.payload.is_forecast for record in outcome.records)
+
+    def test_nowcast_is_not_flagged_as_forecast(self, settings: Settings) -> None:
+        outcome = UltraShortNowcastConnector(settings=settings).parse(
+            make_response(KMA_NOWCAST_BODY), location="문경시"
+        )
+        assert all(not record.payload.is_forecast for record in outcome.records)
+
+    def test_target_time_is_the_forecast_time(self, settings: Settings) -> None:
+        """예보 대상시각은 발표시각이 아니다."""
+        outcome = ShortTermForecastConnector(settings=settings).parse(
+            make_response(self.FORECAST_BODY), location="문경시"
+        )
+        temperature = next(
+            record for record in outcome.records if record.payload.kind == "temperature"
+        )
+        assert temperature.payload.target_time.hour == 14
+        # 신선도는 발표시각(02시) 기준이어야 한다 — 미래 대상시각이 아니다
+        assert temperature.provenance.published_at is not None
+        assert temperature.provenance.published_at.hour == 2
+
+    def test_forecast_values_are_parsed(self, settings: Settings) -> None:
+        outcome = ShortTermForecastConnector(settings=settings).parse(
+            make_response(self.FORECAST_BODY), location="문경시"
+        )
+        values = {record.payload.kind: record.payload.value for record in outcome.records}
+        assert values["temperature"] == 28.0
+        assert values["rainfall_1h"] == 5.0
+
+    def test_caveat_states_it_is_a_forecast(self, settings: Settings) -> None:
+        outcome = ShortTermForecastConnector(settings=settings).parse(
+            make_response(self.FORECAST_BODY), location="문경시"
+        )
+        assert any("예보값" in caveat for caveat in outcome.caveats)
