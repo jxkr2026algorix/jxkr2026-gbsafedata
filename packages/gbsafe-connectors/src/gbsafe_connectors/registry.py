@@ -222,6 +222,18 @@ class Registry:
             connector = self.create(spec.name)
             entry = connector.entry
             history = self._store.history(spec.dataset_id)
+
+            # 키가 있어도 개발단계 심의 대기 중이면 실제 호출은 403이 된다.
+            # 키 보유만 보고 '사용 가능'으로 보고하면 진단이 거짓이 된다.
+            pending_review = bool(entry and not entry.dev_ready)
+            reason = connector.unavailable_reason()
+            if reason is None and pending_review:
+                reason = (
+                    "개발단계 심의승인 대상 — 활용신청이 승인되기 전까지 호출이 거부됩니다"
+                )
+            if reason is None and spec.requires_local_file:
+                reason = "포털에서 CSV를 내려받아 전달해야 합니다 (자동 다운로드가 세션에 의존)"
+
             report.append(
                 ConnectorHealth(
                     name=spec.name,
@@ -229,13 +241,12 @@ class Registry:
                     dataset_name=connector.dataset_name,
                     provider=connector.provider,
                     summary=spec.summary,
-                    available=connector.available and not spec.requires_local_file,
-                    reason=connector.unavailable_reason()
-                    or (
-                        "포털에서 CSV를 내려받아 전달해야 합니다 (자동 다운로드가 세션에 의존)"
-                        if spec.requires_local_file
-                        else None
+                    available=(
+                        connector.available
+                        and not spec.requires_local_file
+                        and not pending_review
                     ),
+                    reason=reason,
                     requires_local_file=spec.requires_local_file,
                     license=entry.license.value if entry else "unknown",
                     dev_review_required=bool(entry and not entry.dev_ready),
@@ -262,8 +273,13 @@ class Registry:
             "connectors": len(health),
             "available": sum(1 for item in health if item.available),
             "blocked_by_credentials": sum(
-                1 for item in health if not item.available and not item.requires_local_file
+                1
+                for item in health
+                if not item.available
+                and not item.requires_local_file
+                and not item.dev_review_required
             ),
+            "pending_review": sum(1 for item in health if item.dev_review_required),
             "requires_local_file": sum(1 for item in health if item.requires_local_file),
             "catalog": self._catalog.summary(),
             "offline_mode": self._settings.offline,
