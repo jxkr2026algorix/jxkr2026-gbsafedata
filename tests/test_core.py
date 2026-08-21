@@ -7,6 +7,7 @@ happy path보다 fail path에 무게를 둔다. 이 시스템에서 위험한 �
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 from gbsafe_core.domain import (
@@ -639,6 +640,45 @@ class TestSnapshotStore:
         """경로 조작을 시도하는 dataset_id가 디렉터리를 벗어나면 안 된다."""
         ref = store.put(dataset_id="../../etc/passwd", body=b"x")
         assert store.root in ref.path.parents
+
+
+class TestCatalogConfiguration:
+    """명시적 설정이 조용히 무시되면 사용자는 다른 데이터를 보게 된다."""
+
+    def test_explicit_missing_dir_raises(self, tmp_path: Path) -> None:
+        from gbsafe_core.catalog import Catalog, CatalogUnavailable
+
+        with pytest.raises(CatalogUnavailable, match="읽을 수 없습니다"):
+            Catalog.load(tmp_path / "does-not-exist")
+
+    def test_explicit_empty_dir_raises(self, tmp_path: Path) -> None:
+        from gbsafe_core.catalog import Catalog, CatalogUnavailable
+
+        with pytest.raises(CatalogUnavailable):
+            Catalog.load(tmp_path)
+
+    def test_explicit_corrupt_json_raises(self, tmp_path: Path) -> None:
+        from gbsafe_core.catalog import Catalog, CatalogUnavailable
+
+        (tmp_path / "datago-datasets.json").write_text("{ not json", encoding="utf-8")
+        with pytest.raises(CatalogUnavailable):
+            Catalog.load(tmp_path)
+
+    def test_env_var_misconfiguration_raises(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from gbsafe_core.catalog import CATALOG_ENV_VAR, Catalog, CatalogUnavailable
+
+        monkeypatch.setenv(CATALOG_ENV_VAR, str(tmp_path / "nope"))
+        with pytest.raises(CatalogUnavailable):
+            Catalog.load()
+
+    def test_auto_discovery_still_works(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from gbsafe_core.catalog import CATALOG_ENV_VAR, Catalog
+
+        monkeypatch.delenv(CATALOG_ENV_VAR, raising=False)
+        catalog = Catalog.load()
+        assert len(catalog) > 0
 
 
 class TestQualityFlags:

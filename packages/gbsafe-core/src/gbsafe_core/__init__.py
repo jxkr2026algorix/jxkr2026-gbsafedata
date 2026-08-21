@@ -15,7 +15,14 @@
 
 from __future__ import annotations
 
-from .catalog import AccessRoute, Catalog, DatasetEntry, ReviewType, get_catalog
+from .catalog import (
+    AccessRoute,
+    Catalog,
+    CatalogUnavailable,
+    DatasetEntry,
+    ReviewType,
+    get_catalog,
+)
 from .config import CredentialName, Settings, get_settings
 from .domain import (
     AlertAction,
@@ -73,6 +80,7 @@ __all__ = [
     "Answer",
     "BBox",
     "Catalog",
+    "CatalogUnavailable",
     "Citation",
     "CredentialName",
     "DataMode",

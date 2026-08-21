@@ -289,17 +289,21 @@ def _build_entry(row: dict[str, Any], *, verified: bool) -> DatasetEntry:
 
 
 def _candidate_dirs() -> list[tuple[CatalogOrigin, Path]]:
+    """환경변수가 없을 때 탐색할 경로. 환경변수는 `load()`가 직접 다룬다."""
     candidates: list[tuple[CatalogOrigin, Path]] = []
-    env_value = os.environ.get(CATALOG_ENV_VAR)
-    if env_value:
-        candidates.append((CatalogOrigin.ENV, Path(env_value).expanduser()))
-
     # 이 파일 기준으로도, 현재 작업 디렉터리 기준으로도 찾는다.
     package_root = Path(__file__).resolve().parents[4]
     sibling = package_root.parent / "jxkr2026-datasets" / "catalog"
     candidates.append((CatalogOrigin.SIBLING_REPO, sibling))
     candidates.append((CatalogOrigin.SIBLING_REPO, Path.cwd() / SIBLING_CATALOG))
     return candidates
+
+
+class CatalogUnavailable(RuntimeError):
+    """지정된 카탈로그를 읽을 수 없을 때.
+
+    명시적 설정이 조용히 무시되면 사용자가 잘못된 데이터를 근거로 판단한다.
+    """
 
 
 class Catalog:
@@ -317,25 +321,50 @@ class Catalog:
 
     @classmethod
     def load(cls, directory: Path | None = None) -> Self:
-        """카탈로그를 읽는다. 실패하지 않는다 — 최후에는 폴백을 쓴다."""
-        if directory is not None:
-            entries, overrides = _read_directory(directory)
-            if entries:
-                origin = CatalogOrigin.ENV
-                return cls(
-                    entries,
-                    CatalogSource(origin, directory, datetime.now(UTC), len(entries), overrides),
-                )
+        """카탈로그를 읽는다.
 
-        for origin, path in _candidate_dirs():
+        명시적으로 지정된 경로(인자 또는 `GBSAFE_CATALOG_DIR`)를 읽지 못하면
+        **예외를 던진다.** 조용히 다른 카탈로그로 넘어가면 사용자는 자기가 지정한
+        데이터를 보고 있다고 믿으면서 다른 데이터를 보게 된다.
+
+        지정이 없을 때만 나란한 저장소 → 동봉 폴백 순으로 찾는다.
+        """
+        explicit = directory
+        origin = CatalogOrigin.ENV
+        if explicit is None:
+            env_value = os.environ.get(CATALOG_ENV_VAR)
+            if env_value:
+                explicit = Path(env_value).expanduser()
+
+        if explicit is not None:
+            entries, overrides = _read_directory(explicit)
+            if not entries:
+                raise CatalogUnavailable(
+                    f"지정된 카탈로그 경로를 읽을 수 없습니다: {explicit}\n"
+                    f"'{explicit / 'datago-datasets.json'}'이 존재하고 올바른 JSON 배열인지 "
+                    f"확인하세요. 자동 탐색을 쓰려면 {CATALOG_ENV_VAR}를 비우세요."
+                )
+            return cls(
+                entries,
+                CatalogSource(origin, explicit, datetime.now(UTC), len(entries), overrides),
+            )
+
+        for candidate_origin, path in _candidate_dirs():
             entries, overrides = _read_directory(path)
             if entries:
                 return cls(
                     entries,
-                    CatalogSource(origin, path, datetime.now(UTC), len(entries), overrides),
+                    CatalogSource(
+                        candidate_origin, path, datetime.now(UTC), len(entries), overrides
+                    ),
                 )
 
         entries = _read_fallback()
+        if not entries:
+            raise CatalogUnavailable(
+                "카탈로그를 찾을 수 없습니다. jxkr2026-datasets 저장소를 나란히 두거나 "
+                f"{CATALOG_ENV_VAR}로 경로를 지정하세요."
+            )
         return cls(
             entries,
             CatalogSource(

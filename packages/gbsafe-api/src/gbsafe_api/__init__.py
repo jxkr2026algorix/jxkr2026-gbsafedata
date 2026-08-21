@@ -5,16 +5,22 @@
 
 from __future__ import annotations
 
-from .app import app, create_app
+from .app import create_app
 from .envelope import ApiEnvelope, envelope
 from .service import HAZARD_PLAYBOOK, SafeDataService, VerificationResult
 
-__all__ = [
+
+def __getattr__(name: str) -> object:
+    """`app`을 접근 시점에 만든다. 설정 오류가 import를 깨뜨리지 않게 한다."""
+    if name == "app":
+        return create_app()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+__all__ = [  # `app`은 __getattr__로 지연 생성된다
     "HAZARD_PLAYBOOK",
     "ApiEnvelope",
     "SafeDataService",
     "VerificationResult",
-    "app",
     "create_app",
     "envelope",
 ]

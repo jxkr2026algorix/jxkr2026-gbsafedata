@@ -16,6 +16,7 @@ from typing import Annotated, Any
 import typer
 from gbsafe_api.envelope import envelope
 from gbsafe_api.service import SafeDataService
+from gbsafe_core.catalog import CatalogUnavailable
 from gbsafe_core.config import CREDENTIAL_SOURCES, CredentialName, get_settings
 from gbsafe_mcp import run_stdio
 from rich.console import Console
@@ -54,7 +55,22 @@ class OperationChoice(StrEnum):
     REDISTRIBUTE = "redistribute"
     COMMERCIAL = "commercial"
 console = Console()
-_service = SafeDataService()
+
+#: 서비스는 첫 사용 시 만든다. import 시점에 만들면 설정 오류가 명령 처리
+#: 바깥에서 터져 사용자에게 스택 트레이스로 보인다.
+_cached_service: SafeDataService | None = None
+
+
+def _get_service() -> SafeDataService:
+    """서비스를 가져온다. 설정 오류는 읽을 수 있는 메시지로 바꾼다."""
+    global _cached_service
+    if _cached_service is None:
+        try:
+            _cached_service = SafeDataService()
+        except CatalogUnavailable as error:
+            console.print(f"[red]카탈로그를 읽을 수 없습니다.[/red]\n{error}")
+            raise typer.Exit(2) from error
+    return _cached_service
 
 #: CSV 정규화를 지원하는 커넥터. 나머지는 API 조회 대상이다.
 _CSV_SOURCES = frozenset({"shelters", "landslide_zones"})
@@ -76,7 +92,7 @@ def doctor(
 
     각 데이터 원천이 지금 쓸 수 있는지, 못 쓰면 왜인지 보여준다.
     """
-    health = _service.data_health()
+    health = _get_service().data_health()
     if as_json:
         _print_json(health)
         return
@@ -146,7 +162,7 @@ def search(
     as_json: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """공공데이터셋을 검색한다."""
-    result = _service.search_datasets(
+    result = _get_service().search_datasets(
         query,
         hazard=hazard,
         dev_ready_only=ready,
@@ -188,7 +204,7 @@ def describe(
     ] = False,
 ) -> None:
     """데이터셋 상세 정보를 본다. 출력은 항상 JSON이다."""
-    result = _service.describe_dataset(dataset_id)
+    result = _get_service().describe_dataset(dataset_id)
     _print_json(result)
     raise typer.Exit(0 if result.get("found") else 1)
 
@@ -202,7 +218,7 @@ def verify(
     as_json: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """이 데이터셋을 이 용도로 써도 되는지 판정한다."""
-    result = _service.verify_dataset(dataset_id, operation.value)
+    result = _get_service().verify_dataset(dataset_id, operation.value)
     if as_json:
         _print_json(result.to_dict())
         raise typer.Exit(0 if result.allowed else 1)
@@ -231,7 +247,7 @@ def region(
     ] = False,
 ) -> None:
     """지역명을 코드·좌표·기상격자로 변환한다. 출력은 항상 JSON이다."""
-    result = _service.resolve_region(query)
+    result = _get_service().resolve_region(query)
     _print_json(result)
     raise typer.Exit(0 if result.get("found") else 1)
 
@@ -245,7 +261,7 @@ def hazard(
     as_json: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """특정 지역의 현재 위험 상황을 조회한다."""
-    answer = asyncio.run(_service.hazard_context(region_name, hazard=kind.value))
+    answer = asyncio.run(_get_service().hazard_context(region_name, hazard=kind.value))
     body = envelope(answer, {"region": region_name, "hazard": kind})
     if as_json:
         _print_json(body.model_dump(mode="json"))
@@ -277,7 +293,7 @@ def hazard(
 @app.command()
 def quality(as_json: Annotated[bool, typer.Option("--json")] = False) -> None:
     """검증으로 확인된 데이터 품질 결함을 본다."""
-    result = _service.quality_report()
+    result = _get_service().quality_report()
     if as_json:
         _print_json(result)
         return
@@ -309,7 +325,7 @@ def sources(as_json: Annotated[bool, typer.Option("--json")] = False) -> None:
                     "hazards": [hazard.value for hazard in spec.hazards],
                     "requires_local_file": spec.requires_local_file,
                 }
-                for spec in _service.registry.all_specs()
+                for spec in _get_service().registry.all_specs()
             ]
         )
         return
@@ -317,7 +333,7 @@ def sources(as_json: Annotated[bool, typer.Option("--json")] = False) -> None:
     table.add_column("이름", style="cyan")
     table.add_column("데이터셋", width=10)
     table.add_column("설명", overflow="fold")
-    for spec in _service.registry.all_specs():
+    for spec in _get_service().registry.all_specs():
         table.add_row(spec.name, spec.dataset_id, spec.summary)
     console.print(table)
 
@@ -337,14 +353,14 @@ def fetch(
             kwargs["sigungu"] = region_name
         else:
             kwargs["region"] = region_name
-    known = _service.registry.names()
+    known = _get_service().registry.names()
     if source not in known:
         console.print(f"[red]'{source}' 원천이 없습니다.[/red] 사용 가능:")
         for name in known:
             console.print(f"  · {name}")
         raise typer.Exit(2)
 
-    answer = asyncio.run(_service.fetch_connector(source, **kwargs))
+    answer = asyncio.run(_get_service().fetch_connector(source, **kwargs))
     body = envelope(answer, {"source": source, **kwargs})
     _print_json(body.model_dump(mode="json"))
     raise typer.Exit(0 if body.complete else 1)
@@ -376,7 +392,7 @@ def normalize_csv(
         )
         raise typer.Exit(2)
 
-    answer = _service.normalize_csv(source, path, **kwargs)
+    answer = _get_service().normalize_csv(source, path, **kwargs)
     body = envelope(answer, {"source": source, "file": str(path)})
     _print_json(body.model_dump(mode="json"))
     if not body.records:

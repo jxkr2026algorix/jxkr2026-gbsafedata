@@ -299,6 +299,16 @@ def create_app(service: SafeDataService | None = None) -> FastAPI:
     return app
 
 
-app = create_app()
+def __getattr__(name: str) -> object:
+    """`app`을 import 시점이 아니라 접근 시점에 만든다.
 
-__all__ = ["app", "create_app"]
+    모듈 수준에서 `create_app()`을 호출하면 카탈로그 설정 오류가 이 모듈을
+    import하는 모든 코드(CLI 포함)에서 터진다. uvicorn의 `gbsafe_api.app:app`
+    참조는 그대로 동작한다.
+    """
+    if name == "app":
+        return create_app()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+__all__ = ["create_app"]  # `app`은 __getattr__로 지연 생성된다
