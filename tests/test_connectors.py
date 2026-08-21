@@ -25,12 +25,16 @@ from gbsafe_connectors.kma import (
     _latest_nowcast_base,
     _parse_measure,
 )
-from gbsafe_connectors.medical import EmergencyBedsConnector, _parse_airkorea_time
+from gbsafe_connectors.medical import (
+    AirQualityConnector,
+    EmergencyBedsConnector,
+    _parse_airkorea_time,
+)
 from gbsafe_connectors.registry import Registry
 from gbsafe_connectors.stations import describe_station, serves_gyeongbuk
 from gbsafe_core.config import Settings
 from gbsafe_core.domain import AlertAction, Severity
-from gbsafe_core.models import QualityFlag, UpstreamStatus
+from gbsafe_core.models import QualityFlag, SourceOutcome, UpstreamStatus
 from gbsafe_core.regions import HazardDomain
 
 from tests.conftest import (
@@ -695,3 +699,70 @@ class TestRegionParameterMapping:
     def test_none_region_yields_nothing(self, settings: Settings) -> None:
         connector = UltraShortNowcastConnector(settings=settings)
         assert type(connector).region_kwargs(None) == {}
+
+
+class TestMalformedInputNeverConfirmsAbsence:
+    """구조를 알아보지 못한 응답이 '해당 없음'으로 보고되면 위험이 은폐된다.
+
+    이 검사를 처음 돌렸을 때 35건이 CONFIRMED_EMPTY로 새어나갔다. 파서가 알려진
+    구조를 확인하지 않고 빈 목록을 돌려주면, 그 빈 목록이 '위험 없음'이 된다.
+    """
+
+    MALFORMED: tuple[tuple[str, object], ...] = (
+        ("empty object", {}),
+        ("null", None),
+        ("array", []),
+        ("empty response node", {"response": {}}),
+        ("success with string body", {"response": {"header": {"resultCode": "00"}, "body": "x"}}),
+        (
+            "success with numeric items",
+            {"response": {"header": {"resultCode": "00"}, "body": {"items": 42}}},
+        ),
+        (
+            "success with bool items",
+            {"response": {"header": {"resultCode": "00"}, "body": {"items": True}}},
+        ),
+        ("success without items key", {"response": {"header": {"resultCode": "00"}, "body": {}}}),
+        ("error result code", {"response": {"header": {"resultCode": "99"}}}),
+        ("html error page", "<html><body>500</body></html>"),
+        ("truncated json", '{"response": {"header"'),
+        ("plausible wrong fields", {"result": {"data": [{"x": 1}]}}),
+        ("whitespace", "   "),
+        ("empty body", b""),
+    )
+
+    def _connectors(self, settings: Settings) -> tuple[tuple[str, object, dict[str, object]], ...]:
+        return (
+            ("weather_now", UltraShortNowcastConnector(settings=settings), {"location": "문경시"}),
+            ("weather_warning", WeatherWarningConnector(settings=settings), {}),
+            ("wildfire_risk", WildfireRiskConnector(settings=settings), {}),
+            ("emergency_beds", EmergencyBedsConnector(settings=settings), {}),
+            ("air_quality", AirQualityConnector(settings=settings), {}),
+            ("shelters", ShelterCsvConnector(settings=settings), {}),
+        )
+
+    def test_no_parser_claims_absence_on_malformed_input(self, settings: Settings) -> None:
+        leaks: list[str] = []
+        for label, body in self.MALFORMED:
+            for name, connector, kwargs in self._connectors(settings):
+                try:
+                    outcome = connector.parse(make_response(body), **kwargs)
+                except Exception:  # 예외는 FAILED로 처리되므로 정상
+                    continue
+                if outcome.outcome is SourceOutcome.CONFIRMED_EMPTY:
+                    leaks.append(f"{name} <- {label}")
+        assert not leaks, f"구조 미확인 응답을 '해당 없음'으로 보고: {leaks}"
+
+    def test_documented_no_data_still_confirms(self, settings: Settings) -> None:
+        """원천이 명시한 '자료 없음'은 여전히 확인된 부재여야 한다."""
+        body = {"response": {"header": {"resultCode": "00"}, "body": {"items": ""}}}
+        outcome = UltraShortNowcastConnector(settings=settings).parse(
+            make_response(body), location="문경시"
+        )
+        assert outcome.outcome is SourceOutcome.CONFIRMED_EMPTY
+
+    def test_valid_data_still_parses(self, settings: Settings) -> None:
+        outcome = UltraShortNowcastConnector(settings=settings).parse(
+            make_response(KMA_NOWCAST_BODY), location="문경시"
+        )
+        assert outcome.outcome is SourceOutcome.RECORDS

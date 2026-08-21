@@ -91,6 +91,8 @@ class EmergencyBedsConnector(Connector[MedicalCapacity]):
 
     def parse(self, response: RawResponse, **kwargs: Any) -> FetchOutcome[MedicalCapacity]:
         root = response.xml()
+        if root.tag.lower() in ("html", "body"):
+            raise ValueError("응답이 XML이 아니라 HTML 오류 페이지입니다")
         code = root.findtext(".//resultCode")
         if code is not None and code.strip() not in ("00", "0"):
             raise ValueError(f"원천이 resultCode {code.strip()}을 반환했습니다")
@@ -165,9 +167,12 @@ class AirQualityConnector(Connector[Observation]):
         header = payload.get("response", {}).get("header", {})
         if not isinstance(header, dict) or str(header.get("resultCode", "")) not in ("00", "0"):
             raise ValueError("응답이 정상 봉투가 아닙니다 (resultCode 확인 실패)")
-        items = payload.get("response", {}).get("body", {}).get("items") or []
+        body = payload.get("response", {}).get("body")
+        if not isinstance(body, dict) or "items" not in body:
+            raise ValueError("응답 body에 items 키가 없습니다")
+        items = body["items"] or []
         if not isinstance(items, list):
-            raise ValueError("items가 배열이 아닙니다")
+            raise ValueError(f"items가 배열이 아닙니다 ({type(items).__name__})")
         if not items:
             return confirmed_empty("대기질 측정값이 조회되지 않았습니다")
 

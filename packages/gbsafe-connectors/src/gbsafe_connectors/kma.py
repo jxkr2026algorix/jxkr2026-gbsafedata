@@ -132,20 +132,38 @@ def _is_success_envelope(payload: Any) -> bool:
 
 
 def _items(payload: Any) -> list[dict[str, Any]]:
-    """기상청 응답에서 item 목록을 꺼낸다. 단일 항목이 dict로 오는 경우도 있다."""
-    body = payload.get("response", {}).get("body", {})
-    items = body.get("items")
+    """기상청 응답에서 item 목록을 꺼낸다.
+
+    구조를 알아보지 못하면 **빈 목록이 아니라 예외**다. 빈 목록으로 돌려주면
+    호출부가 '자료 없음'으로 보고하고, 그것이 '위험 없음'으로 읽힌다.
+    """
+    response = payload.get("response")
+    if not isinstance(response, dict):
+        raise ValueError("응답에 response 노드가 없습니다")
+    body = response.get("body")
+    if body is None:
+        raise ValueError("응답에 body 노드가 없습니다")
+    if not isinstance(body, dict):
+        raise ValueError(f"body가 객체가 아닙니다 ({type(body).__name__})")
+    if "items" not in body:
+        raise ValueError("body에 items 키가 없습니다")
+
+    items = body["items"]
+    # 자료가 없을 때 원천이 쓰는 표기 — 이것만 '해당 없음'으로 인정한다
     if items in (None, "", []):
         return []
     if isinstance(items, dict):
-        item = items.get("item")
+        if "item" not in items:
+            raise ValueError("items에 item 키가 없습니다")
+        item = items["item"]
         if isinstance(item, dict):
             return [item]
         if isinstance(item, list):
             return [entry for entry in item if isinstance(entry, dict)]
+        raise ValueError(f"item이 객체·배열이 아닙니다 ({type(item).__name__})")
     if isinstance(items, list):
         return [entry for entry in items if isinstance(entry, dict)]
-    return []
+    raise ValueError(f"items가 객체·배열이 아닙니다 ({type(items).__name__})")
 
 
 class UltraShortNowcastConnector(Connector[Observation]):

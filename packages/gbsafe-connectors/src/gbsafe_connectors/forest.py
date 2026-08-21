@@ -47,28 +47,40 @@ def _is_success_envelope(payload: Any) -> bool:
 
 
 def _rows(payload: Any) -> list[dict[str, Any]]:
-    """산림청 응답에서 행 목록을 꺼낸다. 응답 구조가 API마다 다르다."""
-    if not isinstance(payload, dict):
-        return []
+    """산림청 응답에서 행 목록을 꺼낸다. 응답 구조가 API마다 다르다.
 
-    for path in (
+    알려진 경로 중 어느 것도 없으면 **예외**다. 빈 목록으로 돌려주면 구조를
+    알아보지 못한 응답이 '자료 없음'으로 보고된다.
+    """
+    if not isinstance(payload, dict):
+        raise ValueError(f"응답이 객체가 아닙니다 ({type(payload).__name__})")
+
+    paths = (
         ("response", "body", "items", "item"),
         ("response", "body", "items"),
         ("body", "items", "item"),
         ("items", "item"),
         ("result",),
-    ):
+    )
+    for path in paths:
         node: Any = payload
+        found = True
         for key in path:
-            if not isinstance(node, dict):
-                node = None
+            if not isinstance(node, dict) or key not in node:
+                found = False
                 break
-            node = node.get(key)
+            node = node[key]
+        if not found:
+            continue
         if isinstance(node, dict):
             return [node]
         if isinstance(node, list):
             return [row for row in node if isinstance(row, dict)]
-    return []
+        # 키는 있지만 값이 목록·객체가 아니다 — 자료 없음 표기만 인정한다
+        if node in (None, "", []):
+            return []
+        raise ValueError(f"{'.'.join(path)}가 객체·배열이 아닙니다 ({type(node).__name__})")
+    raise ValueError("응답에서 알려진 데이터 경로를 찾을 수 없습니다")
 
 
 def _parse_date(raw: str | None) -> datetime | None:
