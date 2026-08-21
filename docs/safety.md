@@ -13,14 +13,32 @@
 **강제 방식:**
 
 - 표준 API에 POST·PUT·DELETE·PATCH 라우트가 없다. 테스트가 OpenAPI 스펙을 검사해 GET/HEAD/OPTIONS 외의 메서드가 생기면 실패한다.
-- MCP 서버는 기동 시 `validated_tools()`로 모든 도구 이름을 검사한다. `call`, `dispatch`, `approve`, `send`, `order` 등이 이름에 들어가면 `SafetyViolation`이 발생해 서버가 기동하지 않는다.
+- MCP 서버는 기동 시 `validated_tools()`로 모든 도구 이름을 검사한다. 통과하지 못하면 서버가 기동하지 않는다.
+
+판정 방식이 **허용목록 + 변경 동사 거부**다. 금지어 목록만 쓰면 막을 수 없다는 것이
+실측으로 확인됐다 — `call`을 막으면 `ring`·`phone`·`telephone`이, 그것마저 막으면
+`calls`·`calling`·`c4ll`·`mycall`이 통과하고, 키릴 문자 `cаll`은 `call`과 시각적으로
+같지만 다른 문자열이라 어떤 목록도 잡지 못한다.
+
+그래서 두 조건을 함께 요구한다.
+
+1. 이름에 `READ_VERBS`의 조회 동사가 **하나는** 있어야 한다 (`search`, `get`, `list`, `describe`, `verify`, `report`, `health` 등)
+2. `MUTATION_VERBS`의 변경 동사가 **하나도** 없어야 한다 (`update`, `write`, `send`, `call`, `dispatch`, `approve` 등)
+
+2번이 필요한 이유는 `updateStatus`처럼 조회 동사(`status`)와 변경 동사(`update`)가
+함께 있는 이름이 1번만으로는 통과하기 때문이다.
+
+이름은 비교 전에 NFKC 정규화되고 혼동 문자가 ASCII로 접힌다. 전각 문자, 키릴·그리스
+혼동 문자, leetspeak(`c4ll`)이 모두 같은 형태로 모인다.
 
 ```python
 assert_read_only("call_resident")
-# SafetyViolation: [read_only] 'call_resident'은 외부에 영향을 주는 동작으로
-# 읽힙니다(call). 공공데이터 인프라는 조회만 제공하며 전화·명령·상태변경은
-# 운영 플랫폼의 책임입니다.
+# SafetyViolation: [read_only] 'call_resident'에 변경 동작(call)이 있습니다.
+# 공공데이터 인프라는 조회만 제공하며 전화·명령·상태변경은 운영 플랫폼의 책임입니다.
 ```
+
+새 조회 도구를 추가할 때 `READ_VERBS`에 동사를 등록해야 하고, 그 등록이 곧
+"이 도구는 부작용이 없다"는 명시적 선언이 된다.
 
 경계가 흐려지면 공공데이터 인프라가 주민에게 직접 명령을 내리는 경로가 생긴다.
 
@@ -28,7 +46,18 @@ assert_read_only("call_resident")
 
 공개 인구통계는 지역의 잠재적 취약성만 보여준다. 고령인구 비율이 높다는 사실이 특정 주민의 보행 곤란을 뜻하지 않는다.
 
-**강제 방식:** `assert_not_individual_inference(purpose)`가 목적 문장에서 개인 속성 키워드(장애, 질병, 이동능력, 보행곤란, 와상, 휠체어, 산소 등)를 찾으면 거부한다.
+**강제 방식:** `assert_not_individual_inference(purpose)`가 **보호 속성**과 **개인·가구 단위 표현**이 함께 나타나는지 본다. 키워드 하나로 판단하지 않는다.
+
+위험한 것은 어휘가 아니라 질문의 단위다. "마을별 고령인구 비율"과 "누가 혼자 못
+걷는지"는 같은 데이터에서 나오지만 후자만 개인 식별로 이어진다. 그래서 단위를
+본다.
+
+- 보호 속성: 장애·질병·이동능력뿐 아니라 완곡 표현까지 포함한다 ("스스로 대피",
+  "도움이 필요", "struggle to leave", "vulnerable", "health condition")
+- 개인·가구 단위: "각자", "가구별", "명단", "누구인지", "per household",
+  "the ones who", "residents who"
+- 단위를 밝히지 않은 요청은 **거부한다.** 통과시켜 개인 추정에 쓰이는 것보다
+  되묻는 편이 안전하다.
 
 ```python
 service.population_guidance("주민 각자의 장애 여부를 추정")
@@ -155,7 +184,7 @@ CLI의 `serve` 명령이 기동 시 이 사실을 알린다.
 
 ```bash
 uv run pytest tests/ -k "Safety or safety" -v
-uv run pytest tests/ -q    # 전체 236건
+uv run pytest tests/ -q    # 전체
 ```
 
 경계를 우회하는 코드를 넣으면 테스트가 실패한다.

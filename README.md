@@ -164,7 +164,7 @@ data.go.kr 개발계정 키 하나로 동작하는 것들이다.
 ## 개발
 
 ```bash
-uv run pytest tests/ -q        # 236건, 네트워크 사용하지 않음
+uv run pytest tests/ -q        # 네트워크를 사용하지 않는다
 uv run ruff check .
 uv run python scripts/sync_fallback_catalog.py   # 폴백 카탈로그 갱신
 ```
