@@ -15,12 +15,24 @@
 | `records[].freshness` | 나이와 `usable_for_decision` |
 | `records[].quality_flags` | 확인된 결함 (좌표 누락, CP949 등) |
 | `citations[]` | 그대로 인용할 수 있는 완성된 문구 |
+| `receipts[]` | 조회한 원천별 결과 — `records` / `confirmed_empty` / `failed` |
 | `degradations[]` | 조회하지 못한 원천과 사유 |
-| `complete` | `false`면 일부 원천 실패 — `records`만 보고 판단하면 안 된다 |
+| `complete` | `false`면 일부 원천 실패 |
+| `absence_confirmed` | `true`면 빈 결과를 '해당 없음'으로 읽어도 된다 |
 | `caveats[]` | 해석 시 주의사항 |
 | `modes[]` | `real` / `snapshot` / `synthetic` |
 
-**`complete: false`이고 `records`가 비어 있는 것은 '해당 없음'이 아니라 '조회 실패'다.**
+### 빈 결과를 읽는 방법
+
+`records`가 비었을 때 그 의미는 `absence_confirmed`가 결정한다.
+
+| `complete` | `absence_confirmed` | 의미 |
+| --- | --- | --- |
+| `true` | `true` | 조회 성공, 실제로 해당 사항이 없다 |
+| `true` | `false` | 원천이 '해당 없음'을 확인해 주지 않았다 — 위험 없음으로 읽으면 안 된다 |
+| `false` | `false` | 일부 원천 조회 실패 — `receipts[].outcome == "failed"` 확인 |
+
+**`records`만 읽고 `absence_confirmed`를 무시하면 조회 실패가 '위험 없음'이 된다.**
 
 ## 엔드포인트
 

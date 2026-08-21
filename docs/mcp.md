@@ -3,8 +3,8 @@
 `uv run gbsafe-mcp` 로 기동한다. 설정은 [`plugins/`](../plugins)에 있다.
 이 문서는 실제 도구 정의에서 생성했다.
 
-**10개 모두 읽기 전용이다.** 전화 발신·대피명령·상태변경 도구는 없으며, 서버가
-기동 시점에 도구 이름을 검사해 그런 도구의 등록을 거부한다.
+**10개 모두 읽기 전용이다.** 서버가 기동 시점에 도구 이름을 검사한다 — 조회 동사를
+포함하고 변경 동사가 없어야 통과한다.
 
 ## `gbsafe_search_datasets`
 
@@ -125,10 +125,13 @@ operation='derive'는 재투영, 클리핑, 래스터화, 조인, 파생 라벨 
 | --- | --- |
 | `records[]` | 값 + 출처 + 신선도 |
 | `citations[]` | 답변에 그대로 인용할 문구 |
+| `sources_checked[]` | 조회한 원천별 결과 (`records`/`confirmed_empty`/`failed`) |
+| `degradations[]` | 실패한 원천의 상태와 사유 |
 | `complete` | `false`면 일부 원천 조회 실패 |
-| `warnings[]` | 실패·오래된 자료·훈련 데이터 경고 |
+| `absence_confirmed` | `false`면 빈 결과를 '위험 없음'으로 답하면 안 된다 |
+| `warnings[]` | 실패·오래된 자료·훈련 데이터·미확인 부재 경고 |
 | `how_to_cite` | 인용 지침 |
 
-`warnings`에 "결과가 비어 있어도 '위험 없음'을 의미하지 않습니다"가 있으면
-그 사실을 사용자에게 반드시 전달해야 한다.
+**`absence_confirmed`가 `false`이고 `records`가 비어 있으면 위험이 없다고 답하지 않는다.**
+무엇을 확인하지 못했는지 `sources_checked`에서 확인해 사용자에게 알린다.
 
