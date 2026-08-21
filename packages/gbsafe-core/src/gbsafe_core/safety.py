@@ -18,6 +18,9 @@
 
 from __future__ import annotations
 
+import re
+import unicodedata
+
 from .domain import Shelter
 from .models import DataMode, Freshness, Record
 from .regions import HazardDomain
@@ -53,23 +56,51 @@ FORBIDDEN_EFFECTS: frozenset[str] = frozenset(
     }
 )
 
-#: 개인 단위 추정으로 이어지는 속성. 집계 데이터에서 이것을 도출하면 안 된다.
-INDIVIDUAL_ATTRIBUTES: frozenset[str] = frozenset(
-    {
-        "disability",
-        "장애",
-        "질병",
-        "disease",
-        "mobility",
-        "이동능력",
-        "보행곤란",
-        "와상",
-        "휠체어",
-        "산소",
-        "medical_condition",
-        "환자",
-    }
+#: 보호 대상 속성. 개인 단위로 추정하면 안 되는 것들.
+_SENSITIVE_ATTRIBUTES: tuple[str, ...] = (
+    "장애", "질병", "질환", "건강상태", "건강 상태", "환자", "요양", "치매",
+    "disability", "disabled", "disease", "illness", "medical condition",
+    "medical_condition", "health status", "patient", "frail", "dementia",
+    "이동능력", "이동 능력", "이동이 불편", "이동 불편", "보행곤란", "보행 곤란",
+    "보행이 곤란", "혼자 못 걷", "걷지 못", "거동불편", "거동 불편", "와상", "휠체어",
+    "wheelchair", "mobility", "unable to walk", "cannot walk", "bedridden",
+    "immobile", "evacuate unaided", "unaided", "without assistance",
+    "도움 없이", "혼자 대피",
+    "산소", "oxygen", "ventilator", "인공호흡", "투석", "dialysis",
 )
+
+#: 개인·가구 단위를 가리키는 표현. 보호 속성과 함께 나오면 개인 추정이다.
+_INDIVIDUAL_GRAIN: tuple[str, ...] = (
+    "각자", "개인", "개별", "각 주민", "주민별", "특정 주민", "누가", "누구",
+    "명단", "명부", "목록", "가구별", "세대별", "가구당", "세대당", "집집",
+    "가구 단위", "세대 단위", "가구마다", "세대마다",
+    "per person", "per-person", "per resident", "per household", "per address",
+    "per house", "each resident", "each person", "each household", "individual",
+    "individuals", "by name", "who needs", "who is", "who cannot", "who can",
+    "list of residents", "residents unable", "residents by", "identify",
+)
+
+#: 지역 단위 집계를 가리키는 표현. 이것만 있으면 정당한 용도다.
+_AGGREGATE_GRAIN: tuple[str, ...] = (
+    "비율", "지수", "규모", "총인구", "인구수", "집계", "통계", "분포",
+    "마을별", "지역별", "시군별", "읍면동", "단위 취약성",
+    "ratio", "proportion", "index", "aggregate", "total population",
+    "distribution", "by village", "by region", "by district",
+)
+
+
+def _normalize(text: str) -> str:
+    """유니코드 트릭으로 키워드 검사를 우회하는 것을 막는다.
+
+    NFKC로 전각·호환 문자를 접고, 방향 제어(Cf)와 제로폭 문자를 제거한다.
+    """
+    folded = unicodedata.normalize("NFKC", text).casefold()
+    stripped = "".join(
+        ch
+        for ch in folded
+        if unicodedata.category(ch) != "Cf" and ch not in "\u200b\u200c\u200d"
+    )
+    return re.sub(r"\s+", " ", stripped)
 
 
 def assert_read_only(tool_name: str) -> None:
@@ -79,7 +110,8 @@ def assert_read_only(tool_name: str) -> None:
     운영 플랫폼(접근 B)의 책임이며, 그 경계가 흐려지면 인프라가 주민에게
     직접 명령을 내리는 사고가 가능해진다.
     """
-    tokens = {token for token in tool_name.lower().replace("-", "_").split("_") if token}
+    normalized = _normalize(tool_name).replace("-", "_")
+    tokens = {token for token in normalized.split("_") if token}
     offending = tokens & FORBIDDEN_EFFECTS
     if offending:
         raise SafetyViolation(
@@ -93,17 +125,36 @@ def assert_read_only(tool_name: str) -> None:
 def assert_not_individual_inference(purpose: str) -> None:
     """집계 통계로 개인 속성을 추정하려는 시도를 막는다.
 
-    공개 인구통계는 지역의 잠재적 취약성만 보여준다. 특정 주민이 이동에
-    어려움이 있다고 판단하는 데 쓸 수 없다.
+    키워드 하나로 판단하지 않는다. 위험한 것은 어휘가 아니라 **질문의 단위**다.
+    "고령인구 비율"은 정당하고 "누가 혼자 못 걷는지"는 아니며, 둘 다 같은
+    데이터에서 나온다. 그래서 보호 속성과 개인·가구 단위 표현이 함께 나타나는지
+    본다.
+
+    단위가 모호하면 막는다. 통과시켜 개인 추정에 쓰이는 것보다 되묻는 편이
+    안전하다.
     """
-    text = purpose.lower()
-    hits = sorted(attr for attr in INDIVIDUAL_ATTRIBUTES if attr in text)
-    if hits:
+    text = _normalize(purpose)
+    attributes = sorted({item for item in _SENSITIVE_ATTRIBUTES if _normalize(item) in text})
+    if not attributes:
+        return
+
+    grains = sorted({item for item in _INDIVIDUAL_GRAIN if _normalize(item) in text})
+    if grains:
         raise SafetyViolation(
             "no_individual_inference",
-            f"집계 인구통계로 개인 속성({', '.join(hits)})을 추정할 수 없습니다. "
-            "지역 단위 취약성 지표로만 사용하고, 개인별 지원 필요 여부는 "
-            "기관의 주민 명부에서 확인해야 합니다.",
+            f"집계 인구통계로 개인 단위 속성({', '.join(attributes)})을 추정할 수 "
+            f"없습니다. 요청이 개인·가구 단위({', '.join(grains)})를 가리킵니다. "
+            "지역 단위 취약성 지표로만 사용하고, 개인별 지원 필요 여부는 기관의 "
+            "주민 명부에서 확인해야 합니다.",
+        )
+
+    if not any(item for item in _AGGREGATE_GRAIN if _normalize(item) in text):
+        raise SafetyViolation(
+            "no_individual_inference",
+            f"보호 대상 속성({', '.join(attributes)})을 다루는 요청이 지역 집계 "
+            "단위임을 명시하지 않았습니다. 공개 통계로는 개인의 장애·질병·이동능력을 "
+            "판단할 수 없습니다. '마을별 비율'처럼 집계 단위를 명시하거나, 개인별 "
+            "지원 필요 여부는 기관의 주민 명부에서 확인하세요.",
         )
 
 

@@ -368,18 +368,58 @@ class TestSafety:
     @pytest.mark.parametrize(
         "purpose",
         [
+            # 직접 표현
             "주민 각자의 장애 여부를 추정",
             "보행곤란 주민 목록 생성",
             "estimate individual mobility",
             "특정 주민의 질병 확인",
+            # 어휘를 바꾼 우회 시도 — 키워드 검사만으로는 전부 통과했다
+            "who needs a wheelchair in each household",
+            "list residents unable to walk on their own",
+            "가구별로 혼자 못 걷는 사람 수를 알려줘",
+            "이동이 불편한 주민 명단",
+            "누가 도움 없이 대피할 수 없는지 파악",
+            "identify frail elderly individuals per address",
+            "개별 세대의 요양 필요 여부",
+            "bedridden residents by house",
+            "each resident's ability to evacuate unaided",
+            "세대마다 휠체어 필요 여부",
+            "who cannot evacuate without assistance",
+            # 단위를 밝히지 않은 모호한 요청
+            "산소호흡기 사용자 위치",
+            "치매 환자 현황",
+            # 전각 문자로 키워드 검사를 피하려는 시도
+            "ｗｈｅｅｌｃｈａｉｒ per household",
         ],
     )
     def test_blocks_individual_inference(self, purpose: str) -> None:
-        with pytest.raises(SafetyViolation, match="개인 속성"):
+        """위험한 것은 어휘가 아니라 질문의 단위다.
+
+        "고령인구 비율"과 "누가 혼자 못 걷는지"는 같은 데이터에서 나오지만
+        후자만 개인 식별로 이어진다.
+        """
+        with pytest.raises(SafetyViolation, match="no_individual_inference"):
             assert_not_individual_inference(purpose)
 
-    def test_allows_area_level_analysis(self) -> None:
-        assert_not_individual_inference("마을별 고령인구 비율로 취약성 순위를 매긴다")
+    @pytest.mark.parametrize(
+        "purpose",
+        [
+            "마을별 고령인구 비율로 취약성 순위를 매긴다",
+            "예상 대피 인원 규모 추정",
+            "지역 단위 취약성 지수 계산",
+            "시군별 인구 분포 확인",
+            "마을별 장애인 등록 비율 통계",
+            "elderly ratio by village",
+            "total population for evacuation planning",
+        ],
+    )
+    def test_allows_area_level_analysis(self, purpose: str) -> None:
+        """집계 단위가 명시된 정당한 목적은 통과해야 한다."""
+        assert_not_individual_inference(purpose)
+
+    def test_read_only_check_resists_unicode_evasion(self) -> None:
+        with pytest.raises(SafetyViolation, match="read_only"):
+            assert_read_only("ｃａｌｌ_resident")
 
     def test_human_approval_always_raises(self) -> None:
         with pytest.raises(SafetyViolation, match="검토·승인"):
