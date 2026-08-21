@@ -67,6 +67,7 @@ class EmergencyBedsConnector(Connector[MedicalCapacity]):
 
     dataset_id: ClassVar[str] = "15000563"
     service_key_param: ClassVar[str] = "serviceKey"
+    region_param: ClassVar[str] = "sigungu"
     update_cycle_seconds: ClassVar[int] = 900
 
     def base_url(self) -> str:

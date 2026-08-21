@@ -175,6 +175,39 @@ class TestApiRoutes:
         assert not payload["complete"]
         assert payload["degradations"]
 
+    def test_ignored_region_is_disclosed(self, client: TestClient) -> None:
+        """지역 지정을 받지 않는 원천에 region을 넘기면 결과가 더 넓다.
+
+        조용히 무시하면 시군 질의에 도 전체 결과가 돌아오는데 호출자는 알 수 없다.
+        """
+        payload = client.get(
+            "/v1/sources/wildfire_risk", params={"region": "문경시"}
+        ).json()
+        assert any("적용되지 않았" in caveat for caveat in payload["caveats"])
+
+    def test_applied_region_is_not_flagged(self, client: TestClient) -> None:
+        payload = client.get(
+            "/v1/sources/weather_now", params={"region": "문경시"}
+        ).json()
+        assert not any("적용되지 않았" in caveat for caveat in payload["caveats"])
+
+    def test_unknown_hazard_type_is_refused(self, client: TestClient) -> None:
+        """알 수 없는 재난 유형을 heavy_rain으로 바꾸면 다른 질문에 답한다."""
+        payload = client.get(
+            "/v1/hazards/context", params={"region": "문경시", "hazard": "bogus"}
+        ).json()
+        assert not payload["complete"]
+        assert any("해석할 수 없습니다" in item["detail"] for item in payload["degradations"])
+
+    def test_receipts_distinguish_failure_from_absence(self, client: TestClient) -> None:
+        payload = client.get(
+            "/v1/hazards/context", params={"region": "문경시", "hazard": "landslide"}
+        ).json()
+        assert payload["receipts"]
+        assert "absence_confirmed" in payload
+        for receipt in payload["receipts"]:
+            assert receipt["outcome"] in ("records", "confirmed_empty", "failed")
+
     def test_hazard_context_unknown_region(self, client: TestClient) -> None:
         payload = client.get(
             "/v1/hazards/context", params={"region": "서울시"}

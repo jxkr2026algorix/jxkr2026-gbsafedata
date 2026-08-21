@@ -153,6 +153,7 @@ class UltraShortNowcastConnector(Connector[Observation]):
 
     dataset_id: ClassVar[str] = "15084084"
     service_key_param: ClassVar[str] = "serviceKey"
+    region_param: ClassVar[str] = "location"
     update_cycle_seconds: ClassVar[int] = 3600
 
     def base_url(self) -> str:
@@ -234,6 +235,7 @@ class ShortTermForecastConnector(Connector[Observation]):
 
     dataset_id: ClassVar[str] = "15084084"
     service_key_param: ClassVar[str] = "serviceKey"
+    region_param: ClassVar[str] = "location"
     update_cycle_seconds: ClassVar[int] = 10800
 
     def base_url(self) -> str:

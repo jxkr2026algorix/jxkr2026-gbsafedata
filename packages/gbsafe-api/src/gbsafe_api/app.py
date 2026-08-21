@@ -50,20 +50,6 @@ DESCRIPTION = """
 REGION_REQUIRED = frozenset({"weather_now", "weather_forecast"})
 
 
-def _connector_kwargs(connector: str, region: str | None, rows: int) -> dict[str, Any]:
-    """커넥터별 지역 파라미터 이름이 다르므로 여기서 맞춘다."""
-    kwargs: dict[str, Any] = {"rows": rows}
-    if not region:
-        return kwargs
-    if connector in REGION_REQUIRED:
-        kwargs["location"] = region
-    elif connector == "emergency_beds":
-        kwargs["sigungu"] = region
-    else:
-        kwargs["region"] = region
-    return kwargs
-
-
 def create_app(service: SafeDataService | None = None) -> FastAPI:
     resolved = service or SafeDataService()
 
@@ -257,9 +243,30 @@ def create_app(service: SafeDataService | None = None) -> FastAPI:
                 },
             )
 
-        answer = await resolved.fetch_connector(
-            connector, **_connector_kwargs(connector, region, rows)
-        )
+        spec = resolved.registry.spec(connector)
+        kwargs: dict[str, Any] = {"rows": rows}
+        ignored_region = False
+        if region:
+            factory = spec.factory if spec else None
+            mapped = factory.region_kwargs(region) if factory else {}
+            if mapped:
+                kwargs.update(mapped)
+            else:
+                # 지역 지정을 받지 않는 원천에 region을 넘기면 조용히 무시되어
+                # 시군 질의에 도 전체 결과가 돌아온다. 그 사실을 알린다.
+                ignored_region = True
+
+        answer = await resolved.fetch_connector(connector, **kwargs)
+        if ignored_region:
+            answer = answer.model_copy(
+                update={
+                    "caveats": (
+                        *answer.caveats,
+                        f"'{connector}'는 지역 지정을 받지 않습니다 — "
+                        f"region='{region}'이 적용되지 않았고 결과는 더 넓은 범위입니다",
+                    )
+                }
+            )
         return envelope(answer, {"connector": connector, "region": region})
 
     @app.get("/v1/hazard-types", tags=["reference"], summary="지원하는 재난 유형")

@@ -203,6 +203,7 @@ class LandslidePredictionConnector(Connector[HazardAlert]):
 
     dataset_id: ClassVar[str] = "15074800"
     service_key_param: ClassVar[str] = "serviceKey"
+    region_param: ClassVar[str] = "sigungu"
     update_cycle_seconds: ClassVar[int] = 3600
 
     def base_url(self) -> str:
@@ -262,6 +263,7 @@ class RoadsideLandslideConnector(Connector[RiskZone]):
 
     dataset_id: ClassVar[str] = "15074812"
     service_key_param: ClassVar[str] = "serviceKey"
+    region_param: ClassVar[str] = "address"
 
     def base_url(self) -> str:
         return (
@@ -316,6 +318,7 @@ class PastLandslideConnector(Connector[RiskZone]):
 
     dataset_id: ClassVar[str] = "15074816"
     service_key_param: ClassVar[str] = "serviceKey"
+    region_param: ClassVar[str] = "sigungu"
 
     def base_url(self) -> str:
         return (

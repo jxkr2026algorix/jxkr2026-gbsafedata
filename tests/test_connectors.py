@@ -667,3 +667,31 @@ class TestOutcomeClassification:
         connector = ShelterCsvConnector(settings=settings)
         with pytest.raises(ValueError, match="데이터 행이 없습니다"):
             connector.parse(local_response(b""))
+
+
+class TestRegionParameterMapping:
+    """지역 인자 이름이 기관마다 달라서, 통일해 넘기면 필터가 조용히 무시된다."""
+
+    def test_each_connector_declares_its_own_name(self, settings: Settings) -> None:
+        registry = Registry(settings=settings)
+        declared = {
+            spec.name: spec.factory.region_param for spec in registry.all_specs()
+        }
+        # 기상청은 격자 계산용 location, 응급의료는 sigungu, 도로변은 주소 문자열
+        assert declared["weather_now"] == "location"
+        assert declared["emergency_beds"] == "sigungu"
+        assert declared["landslide_roadside"] == "address"
+        assert declared["shelters"] == "region"
+
+    def test_region_kwargs_maps_to_declared_name(self, settings: Settings) -> None:
+        connector = UltraShortNowcastConnector(settings=settings)
+        assert type(connector).region_kwargs("문경시") == {"location": "문경시"}
+
+    def test_connector_without_region_gets_nothing(self, settings: Settings) -> None:
+        """무시될 인자를 넘기면 호출자가 필터가 적용됐다고 오해한다."""
+        connector = WildfireRiskConnector(settings=settings)
+        assert type(connector).region_kwargs("문경시") == {}
+
+    def test_none_region_yields_nothing(self, settings: Settings) -> None:
+        connector = UltraShortNowcastConnector(settings=settings)
+        assert type(connector).region_kwargs(None) == {}

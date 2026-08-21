@@ -161,6 +161,7 @@ class ShelterCsvConnector(Connector[Shelter]):
 
     dataset_id: ClassVar[str] = "3083902"
     credential: ClassVar[None] = None
+    region_param: ClassVar[str] = "region"
 
     def base_url(self) -> str:
         entry = self.entry
@@ -251,6 +252,7 @@ class LandslideRiskZoneCsvConnector(Connector[RiskZone]):
 
     dataset_id: ClassVar[str] = "15123407"
     credential: ClassVar[None] = None
+    region_param: ClassVar[str] = "region"
 
     def base_url(self) -> str:
         entry = self.entry

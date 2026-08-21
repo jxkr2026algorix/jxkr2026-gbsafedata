@@ -429,17 +429,19 @@ class SafeDataService:
         )
 
     async def _fetch(self, name: str, region_code: str) -> FetchOutcome[Any]:
+        """커넥터가 선언한 지역 인자 이름으로 조회한다.
+
+        호출부가 이름을 추측하면 맞지 않는 커넥터에서 필터가 조용히 무시된다.
+        """
         connector = self._registry.create(name)
-        kwargs: dict[str, Any] = {}
-        if name in ("weather_now", "weather_forecast"):
-            kwargs["location"] = region_code
-        elif name == "emergency_beds":
-            kwargs["sigungu"] = region_code
-        elif name in ("landslide_forecast", "landslide_history"):
-            resolved = find_sigungu(region_code)
-            if resolved:
-                kwargs["sigungu"] = resolved.name
-        return await connector.fetch(**kwargs)
+        resolved = find_sigungu(region_code)
+        # 격자 계산은 코드로, 문자열 필터는 시군명으로 해야 맞는다
+        value = (
+            region_code
+            if type(connector).region_param == "location"
+            else (resolved.name if resolved else region_code)
+        )
+        return await connector.fetch(**type(connector).region_kwargs(value))
 
     async def fetch_connector(self, name: str, **kwargs: Any) -> Answer[Any]:
         """커넥터 하나를 직접 조회한다."""

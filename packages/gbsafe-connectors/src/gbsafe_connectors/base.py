@@ -247,6 +247,14 @@ class Connector[PayloadT](ABC):
     credential: ClassVar[CredentialName | None] = CredentialName.DATA_GO_KR
     service_key_param: ClassVar[str] = "serviceKey"
 
+    #: 지역을 지정할 때 이 커넥터가 받는 인자 이름.
+    #:
+    #: 기관마다 다르다 — 기상청은 격자를 계산할 `location`, 응급의료는 `sigungu`,
+    #: 도로변 산사태는 주소 문자열 `address`, 파일데이터는 `region`이다. 호출부가
+    #: 하나로 통일해 넘기면 이름이 맞지 않는 커넥터에서 **필터가 조용히 무시되어**
+    #: 시군 단위 질의에 도 전체 결과가 돌아온다. None이면 지역 지정을 받지 않는다.
+    region_param: ClassVar[str | None] = None
+
     #: 이 원천의 실제 갱신 간격(초). 포털 메타데이터에 갱신주기가 비어 있는
     #: 경우가 많아, 커넥터가 아는 실제 주기를 신선도 판정에 쓴다. None이면
     #: 카탈로그 값을 따르고 그것도 없으면 절대 임계값으로 판정한다.
@@ -310,6 +318,17 @@ class Connector[PayloadT](ABC):
     @abstractmethod
     def parse(self, response: RawResponse, **kwargs: Any) -> FetchOutcome[PayloadT]:
         """원천 응답을 정규화된 레코드로 변환."""
+
+    @classmethod
+    def region_kwargs(cls, region: str | None) -> dict[str, Any]:
+        """지역 값을 이 커넥터가 이해하는 인자로 변환한다.
+
+        지역 지정을 받지 않는 커넥터에는 빈 dict를 준다. 무시될 인자를 넘기는
+        것보다 넘기지 않는 편이 낫다 — 호출자가 필터가 적용됐다고 오해하지 않는다.
+        """
+        if region is None or cls.region_param is None:
+            return {}
+        return {cls.region_param: region}
 
     async def fetch(self, **kwargs: Any) -> FetchOutcome[PayloadT]:
         """조회한다. 예외를 밖으로 던지지 않고 degradation으로 변환한다."""
