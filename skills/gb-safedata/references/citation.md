@@ -43,8 +43,11 @@
   {citations[].text}
 ```
 
-`확인하지 못한 것` 문단은 `complete`가 `false`일 때 **필수**다. 빼면 답변이 실제보다
-확실해 보인다.
+`확인하지 못한 것` 문단은 `complete`가 `false`이거나 `absence_confirmed`가
+`false`일 때 **필수**다. 빼면 답변이 실제보다 확실해 보인다.
+
+`sources_checked`에서 `outcome`이 `failed`인 원천을 그대로 나열하면 된다.
+추측하지 않고 응답에 있는 사실만 옮긴다.
 
 ### 데이터셋 안내 답변
 
