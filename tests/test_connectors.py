@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from typing import ClassVar
 
 import pytest
 from gbsafe_connectors.base import _classify
@@ -195,7 +196,7 @@ class TestWeatherWarningConnector:
         outcome = connector.parse(make_response(KMA_WARNING_BODY))
         actions = {record.payload.action for record in outcome.records}
         assert AlertAction.CANCELLED not in actions
-        assert any("해제 통보문" in caveat for caveat in outcome.caveats)
+        assert any("해제" in caveat for caveat in outcome.caveats)
 
     def test_can_include_cancellations(self, settings: Settings) -> None:
         connector = WeatherWarningConnector(settings=settings)
@@ -957,3 +958,83 @@ class TestUnreadableCsvIsNotAbsence:
         )
         assert outcome.outcome is SourceOutcome.CONFIRMED_EMPTY
         assert any("없습니다" in caveat for caveat in outcome.caveats)
+
+
+class TestWarningStateReconstruction:
+    """해제 통보문을 버리기만 하면 이미 끝난 특보가 발효 중으로 남는다."""
+
+    @staticmethod
+    def _body(items: list[dict[str, object]]) -> dict[str, object]:
+        return {"response": {"header": {"resultCode": "00"}, "body": {"items": {"item": items}}}}
+
+    ISSUED: ClassVar[dict[str, object]] = {
+        "stnId": "143",
+        "title": "[특보] 제08-62호 : 2026.08.21.13:10 / 호우경보 발표 (*)",
+        "tmFc": 202608211310,
+    }
+    CANCELLED: ClassVar[dict[str, object]] = {
+        "stnId": "143",
+        "title": "[특보] 제08-71호 : 2026.08.21.20:30 / 호우경보 해제 (*)",
+        "tmFc": 202608212030,
+    }
+
+    def test_cancelled_retires_its_issuance(self, settings: Settings) -> None:
+        """13:10 발표 + 20:30 해제 이력에서 발효 중인 특보는 없다."""
+        outcome = WeatherWarningConnector(settings=settings).parse(
+            make_response(self._body([self.ISSUED, self.CANCELLED]))
+        )
+        assert not outcome.records
+        assert any("해제" in caveat for caveat in outcome.caveats)
+
+    def test_issuance_without_cancellation_stays_active(self, settings: Settings) -> None:
+        outcome = WeatherWarningConnector(settings=settings).parse(
+            make_response(self._body([self.ISSUED]))
+        )
+        assert len(outcome.records) == 1
+        assert outcome.records[0].payload.is_active
+
+    def test_reissued_after_cancellation_is_active(self, settings: Settings) -> None:
+        """해제된 뒤 다시 발표되면 발효 중이다."""
+        reissued = {
+            "stnId": "143",
+            "title": "[특보] 제08-80호 : 2026.08.22.02:00 / 호우경보 발표 (*)",
+            "tmFc": 202608220200,
+        }
+        outcome = WeatherWarningConnector(settings=settings).parse(
+            make_response(self._body([self.CANCELLED, reissued]))
+        )
+        assert len(outcome.records) == 1
+        assert "02:00" in outcome.records[0].payload.headline
+
+    def test_different_hazard_kinds_are_independent(self, settings: Settings) -> None:
+        """강풍 해제가 호우 발표를 무효로 만들면 안 된다."""
+        wind_cancelled = {
+            "stnId": "143",
+            "title": "[특보] 제08-71호 : 2026.08.21.20:30 / 강풍주의보 해제 (*)",
+            "tmFc": 202608212030,
+        }
+        outcome = WeatherWarningConnector(settings=settings).parse(
+            make_response(self._body([self.ISSUED, wind_cancelled]))
+        )
+        assert len(outcome.records) == 1
+        assert "호우경보" in outcome.records[0].payload.headline
+
+    def test_different_offices_are_independent(self, settings: Settings) -> None:
+        """안동기상대의 해제가 대구지방기상청의 발표를 무효로 만들면 안 된다."""
+        other_office = {
+            "stnId": "136",
+            "title": "[특보] 제08-12호 : 2026.08.21.20:30 / 호우경보 해제 (*)",
+            "tmFc": 202608212030,
+        }
+        outcome = WeatherWarningConnector(settings=settings).parse(
+            make_response(self._body([self.ISSUED, other_office]))
+        )
+        assert len(outcome.records) == 1
+        assert outcome.records[0].payload.area_code == "143"
+
+    def test_full_history_available_when_requested(self, settings: Settings) -> None:
+        outcome = WeatherWarningConnector(settings=settings).parse(
+            make_response(self._body([self.ISSUED, self.CANCELLED])), active_only=False
+        )
+        assert len(outcome.records) == 2
+        assert any(not item.payload.is_active for item in outcome.records)

@@ -14,6 +14,8 @@
 
 from __future__ import annotations
 
+import re
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, ClassVar
 
@@ -21,6 +23,7 @@ from gbsafe_core.domain import (
     AlertAction,
     HazardAlert,
     Observation,
+    Severity,
     parse_alert_action,
     parse_severity,
 )
@@ -369,9 +372,9 @@ class WeatherWarningConnector(Connector[HazardAlert]):
         gyeongbuk_only = bool(kwargs.get("gyeongbuk_only", True))
         active_only = bool(kwargs.get("active_only", True))
         wanted = kwargs.get("station_id")
-        records = []
+
+        bulletins: list[_Bulletin] = []
         skipped_region = 0
-        skipped_cancelled = 0
 
         for item in items:
             title = str(item.get("title", "")).strip()
@@ -382,29 +385,37 @@ class WeatherWarningConnector(Connector[HazardAlert]):
             if gyeongbuk_only and not serves_gyeongbuk(station_id):
                 skipped_region += 1
                 continue
-
-            action = parse_alert_action(title)
-            if active_only and action is AlertAction.CANCELLED:
-                skipped_cancelled += 1
-                continue
-
-            issued = _parse_stamp(str(item.get("tmFc", ""))[:8], str(item.get("tmFc", ""))[8:12])
-            records.append(
-                self.record(
-                    HazardAlert(
-                        hazard=_hazard_from_title(title),
-                        severity=parse_severity(title),
-                        headline=title or "기상특보",
-                        area_name=describe_station(station_id),
-                        action=action,
-                        area_code=station_id,
-                        issued_at=issued,
-                        raw_level=title,
-                    ),
-                    response,
-                    published_at=issued,
+            stamp = str(item.get("tmFc", ""))
+            bulletins.append(
+                _Bulletin(
+                    title=title,
+                    station_id=station_id,
+                    issued_at=_parse_stamp(stamp[:8], stamp[8:12]),
+                    action=parse_alert_action(title),
+                    hazard=_hazard_from_title(title),
+                    severity=parse_severity(title),
                 )
             )
+
+        effective, retired = _reconcile(bulletins) if active_only else (bulletins, ())
+
+        records = [
+            self.record(
+                HazardAlert(
+                    hazard=bulletin.hazard,
+                    severity=bulletin.severity,
+                    headline=bulletin.title or "기상특보",
+                    area_name=describe_station(bulletin.station_id),
+                    action=bulletin.action,
+                    area_code=bulletin.station_id,
+                    issued_at=bulletin.issued_at,
+                    raw_level=bulletin.title,
+                ),
+                response,
+                published_at=bulletin.issued_at,
+            )
+            for bulletin in effective
+        ]
 
         caveats = [
             "발표관서 단위 특보입니다 — 관할 구역 전체가 대상이며 특정 마을 상태가 아닙니다",
@@ -414,8 +425,11 @@ class WeatherWarningConnector(Connector[HazardAlert]):
             caveats.append(f"경북 관할 관서만 필터했습니다 ({covered})")
             if skipped_region:
                 caveats.append(f"타 지역 특보 {skipped_region}건을 제외했습니다")
-        if skipped_cancelled:
-            caveats.append(f"해제 통보문 {skipped_cancelled}건을 제외했습니다 (이미 종료된 위험)")
+        if retired:
+            caveats.append(
+                f"해제·대체된 통보문 {len(retired)}건을 반영해 제외했습니다 "
+                "(발표 후 해제된 특보는 발효 중이 아닙니다)"
+            )
         if not records:
             caveats.append("경북 관할 구역에 발효 중인 특보가 없습니다 (조회는 정상)")
         return FetchOutcome(
@@ -423,6 +437,59 @@ class WeatherWarningConnector(Connector[HazardAlert]):
             caveats=tuple(caveats),
             confirmed_absence=not records,
         )
+
+
+@dataclass(frozen=True, slots=True)
+class _Bulletin:
+    """특보 통보문 하나. 상태 재구성을 위한 중간 표현."""
+
+    title: str
+    station_id: str | None
+    issued_at: datetime | None
+    action: AlertAction
+    hazard: HazardDomain
+    severity: Severity
+
+
+#: 통보문 제목에서 특보 종류를 뽑는 패턴. "호우주의보", "강풍경보" 등.
+_ALERT_KIND = re.compile(r"([가-힣]+(?:주의보|경보|특보))")
+
+
+def _kinds(title: str) -> frozenset[str]:
+    """제목에 등장하는 특보 종류. 하나의 통보문이 여러 종류를 다룰 수 있다."""
+    return frozenset(_ALERT_KIND.findall(title))
+
+
+def _reconcile(
+    bulletins: list[_Bulletin],
+) -> tuple[list[_Bulletin], tuple[_Bulletin, ...]]:
+    """통보문 이력에서 **현재 발효 중인 것만** 남긴다.
+
+    해제 통보문을 그냥 버리면 안 된다. 해제는 자기 자신뿐 아니라 **그것이
+    해제하는 발표**까지 무효로 만든다. 버리기만 하면 13:10 발표 + 20:30 해제
+    이력에서 발표만 남아 이미 끝난 호우경보가 발효 중으로 표시된다.
+
+    관서와 특보 종류가 같으면 같은 사안으로 보고, 시간순으로 마지막 통보문이
+    상태를 결정한다.
+    """
+    ordered = sorted(
+        bulletins,
+        key=lambda item: (item.issued_at or datetime.min.replace(tzinfo=KST)),
+    )
+    # (관서, 종류) → 그 사안의 최신 통보문
+    latest: dict[tuple[str | None, str], _Bulletin] = {}
+    for bulletin in ordered:
+        for kind in _kinds(bulletin.title) or {""}:
+            latest[(bulletin.station_id, kind)] = bulletin
+
+    effective_ids = {
+        id(bulletin)
+        for bulletin in latest.values()
+        if bulletin.action is not AlertAction.CANCELLED
+    }
+    effective = [item for item in ordered if id(item) in effective_ids]
+    retired = tuple(item for item in ordered if id(item) not in effective_ids)
+    return effective, retired
 
 
 def _hazard_from_title(title: str) -> HazardDomain:
