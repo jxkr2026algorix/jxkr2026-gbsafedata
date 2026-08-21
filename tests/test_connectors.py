@@ -479,6 +479,33 @@ class TestBaseTimes:
         assert _latest_forecast_base().hour in (2, 5, 8, 11, 14, 17, 20, 23)
 
 
+class TestFallbackCatalog:
+    """동봉 폴백은 클린 클론의 유일한 카탈로그다."""
+
+    def test_every_connector_dataset_is_named(self) -> None:
+        """커넥터가 참조하는 데이터셋이 폴백에 없으면 이름 없이 ID만 표시된다.
+
+        15123407(문경시 산사태취약지역)은 보완 발굴 CSV에만 있어서 실제로
+        누락됐다.
+        """
+        import json
+        from pathlib import Path
+
+        fallback = (
+            Path(__file__).resolve().parents[1]
+            / "packages/gbsafe-core/src/gbsafe_core/data/catalog-fallback.json"
+        )
+        payload = json.loads(fallback.read_text(encoding="utf-8"))
+        names = {
+            str(item["pk"]): item.get("catalog_name") for item in payload["datasets"]
+        }
+        registry = Registry()
+        for spec in registry.all_specs():
+            assert spec.dataset_id in names, f"{spec.name}: {spec.dataset_id} 누락"
+            label = names[spec.dataset_id]
+            assert label and label != spec.dataset_id, f"{spec.name}: 이름 없음"
+
+
 class TestConcurrencyAndCache:
     """동시 요청이 호출 한도를 배수로 소진하거나 실패를 성공으로 바꾸면 안 된다."""
 

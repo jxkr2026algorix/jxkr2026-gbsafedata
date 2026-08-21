@@ -103,6 +103,37 @@ def main() -> int:
         entry["verified"] = bool(override)
         datasets.append(entry)
 
+    # 보완 발굴 CSV의 데이터셋도 담는다. 커넥터가 참조하는 15123407(문경시
+    # 산사태취약지역)이 여기에만 있어서, 빠뜨리면 클린 클론에서 이름 없이
+    # ID만 표시된다.
+    supplementary = source / "gyeongbuk-supplementary.csv"
+    known = {str(item.get("pk")) for item in datasets}
+    if supplementary.is_file():
+        import csv
+
+        with supplementary.open(encoding="utf-8", newline="") as handle:
+            for row in csv.DictReader(handle):
+                pk = str(row.get("pk") or "").strip()
+                if not pk or pk in known:
+                    continue
+                entry: dict[str, object] = {
+                    "pk": pk,
+                    "catalog_name": row.get("name") or pk,
+                    "category": "경북 보완 발굴",
+                    "access_route": "포털 직접 다운로드",
+                    "verified": False,
+                }
+                for key, column in (
+                    ("format", "format"),
+                    ("rows", "rows"),
+                    ("modified", "modified"),
+                    ("url", "url"),
+                ):
+                    if row.get(column):
+                        entry[key] = row[column]
+                datasets.append(entry)
+                known.add(pk)
+
     datasets.sort(key=lambda item: str(item.get("pk")))
     payload = {
         "_comment": (

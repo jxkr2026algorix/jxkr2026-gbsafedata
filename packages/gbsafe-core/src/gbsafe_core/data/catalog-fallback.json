@@ -1,6 +1,6 @@
 {
  "_comment": "jxkr2026-datasets/catalog에서 생성한 폴백 스냅샷. 데이터셋 저장소가 없을 때만 사용된다. scripts/sync_fallback_catalog.py로 재생성한다.",
- "generated_at": "2026-08-21T21:46:59+00:00",
+ "generated_at": "2026-08-21T21:52:37+00:00",
  "source": "/Users/ryankwon/dev/jxkr2026-datasets/catalog",
  "datasets": [
   {
@@ -46,6 +46,17 @@
    "apply_status": "개발계정 신청완료",
    "note": "개발계정 활용신청 완료 — 자동승인으로 즉시 발급, 승인일로부터 24개월 활용 가능 / XML 전용. STAGE1/STAGE2 필수. hvidate가 실제 갱신 시각이므로 화면에 병기 필요. 문경 조회 검증 완료",
    "verified": true
+  },
+  {
+   "pk": "15004649",
+   "catalog_name": "경상북도 영천시_장애인 복지시설 현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "11",
+   "modified": "2026-06-09",
+   "url": "https://www.data.go.kr/data/15004649/fileData.do"
   },
   {
    "pk": "15005146",
@@ -124,6 +135,17 @@
    "verified": true
   },
   {
+   "pk": "15020651",
+   "catalog_name": "경상북도_구미시_저수지현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "177",
+   "modified": "2026-04-01",
+   "url": "https://www.data.go.kr/data/15020651/fileData.do"
+  },
+  {
    "pk": "15020966",
    "catalog_name": "LX 맵서비스",
    "portal_title": "한국국토정보공사_LX맵서비스",
@@ -178,6 +200,28 @@
    "keywords": "교육청,학구,교육행정구역",
    "note": "포털 표기 access_route=미확인 → 검증값 포털 직접 다운로드 / 포털 표기 portal_title=전국학교학구도연계정보표준데이터 → 검증값 학교학구도연계정보 표준데이터",
    "verified": true
+  },
+  {
+   "pk": "15021442",
+   "catalog_name": "경상북도 청도군_재난대응용배수펌프장시설현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "1",
+   "modified": "2025-05-26",
+   "url": "https://www.data.go.kr/data/15021442/fileData.do"
+  },
+  {
+   "pk": "15021457",
+   "catalog_name": "경상북도 포항시 배수펌프장 현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "14",
+   "modified": "2024-06-04",
+   "url": "https://www.data.go.kr/data/15021457/fileData.do"
   },
   {
    "pk": "15025383",
@@ -238,6 +282,28 @@
    "verified": true
   },
   {
+   "pk": "15030174",
+   "catalog_name": "경상북도 경주시_배수펌프장 시설현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "14",
+   "modified": "2025-09-02",
+   "url": "https://www.data.go.kr/data/15030174/fileData.do"
+  },
+  {
+   "pk": "15031462",
+   "catalog_name": "경상북도 성주군_배수펌프장시설현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "1",
+   "modified": "2019-08-30",
+   "url": "https://www.data.go.kr/data/15031462/fileData.do"
+  },
+  {
    "pk": "15034538",
    "catalog_name": "전국 소방용수시설",
    "portal_title": "전국소방용수시설표준데이터",
@@ -253,6 +319,28 @@
    "keywords": "소화전,급수탑,저수조",
    "note": "포털 신고값 50,000은 그리드 다운로드 상한이며 실제 행 수는 199,507 (페이지네이션 이분탐색으로 확인). 4배 과소표기",
    "verified": true
+  },
+  {
+   "pk": "15034762",
+   "catalog_name": "경상북도 경주시_저수지 제원 및 안전등급 현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "312",
+   "modified": "2025-08-04",
+   "url": "https://www.data.go.kr/data/15034762/fileData.do"
+  },
+  {
+   "pk": "15040063",
+   "catalog_name": "경상북도 예천군_재난대응용 배수펌프장 시설현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "5",
+   "modified": "2025-12-10",
+   "url": "https://www.data.go.kr/data/15040063/fileData.do"
   },
   {
    "pk": "15040465",
@@ -315,6 +403,17 @@
    "verified": true
   },
   {
+   "pk": "15044821",
+   "catalog_name": "경상북도_의용소방대 현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "24",
+   "modified": "2022-12-19",
+   "url": "https://www.data.go.kr/data/15044821/fileData.do"
+  },
+  {
    "pk": "15044822",
    "catalog_name": "경상북도 소방서 현황",
    "portal_title": "경상북도_소방서 현황_20251231",
@@ -351,6 +450,17 @@
    "keywords": "전국,소방서,현황,주소,전화번호,팩스번호,소방본부",
    "note": "빈칸은 미수집 데이터라고 명시되어 결측 존재. 좌표 없이 주소·전화·팩스만 제공",
    "verified": true
+  },
+  {
+   "pk": "15052033",
+   "catalog_name": "경상북도_장애인복지관 현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "22",
+   "modified": "2025-11-05",
+   "url": "https://www.data.go.kr/data/15052033/fileData.do"
   },
   {
    "pk": "15056378",
@@ -603,6 +713,39 @@
    "verified": true
   },
   {
+   "pk": "15062652",
+   "catalog_name": "경상북도_장애인 지역사회재활시설 현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "99",
+   "modified": "2025-12-08",
+   "url": "https://www.data.go.kr/data/15062652/fileData.do"
+  },
+  {
+   "pk": "15062653",
+   "catalog_name": "경상북도_사회복지시설(장애인 거주) 현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "89",
+   "modified": "2025-12-09",
+   "url": "https://www.data.go.kr/data/15062653/fileData.do"
+  },
+  {
+   "pk": "15063013",
+   "catalog_name": "경상북도_장애인 단체 현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "19",
+   "modified": "2025-12-09",
+   "url": "https://www.data.go.kr/data/15063013/fileData.do"
+  },
+  {
    "pk": "15063014",
    "catalog_name": "경상북도 등록장애인 현황",
    "portal_title": "경상북도_장애인 등록 현황_20260228",
@@ -621,6 +764,39 @@
    "verified": true
   },
   {
+   "pk": "15063016",
+   "catalog_name": "경상북도_장애인 거주시설(법인운영) 현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "57",
+   "modified": "2025-12-09",
+   "url": "https://www.data.go.kr/data/15063016/fileData.do"
+  },
+  {
+   "pk": "15063019",
+   "catalog_name": "경상북도_장애인 거주시설(개인운영) 현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "7",
+   "modified": "2025-11-05",
+   "url": "https://www.data.go.kr/data/15063019/fileData.do"
+  },
+  {
+   "pk": "15063044",
+   "catalog_name": "경상북도_장애인 직업재활시설 현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "47",
+   "modified": "2022-12-14",
+   "url": "https://www.data.go.kr/data/15063044/fileData.do"
+  },
+  {
    "pk": "15063268",
    "catalog_name": "경상북도 빗물저장시설",
    "portal_title": "경상북도_우수저류시설 현황_20210916",
@@ -637,6 +813,28 @@
    "url": "https://www.data.go.kr/data/15063268/fileData.do",
    "keywords": "방재시설,침수예방,사업현황,저류용량,지역시설,안전관리,사업정보,시설규모",
    "verified": true
+  },
+  {
+   "pk": "15063865",
+   "catalog_name": "경상북도_중증 장애인 유형별 생활시설 현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "57",
+   "modified": "2025-12-09",
+   "url": "https://www.data.go.kr/data/15063865/fileData.do"
+  },
+  {
+   "pk": "15065056",
+   "catalog_name": "소방청_119안전센터 현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "1",
+   "modified": "2026-06-09",
+   "url": "https://www.data.go.kr/data/15065056/fileData.do"
   },
   {
    "pk": "15072620",
@@ -894,6 +1092,39 @@
    "apply_status": "개발계정 신청완료",
    "note": "호스트가 다른 산림청 API의 /1400000/이 아니라 /1400377/forestPointV2 — 혼동 주의. 오퍼레이션 3종(전국/시도/시군구), 개발계정 1,000건 / 개발계정 활용신청 완료 — 자동승인으로 즉시 발급, 승인일로부터 24개월 활용 가능 / 호스트가 /1400377/forestPointV2 — 다른 산림청 API의 /1400000/이 아니다. 호출 검증 완료",
    "verified": true
+  },
+  {
+   "pk": "15086694",
+   "catalog_name": "경상북도 경주시_저수지정보",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "64",
+   "modified": "2025-08-06",
+   "url": "https://www.data.go.kr/data/15086694/fileData.do"
+  },
+  {
+   "pk": "15086755",
+   "catalog_name": "경상북도 영천시_영천시 저수지 보수보강 현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "132",
+   "modified": "2025-05-26",
+   "url": "https://www.data.go.kr/data/15086755/fileData.do"
+  },
+  {
+   "pk": "15087919",
+   "catalog_name": "경상북도 경산시_저수지전산관리시스템_저수지현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "268",
+   "modified": "2025-08-08",
+   "url": "https://www.data.go.kr/data/15087919/fileData.do"
   },
   {
    "pk": "15088190",
@@ -1178,6 +1409,39 @@
    "verified": true
   },
   {
+   "pk": "15113282",
+   "catalog_name": "소방청_전국 소방서 및 119안전센터별 구급차 정보",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "1460",
+   "modified": "2026-06-01",
+   "url": "https://www.data.go.kr/data/15113282/fileData.do"
+  },
+  {
+   "pk": "15113780",
+   "catalog_name": "경상북도 포항시_임시주거시설",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "166",
+   "modified": "2026-07-24",
+   "url": "https://www.data.go.kr/data/15113780/fileData.do"
+  },
+  {
+   "pk": "15114000",
+   "catalog_name": "경상북도 영덕군_수해대피장소 데이터",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "249",
+   "modified": "2025-08-08",
+   "url": "https://www.data.go.kr/data/15114000/fileData.do"
+  },
+  {
    "pk": "15114046",
    "catalog_name": "영양군 침수대피소",
    "portal_title": "경상북도 영양군_수해대피소_20250925",
@@ -1194,6 +1458,39 @@
    "url": "https://www.data.go.kr/data/15114046/fileData.do",
    "keywords": "재난안전,대피소,인명피해,재난대응,취약지,안전,기후위기,대피계획",
    "verified": true
+  },
+  {
+   "pk": "15114371",
+   "catalog_name": "경상북도_소방관서 및 구급차량 현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "154",
+   "modified": "2026-07-14",
+   "url": "https://www.data.go.kr/data/15114371/fileData.do"
+  },
+  {
+   "pk": "15116422",
+   "catalog_name": "경상북도_119신고 출동지령 현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "434429",
+   "modified": "2025-08-19",
+   "url": "https://www.data.go.kr/data/15116422/fileData.do"
+  },
+  {
+   "pk": "15116993",
+   "catalog_name": "경상북도 포항시_산사태",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "169",
+   "modified": "2025-12-30",
+   "url": "https://www.data.go.kr/data/15116993/fileData.do"
   },
   {
    "pk": "15122588",
@@ -1215,6 +1512,50 @@
    "url": "https://www.data.go.kr/data/15122588/openapi.do",
    "keywords": "재난방재,공공안전,산불",
    "verified": false
+  },
+  {
+   "pk": "15123337",
+   "catalog_name": "경상북도 포항시_산사태 취약지역 현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "394",
+   "modified": "2026-04-12",
+   "url": "https://www.data.go.kr/data/15123337/fileData.do"
+  },
+  {
+   "pk": "15123407",
+   "catalog_name": "경상북도 문경시_산사태취약지역 지정 현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "451",
+   "modified": "2025-12-30",
+   "url": "https://www.data.go.kr/data/15123407/fileData.do"
+  },
+  {
+   "pk": "15123608",
+   "catalog_name": "경상북도 안동시_산사태취약지역 지정 현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "355",
+   "modified": "2025-11-25",
+   "url": "https://www.data.go.kr/data/15123608/fileData.do"
+  },
+  {
+   "pk": "15123616",
+   "catalog_name": "경상북도 구미시_산사태취약지역지정현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "235",
+   "modified": "2025-07-24",
+   "url": "https://www.data.go.kr/data/15123616/fileData.do"
   },
   {
    "pk": "15125006",
@@ -1297,6 +1638,17 @@
    "verified": false
   },
   {
+   "pk": "15134502",
+   "catalog_name": "경상북도 청도군_재난대피소",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "26",
+   "modified": "2025-09-08",
+   "url": "https://www.data.go.kr/data/15134502/fileData.do"
+  },
+  {
    "pk": "15134735",
    "catalog_name": "건축물대장 HUB",
    "portal_title": "국토교통부_건축HUB_건축물대장정보 서비스",
@@ -1317,6 +1669,17 @@
    "apply_status": "개발계정 신청완료",
    "note": "개발계정 활용신청 완료 — 자동승인으로 즉시 발급, 승인일로부터 24개월 활용 가능",
    "verified": true
+  },
+  {
+   "pk": "15135371",
+   "catalog_name": "경상북도 봉화군_이재민 임시주거시설 현황",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "89",
+   "modified": "2025-09-04",
+   "url": "https://www.data.go.kr/data/15135371/fileData.do"
   },
   {
    "pk": "15139215",
@@ -1634,6 +1997,17 @@
    "apply_status": "개발계정 신청완료",
    "note": "개발계정 활용신청 완료 — 자동승인으로 즉시 발급, 승인일로부터 24개월 활용 가능",
    "verified": true
+  },
+  {
+   "pk": "15144442",
+   "catalog_name": "경상북도 김천시_재난문자발송내역",
+   "category": "경북 보완 발굴",
+   "access_route": "포털 직접 다운로드",
+   "verified": false,
+   "format": "CSV",
+   "rows": "287",
+   "modified": "2026-07-14",
+   "url": "https://www.data.go.kr/data/15144442/fileData.do"
   },
   {
    "pk": "15149493",

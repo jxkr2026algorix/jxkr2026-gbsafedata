@@ -103,49 +103,70 @@ def doctor(
         Panel(
             f"카탈로그 [bold]{catalog['total']}[/bold]건 "
             f"(검증 {catalog['verified']}건, 결함 {catalog['with_defects']}건)\n"
-            f"출처: {_get_service().registry.catalog.source.describe_local()}\n"
             f"원천 [bold]{summary['available']}/{summary['connectors']}[/bold] 사용 가능"
             + ("  ·  오프라인 모드" if summary["offline_mode"] else ""),
             title="GB SafeData 상태",
             expand=False,
         )
     )
+    console.print(
+        f"[dim]카탈로그 출처: {_get_service().registry.catalog.source.describe_local()}[/dim]\n"
+    )
 
+    # 사유는 종류별로 한 번만 보여준다. 11개 원천에 같은 문장을 반복하면
+    # 정작 필요한 정보(어떤 키를 받아야 하는가)가 묻힌다.
     table = Table(title="데이터 원천", show_lines=False)
-    table.add_column("상태", width=6)
-    table.add_column("이름", style="cyan")
-    table.add_column("데이터셋")
-    table.add_column("라이선스")
-    table.add_column("비고", overflow="fold")
+    table.add_column("상태", width=4)
+    table.add_column("이름", style="cyan", no_wrap=True)
+    table.add_column("데이터셋", overflow="ellipsis")
+    table.add_column("라이선스", width=12, no_wrap=True)
+    table.add_column("사유", width=18, overflow="ellipsis")
 
+    reasons: dict[str, list[str]] = {}
     for item in health["connectors"]:
         if item["available"]:
-            state = _OK
+            state, short = _OK, ""
         elif item["dev_review_required"]:
-            state = _BLOCKED
+            state, short = _BLOCKED, "개발단계 심의 대기"
+        elif item["requires_local_file"]:
+            state, short = _FAIL, "CSV 수동 취득"
         else:
-            state = _FAIL
+            state, short = _FAIL, "인증키 필요"
+        if short and item["reason"]:
+            reasons.setdefault(short, []).append(item["name"])
         table.add_row(
             state,
             item["name"],
-            f"{item['dataset_id']} {item['dataset_name'][:22]}",
+            f"{item['dataset_id']} {item['dataset_name'][:20]}",
             item["license"],
-            (item["reason"] or "")[:60],
+            short,
         )
     console.print(table)
 
-    creds = Table(title="인증 정보", show_lines=False)
-    creds.add_column("보유", width=6)
-    creds.add_column("이름", style="cyan")
+    for short, names in reasons.items():
+        detail = next(
+            item["reason"]
+            for item in health["connectors"]
+            if item["name"] == names[0] and item["reason"]
+        )
+        console.print(f"\n[yellow]{short}[/yellow] ({len(names)}개): {', '.join(names)}")
+        console.print(f"  {detail}")
+
+    creds = Table(title="\n인증 정보", show_lines=False)
+    creds.add_column("보유", width=4)
+    creds.add_column("환경변수", style="cyan", no_wrap=True)
     creds.add_column("발급 경로", overflow="fold")
     for name, info in health["credentials"].items():
-        creds.add_row(_OK if info["present"] else "[dim]없음[/dim]", name, info["source"][:78])
+        creds.add_row(
+            _OK if info["present"] else "[dim]—[/dim]",
+            f"GBSAFE_{name.upper()}",
+            info["source"],
+        )
     console.print(creds)
 
-    missing = [name for name, info in health["credentials"].items() if not info["present"]]
-    if missing:
+    if any(not info["present"] for info in health["credentials"].values()):
         console.print(
-            "\n[dim]키가 없는 원천은 조회 시 not_authorized로 보고되며 "
+            "\n[dim]키가 없는 원천은 조회 시 not_authorized로 보고됩니다. "
             "결과가 비어 있어도 '위험 없음'을 의미하지 않습니다.[/dim]"
         )
 
