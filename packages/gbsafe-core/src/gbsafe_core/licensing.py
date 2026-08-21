@@ -136,7 +136,14 @@ _KOGL_TYPES: dict[str, LicenseCode] = {
 #: 유형 번호를 찾는다. 포털 표기가 "제1유형", "제 1유형", "KOGL-1",
 #: "공공저작물 : 출처표시 (제 1유형)"처럼 흔들리므로 공백·구두점을 허용한다.
 #: 실제 카탈로그에서 "제 1유형"(공백 포함) 14건이 미인식으로 새어나갔다.
-_KOGL_PATTERN = re.compile(r"(?:제\s*([1-4])\s*유\s*형|kogl\s*[-–—_]?\s*([1-4]))")
+_KOGL_PATTERN = re.compile(
+    r"(?:제\s*([1-4])\s*유\s*형"          # 제1유형, 제 1 유 형
+    r"|유\s*형\s*([1-4])"                  # 유형 1
+    r"|([1-4])\s*유\s*형"                  # 1유형
+    r"|kogl\s*(?:type)?\s*[-–—_]?\s*([1-4])"   # KOGL-1, KOGL Type 4
+    r"|공공누리\s*(?:제)?\s*([1-4])"        # 공공누리 1유형
+    r"|type\s*[-–—_]?\s*([1-4]))"          # Type 1
+)
 
 #: 유형 번호가 없을 때 문구로 판별하는 표기.
 _TEXT_PATTERNS: tuple[tuple[str, LicenseCode], ...] = (
@@ -180,7 +187,7 @@ def parse_license(raw: str | None) -> LicenseCode:
 
     match = _KOGL_PATTERN.search(text)
     if match is not None:
-        number = match.group(1) or match.group(2)
+        number = next((group for group in match.groups() if group), None)
         resolved = _KOGL_TYPES.get(number)
         if resolved is not None:
             return resolved

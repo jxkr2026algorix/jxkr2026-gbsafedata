@@ -183,6 +183,12 @@ class TestLicensing:
             ("KOGL - 4", LicenseCode.KOGL_4),
             ("kogl_1", LicenseCode.KOGL_1),
             ("Open Database License", LicenseCode.ODBL),
+            # 포털·문서마다 다르게 쓰는 표기
+            ("1유형", LicenseCode.KOGL_1),
+            ("유형 1", LicenseCode.KOGL_1),
+            ("공공누리 1유형", LicenseCode.KOGL_1),
+            ("Type 1", LicenseCode.KOGL_1),
+            ("KOGL Type 4", LicenseCode.KOGL_4),
         ],
     )
     def test_parse_real_portal_strings(self, raw: str, expected: LicenseCode) -> None:
@@ -392,19 +398,59 @@ class TestShelter:
 class TestSafety:
     @pytest.mark.parametrize(
         "name",
-        ["call_resident", "dispatch_patrol", "approve_plan", "send_sms", "create_order"],
+        [
+            # 직접 표현
+            "call_resident", "dispatch_patrol", "approve_plan", "send_sms", "create_order",
+            "dial_now", "broadcast_message", "order_evacuation", "delete_record",
+            # 동의어 — 금지어 목록으로는 끝없이 새어나갔다
+            "ring_resident", "phone_resident", "page_patrol", "alert_all",
+            "telephone", "trigger_call", "invoke_action", "execute_plan",
+            "mutate_state", "patch_record", "remove_entry", "insert_row",
+            # 굴절형
+            "calls", "calling", "dispatched", "notifying", "approvals",
+            # leetspeak
+            "c4ll_resident", "s3nd_alert", "d1al",
+            # 접사
+            "mycall", "thecall", "call2", "xcall", "do_call",
+            # camelCase / 전각
+            "callAmbulance", "SendAlert", "ｃａｌｌAmbulance", "evacuateVillage",
+            # 키릴 혼동문자 — 시각적으로 라틴 문자와 같다
+            "cаll_resident", "sеnd_alert", "nоtify_all",
+            # 조회 동사와 변경 동사가 섞인 경우
+            "updateStatus", "write_status", "getAndDeleteRecord", "list_and_notify",
+            "search_then_call", "fetch_and_update",
+        ],
     )
     def test_rejects_side_effecting_names(self, name: str) -> None:
-        """공공데이터 계층이 외부에 영향을 주는 도구를 노출하지 못하게 한다."""
-        with pytest.raises(SafetyViolation, match="조회만 제공"):
+        """공공데이터 계층이 외부에 영향을 주는 도구를 노출하지 못하게 한다.
+
+        허용목록(조회 동사 필수) + 거부목록(변경 동사 금지)을 함께 쓴다.
+        금지어만으로는 동의어·굴절형·혼동문자에 계속 뚫린다.
+        """
+        with pytest.raises(SafetyViolation, match="read_only"):
             assert_read_only(name)
 
     @pytest.mark.parametrize(
         "name",
-        ["search_datasets", "hazard_context", "resolve_region", "data_health"],
+        [
+            "search_datasets", "hazard_context", "resolve_region", "data_health",
+            "describe_dataset", "verify_dataset", "list_sources", "fetch_source",
+            "quality_report", "population_guidance",
+            "searchDatasets", "describeDataset", "getShelters", "findRoutes",
+            "checkFreshness", "listRegions", "queryCatalog", "readSnapshot",
+            "reportQuality", "compareScenarios", "citeSources", "statusCheck",
+            "get_dataset_detail", "inspect_quality", "summarize_hazards",
+        ],
     )
     def test_allows_read_only_names(self, name: str) -> None:
+        """조회 도구가 오탐으로 막히면 서버가 기동하지 않는다."""
         assert_read_only(name)
+
+    def test_every_real_mcp_tool_passes(self) -> None:
+        """실제 등록된 도구가 전부 통과해야 한다."""
+        from gbsafe_mcp.tools import validated_tools
+
+        assert len(validated_tools()) == 10
 
     @pytest.mark.parametrize(
         "purpose",
@@ -438,6 +484,15 @@ class TestSafety:
             "스스로 대피하기 어려운 대상자 목록",
             "flag the people who need assistance evacuating",
             "먼저 연락해야 할 이동이 어려운 주민",
+            "identify residents who need assistance",
+            "find the vulnerable individuals",
+            "who cannot evacuate alone",
+            "list of residents requiring help",
+            "residents needing physical assistance for evacuation",
+            "those who need help walking",
+            "persons with ambulation difficulties",
+            "residents with health conditions",
+            "취약계층 명단",
         ],
     )
     def test_blocks_individual_inference(self, purpose: str) -> None:

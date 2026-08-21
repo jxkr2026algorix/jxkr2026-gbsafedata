@@ -34,25 +34,84 @@ class SafetyViolation(RuntimeError):
         super().__init__(f"[{rule}] {detail}")
 
 
-#: MCP·API가 절대 노출하지 않는 행위. 이름에 이 단어가 들어간 도구는 등록을 거부한다.
-FORBIDDEN_EFFECTS: frozenset[str] = frozenset(
+#: 조회 도구 이름에 반드시 하나는 들어가야 하는 동사. **허용목록이다.**
+#:
+#: 금지어 목록으로는 막을 수 없다. `call`을 막으면 `ring`·`phone`·`telephone`이,
+#: 그것마저 막으면 `calls`·`calling`·`c4ll`·`mycall`이 통과한다. 실제로 시도해 보니
+#: 금지어 방식은 37가지 변형 중 상당수에 뚫렸다. 그래서 **아는 조회 동사를
+#: 포함한 이름만 허용**한다. 새 조회 도구를 추가할 때 여기에 동사를 등록해야
+#: 하고, 그 등록 행위가 곧 "이 도구는 부작용이 없다"는 명시적 선언이 된다.
+READ_VERBS: frozenset[str] = frozenset(
     {
-        "call",
-        "dial",
-        "sms",
-        "notify",
-        "broadcast",
-        "dispatch",
-        "order",
-        "command",
-        "evacuate",
-        "approve",
-        "assign",
-        "update",
-        "delete",
-        "create",
-        "write",
-        "send",
+        "search",
+        "find",
+        "lookup",
+        "query",
+        "get",
+        "list",
+        "describe",
+        "detail",
+        "explain",
+        "read",
+        "fetch",
+        "load",
+        "resolve",
+        "verify",
+        "validate",
+        "check",
+        "inspect",
+        "report",
+        "summarize",
+        "summarise",
+        "compare",
+        "count",
+        "health",
+        "status",
+        "quality",
+        "context",
+        "guidance",
+        "catalog",
+        "catalogue",
+        "cite",
+        "citation",
+        "show",
+        "view",
+        "browse",
+        "diff",
+        "stat",
+        "stats",
+        "info",
+        "meta",
+        "help",
+    }
+)
+
+#: 확실한 변경 동사. 조회 동사가 함께 있어도 이것이 있으면 거부한다.
+#:
+#: 허용목록만으로는 `updateStatus`나 `write_status`를 막지 못한다. `status`가
+#: 조회 동사라서 통과하기 때문이다. 두 방식을 함께 쓴다 — 조회 동사가 하나는
+#: 있어야 하고(허용목록), 변경 동사는 하나도 없어야 한다(거부목록).
+MUTATION_VERBS: frozenset[str] = frozenset(
+    {
+        "update", "write", "set", "put", "post", "patch", "delete", "remove",
+        "insert", "create", "add", "modify", "mutate", "edit", "save", "store",
+        "upload", "push", "send", "call", "dial", "ring", "phone", "telephone",
+        "page", "sms", "notify", "alert", "broadcast", "publish", "dispatch",
+        "assign", "order", "command", "trigger", "invoke", "execute", "run",
+        "approve", "reject", "confirm", "cancel", "evacuate", "clear", "reset",
+        "drop", "truncate", "purge", "revoke", "grant",
+    }
+)
+
+#: 혼동 문자 → ASCII. 키릴·그리스 문자가 라틴 문자처럼 보이는 것을 접는다.
+#: `cаll`(키릴 а)이 `call`과 시각적으로 같지만 다른 문자열이라 검사를 통과했다.
+_CONFUSABLES = str.maketrans(
+    {
+        "а": "a", "е": "e", "о": "o", "р": "p", "с": "c", "у": "y", "х": "x",
+        "і": "i", "ѕ": "s", "ԁ": "d", "ո": "n", "ⅼ": "l", "ᴀ": "a",
+        "ο": "o", "α": "a", "ε": "e", "ρ": "p", "τ": "t", "ν": "v", "ι": "i",
+        "κ": "k", "μ": "m", "ϲ": "c", "ѡ": "w", "ɡ": "g", "ｌ": "l",
+        "0": "o", "1": "l", "3": "e", "4": "a", "5": "s", "7": "t", "8": "b",
     }
 )
 
@@ -75,6 +134,12 @@ _SENSITIVE_ATTRIBUTES: tuple[str, ...] = (
     "need assistance", "needs assistance", "cannot leave", "can't leave",
     "on their own", "on his own", "on her own", "by themselves",
     "self-evacuate", "self evacuate",
+    "vulnerable", "취약계층", "취약한 사람", "health condition", "health conditions",
+    "건강 문제", "requiring help", "requiring assistance", "requires help",
+    "requires assistance", "needing help", "needing assistance",
+    "needing physical", "physical assistance", "ambulation", "ambulatory",
+    "help walking", "assistance walking", "evacuate alone", "leave alone",
+    "몸이 불편", "신체적 도움", "부축",
 )
 
 #: 개인·가구 단위를 가리키는 표현. 보호 속성과 함께 나오면 개인 추정이다.
@@ -90,6 +155,8 @@ _INDIVIDUAL_GRAIN: tuple[str, ...] = (
     "누구인지", "누구를", "누군지", "사람이 누구", "그 사람", "해당자", "대상자",
     "우선순위를 정", "먼저 연락", "the ones who", "those who", "whoever",
     "prioritise the", "prioritize the", "flag the", "find the people",
+    "find the", "list the", "residents who", "persons with", "people with",
+    "individuals", "주민 중", "사람 중", "해당하는 사람",
 )
 
 #: 지역 단위 집계를 가리키는 표현. 이것만 있으면 정당한 용도다.
@@ -115,18 +182,17 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", stripped)
 
 
-def _split_identifier(name: str) -> frozenset[str]:
-    """식별자를 단어로 쪼갠다.
+def _ordered_tokens(name: str) -> list[str]:
+    """식별자를 순서를 유지한 단어 목록으로 쪼갠다.
 
-    snake_case만 나누면 `callAmbulance`가 한 토큰이 되어 금지어 검사를 통과한다.
-    camelCase 경계에서도 잘라야 한다.
+    NFKC를 먼저 적용해 전각 문자를 접고, 혼동 문자(키릴 а, 그리스 ο 등)를
+    ASCII로 바꾼 뒤 camelCase 경계에서 나눈다. 세 단계를 모두 거쳐야
+    `ｃаll`·`c4ll`·`callAmbulance`가 같은 `call`로 정규화된다.
     """
-    # NFKC를 먼저 적용해야 전각 문자가 ASCII가 된다. 순서를 바꾸면
-    # `ｃａｌｌAmbulance`의 camelCase 경계를 찾지 못한다.
     folded = unicodedata.normalize("NFKC", name)
     spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", folded)
-    normalized = _normalize(spaced)
-    return frozenset(token for token in re.split(r"[^a-z0-9]+", normalized) if token)
+    normalized = _normalize(spaced).translate(_CONFUSABLES)
+    return [token for token in re.split(r"[^a-z]+", normalized) if token]
 
 
 def assert_read_only(tool_name: str) -> None:
@@ -135,15 +201,37 @@ def assert_read_only(tool_name: str) -> None:
     공공데이터 인프라(접근 A)는 조회만 한다. 전화 발신이나 상태 변경은
     운영 플랫폼(접근 B)의 책임이며, 그 경계가 흐려지면 인프라가 주민에게
     직접 명령을 내리는 사고가 가능해진다.
+
+    **허용목록 방식이다.** 알려진 조회 동사로 시작하지 않는 이름은 거부한다.
+    금지어 목록은 동의어·굴절형·leetspeak·혼동문자로 우회되므로 이 경계를
+    지킬 수 없다.
     """
-    tokens = _split_identifier(tool_name)
-    offending = tokens & FORBIDDEN_EFFECTS
-    if offending:
+    tokens = _ordered_tokens(tool_name)
+    if not tokens:
         raise SafetyViolation(
             "read_only",
-            f"'{tool_name}'은 외부에 영향을 주는 동작으로 읽힙니다"
-            f"({', '.join(sorted(offending))}). "
-            "공공데이터 인프라는 조회만 제공하며 전화·명령·상태변경은 운영 플랫폼의 책임입니다.",
+            f"'{tool_name}'에서 단어를 찾을 수 없습니다. 조회 도구는 이름에 "
+            "조회 동사를 포함해야 합니다.",
+        )
+
+    mutations = sorted(set(tokens) & MUTATION_VERBS)
+    if mutations:
+        raise SafetyViolation(
+            "read_only",
+            f"'{tool_name}'에 변경 동작({', '.join(mutations)})이 있습니다. "
+            "공공데이터 인프라는 조회만 제공하며 전화·명령·상태변경은 운영 "
+            "플랫폼의 책임입니다.",
+        )
+
+    # `hazard_context`, `data_health`처럼 명사가 앞에 오는 이름도 정당하므로
+    # 위치는 강제하지 않는다. 다만 조회 동사가 **하나는** 있어야 한다.
+    if not (set(tokens) & READ_VERBS):
+        raise SafetyViolation(
+            "read_only",
+            f"'{tool_name}'에 조회 동사가 없습니다. 공공데이터 인프라는 조회만 "
+            "제공하며 전화·명령·상태변경은 운영 플랫폼의 책임입니다. 조회 "
+            f"도구라면 이름에 {', '.join(sorted(READ_VERBS))} 중 하나를 "
+            "포함하고, 새 조회 동사가 필요하면 READ_VERBS에 등록하세요.",
         )
 
 
