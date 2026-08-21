@@ -85,11 +85,17 @@ class AlertAction(StrEnum):
 
     같은 '호우주의보' 문구가 발표와 해제 양쪽에 나타난다. 해제를 발효 중으로
     읽으면 이미 끝난 위험을 현재 위험으로 표시하게 되므로 반드시 구별한다.
+
+    `CURRENT_STATE`는 통보문이 아니라 **현재 상태를 직접 발표하는 원천**을 위한
+    값이다. 산림청 산사태 예보는 "지금 이 시군구의 예보단계는 주의보"를 주고
+    발표·해제라는 개념이 없다. 그것을 `UNKNOWN`으로 두면 발효 중이 아닌 것으로
+    취급되어 실제 경보가 조용히 묻힌다.
     """
 
     ISSUED = "issued"
     CANCELLED = "cancelled"
     EXTENDED = "extended"
+    CURRENT_STATE = "current_state"
     UNKNOWN = "unknown"
 
 
@@ -131,8 +137,15 @@ class HazardAlert(Frozen):
 
         해제 통보문과 종류를 판별할 수 없는 통보문은 False다. 판별 실패를
         '발효 중'으로 취급하면 이미 끝난 위험이 현재 위험으로 표시된다.
+
+        현재 상태를 직접 발표하는 원천(`CURRENT_STATE`)은 그 자체가 지금의
+        상태이므로 발효 중이다.
         """
-        return self.action in (AlertAction.ISSUED, AlertAction.EXTENDED)
+        return self.action in (
+            AlertAction.ISSUED,
+            AlertAction.EXTENDED,
+            AlertAction.CURRENT_STATE,
+        )
 
     @property
     def is_actionable(self) -> bool:
