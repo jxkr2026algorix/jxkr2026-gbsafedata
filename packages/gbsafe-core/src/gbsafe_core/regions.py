@@ -88,8 +88,11 @@ SIGUNGU: dict[str, Sigungu] = {
 }
 
 #: 2023년 대구광역시로 이관된 지역. 옛 자료에는 경북으로 남아 있어 혼동을 만든다.
+#: 코드와 이름 양쪽으로 찾아야 한다 — 사용자는 보통 이름으로 묻는다.
 TRANSFERRED_OUT: dict[str, str] = {
     "47720": "군위군 — 2023-07-01 대구광역시로 편입. 경북 자료에 남아 있으면 시점을 확인해야 한다",
+    "군위군": "군위군 — 2023-07-01 대구광역시로 편입. 경북 자료에 남아 있으면 시점을 확인해야 한다",
+    "군위": "군위군 — 2023-07-01 대구광역시로 편입. 경북 자료에 남아 있으면 시점을 확인해야 한다",
 }
 
 #: 시군별 대표 ASOS 지점번호. 문경(137)은 스모크 테스트로 검증됐다.
@@ -146,8 +149,16 @@ def find_sigungu(query: str) -> Sigungu | None:
     return None
 
 
-def resolve_transferred(code: str) -> str | None:
-    return TRANSFERRED_OUT.get(code.strip())
+def resolve_transferred(query: str) -> str | None:
+    """이관된 행정구역인지 확인한다. 코드와 이름 모두 받는다."""
+    text = query.strip()
+    if not text:
+        return None
+    direct = TRANSFERRED_OUT.get(text)
+    if direct is not None:
+        return direct
+    normalized = text.replace(SIDO_NAME_FULL, "").replace(SIDO_NAME_SHORT, "").strip()
+    return TRANSFERRED_OUT.get(normalized)
 
 
 def asos_station_for(code: str) -> int | None:

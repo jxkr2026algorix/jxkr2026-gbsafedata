@@ -290,6 +290,15 @@ class Connector[PayloadT](ABC):
             response = await self._request(**kwargs)
         except ConnectorError as error:
             return self._degrade(UpstreamStatus.UNAVAILABLE, str(error))
+        except KeyError as error:
+            # build_params가 요구하는 인자가 없는 경우. 호출자 실수이므로
+            # 스택 트레이스가 아니라 무엇이 필요한지 알려준다.
+            return self._degrade(
+                UpstreamStatus.UNAVAILABLE,
+                f"필수 인자가 없습니다: {error}. 이 원천은 해당 인자 없이 조회할 수 없습니다.",
+            )
+        except ValueError as error:
+            return self._degrade(UpstreamStatus.UNAVAILABLE, f"인자가 올바르지 않습니다: {error}")
 
         if response.status is UpstreamStatus.NOT_AUTHORIZED:
             return self._degrade(

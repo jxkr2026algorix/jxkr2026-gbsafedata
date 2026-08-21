@@ -46,6 +46,24 @@ DESCRIPTION = """
 """
 
 
+#: region 없이는 조회할 수 없는 커넥터. 기상 격자 좌표가 필요하다.
+REGION_REQUIRED = frozenset({"weather_now", "weather_forecast"})
+
+
+def _connector_kwargs(connector: str, region: str | None, rows: int) -> dict[str, Any]:
+    """커넥터별 지역 파라미터 이름이 다르므로 여기서 맞춘다."""
+    kwargs: dict[str, Any] = {"rows": rows}
+    if not region:
+        return kwargs
+    if connector in REGION_REQUIRED:
+        kwargs["location"] = region
+    elif connector == "emergency_beds":
+        kwargs["sigungu"] = region
+    else:
+        kwargs["region"] = region
+    return kwargs
+
+
 def create_app(service: SafeDataService | None = None) -> FastAPI:
     resolved = service or SafeDataService()
 
@@ -229,17 +247,19 @@ def create_app(service: SafeDataService | None = None) -> FastAPI:
                 },
             )
 
-        kwargs: dict[str, Any] = {"rows": rows}
-        if region:
-            spec = resolved.registry.spec(connector)
-            if spec and connector in ("weather_now", "weather_forecast"):
-                kwargs["location"] = region
-            elif connector == "emergency_beds":
-                kwargs["sigungu"] = region
-            else:
-                kwargs["region"] = region
+        if connector in REGION_REQUIRED and not region:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "message": f"'{connector}'는 region 파라미터가 필요합니다",
+                    "reason": "기상 격자 좌표를 계산할 지역이 있어야 조회할 수 있습니다",
+                    "example": f"/v1/sources/{connector}?region=문경시",
+                },
+            )
 
-        answer = await resolved.fetch_connector(connector, **kwargs)
+        answer = await resolved.fetch_connector(
+            connector, **_connector_kwargs(connector, region, rows)
+        )
         return envelope(answer, {"connector": connector, "region": region})
 
     @app.get("/v1/hazard-types", tags=["reference"], summary="지원하는 재난 유형")

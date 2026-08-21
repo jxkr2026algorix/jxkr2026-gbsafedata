@@ -182,6 +182,38 @@ class TestApiRoutes:
         assert not payload["complete"]
         assert any("해석할 수 없습니다" in item["detail"] for item in payload["degradations"])
 
+    def test_missing_required_region_is_422_not_500(self, client: TestClient) -> None:
+        """스택 트레이스를 사용자에게 보여주면 안 된다."""
+        response = client.get("/v1/sources/weather_now", params={"rows": 10})
+        assert response.status_code == 422
+        detail = response.json()["detail"]
+        assert "region" in detail["message"]
+        assert detail["example"]
+
+    def test_no_route_returns_500_on_bad_input(self, client: TestClient) -> None:
+        """어떤 입력도 500을 만들면 안 된다."""
+        probes = [
+            ("/v1/sources/weather_now", {}),
+            ("/v1/sources/weather_forecast", {"rows": 1}),
+            ("/v1/sources/emergency_beds", {}),
+            ("/v1/sources/shelters", {}),
+            ("/v1/hazards/context", {"region": "", "hazard": "landslide"}),
+            ("/v1/hazards/context", {"region": "../../etc/passwd"}),
+            ("/v1/datasets", {"q": "\x00null"}),
+            ("/v1/datasets", {"q": "a" * 5000}),
+            ("/v1/regions/resolve", {"q": " "}),
+        ]
+        for path, params in probes:
+            response = client.get(path, params=params)
+            assert response.status_code != 500, f"{path} {params} -> 500"
+
+    def test_transferred_region_by_name(self, client: TestClient) -> None:
+        """군위군은 2023년 대구로 편입됐다. 이름으로 물어도 그 사실을 알려야 한다."""
+        for query in ("군위군", "군위", "경상북도 군위군", "47720"):
+            response = client.get("/v1/regions/resolve", params={"q": query})
+            assert response.status_code == 404
+            assert "대구" in response.json()["detail"]["message"], query
+
     @pytest.mark.parametrize("limit", [0, 101, -1])
     def test_search_rejects_bad_limit(self, client: TestClient, limit: int) -> None:
         assert client.get("/v1/datasets", params={"limit": limit}).status_code == 422
