@@ -40,6 +40,8 @@ from gbsafe_core.models import (
     Provenance,
     QualityFlag,
     Record,
+    SourceOutcome,
+    SourceReceipt,
     UpstreamStatus,
 )
 from gbsafe_core.snapshot import SnapshotStore
@@ -91,31 +93,70 @@ class RawResponse:
 
 @dataclass(slots=True)
 class FetchOutcome[PayloadT]:
-    """조회 결과. 성공한 레코드와 실패 사유를 함께 담는다.
+    """조회 결과.
 
-    레코드가 비어 있고 degradation도 없으면 그것은 '해당 없음'이다.
-    둘을 구별할 수 있어야 AI가 '위험 없음'과 '조회 실패'를 혼동하지 않는다.
+    `outcome`이 빈 결과의 의미를 명시한다. 파서는 원천이 정상 응답으로
+    "해당 없음"을 밝힌 경우에만 `confirmed_empty()`를 반환해야 하고, 응답 구조를
+    알아보지 못한 경우는 실패다. 이 구별이 없으면 파싱 실패가 '위험 없음'이 된다.
     """
 
     records: tuple[Record[PayloadT], ...] = ()
     degradations: tuple[Degradation, ...] = ()
     caveats: tuple[str, ...] = ()
+    confirmed_absence: bool = False
 
     @property
     def ok(self) -> bool:
         return not any(item.blocks_interpretation for item in self.degradations)
 
     @property
+    def outcome(self) -> SourceOutcome:
+        if self.records:
+            return SourceOutcome.RECORDS
+        if self.ok and self.confirmed_absence:
+            return SourceOutcome.CONFIRMED_EMPTY
+        return SourceOutcome.FAILED
+
+    @property
     def is_empty_but_healthy(self) -> bool:
-        """조회는 성공했으나 결과가 없는 경우 — 실제로 해당 사항이 없다는 뜻."""
-        return not self.records and self.ok
+        """원천이 '해당 없음'을 명시했는지. 파싱 실패는 여기 해당하지 않는다."""
+        return self.outcome is SourceOutcome.CONFIRMED_EMPTY
 
     def merge(self, other: FetchOutcome[PayloadT]) -> FetchOutcome[PayloadT]:
         return FetchOutcome(
             records=self.records + other.records,
             degradations=self.degradations + other.degradations,
             caveats=tuple(dict.fromkeys(self.caveats + other.caveats)),
+            confirmed_absence=self.confirmed_absence and other.confirmed_absence,
         )
+
+    def receipt(self, *, connector: str, dataset_id: str) -> SourceReceipt:
+        """이 조회의 영수증을 만든다."""
+        status = (
+            self.degradations[0].status
+            if self.degradations
+            else UpstreamStatus.OK
+        )
+        detail = self.degradations[0].detail if self.degradations else ""
+        if not self.records and not self.confirmed_absence and not self.degradations:
+            detail = "원천이 '해당 없음'을 명시하지 않았습니다 — 응답을 해석하지 못했을 수 있습니다"
+        return SourceReceipt(
+            connector=connector,
+            dataset_id=dataset_id,
+            outcome=self.outcome,
+            record_count=len(self.records),
+            checked_at=datetime.now(UTC),
+            upstream_status=status,
+            detail=detail,
+        )
+
+
+def confirmed_empty(*caveats: str) -> FetchOutcome[Any]:
+    """원천이 정상 응답으로 '해당 없음'을 밝힌 경우.
+
+    응답 구조를 알아보지 못한 경우에는 쓰지 않는다.
+    """
+    return FetchOutcome(caveats=caveats, confirmed_absence=True)
 
 
 @dataclass(slots=True)

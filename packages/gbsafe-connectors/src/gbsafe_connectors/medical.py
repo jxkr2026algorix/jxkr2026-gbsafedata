@@ -21,7 +21,7 @@ from gbsafe_core.domain import MedicalCapacity, Observation
 from gbsafe_core.models import QualityFlag
 from gbsafe_core.regions import SIDO_NAME_FULL, SIDO_NAME_SHORT, find_sigungu
 
-from .base import KST, Connector, FetchOutcome, RawResponse
+from .base import KST, Connector, FetchOutcome, RawResponse, confirmed_empty
 
 
 def _text(node: ElementTree.Element, tag: str) -> str | None:
@@ -89,11 +89,12 @@ class EmergencyBedsConnector(Connector[MedicalCapacity]):
 
     def parse(self, response: RawResponse, **kwargs: Any) -> FetchOutcome[MedicalCapacity]:
         root = response.xml()
+        code = root.findtext(".//resultCode")
+        if code is not None and code.strip() not in ("00", "0"):
+            raise ValueError(f"원천이 resultCode {code.strip()}을 반환했습니다")
         items = root.findall(".//item")
         if not items:
-            return FetchOutcome(
-                caveats=("해당 지역에 응급의료기관 실시간 정보가 없습니다",)
-            )
+            return confirmed_empty("해당 지역에 응급의료기관 실시간 정보가 없습니다")
 
         records = []
         for item in items:
@@ -127,6 +128,7 @@ class EmergencyBedsConnector(Connector[MedicalCapacity]):
             caveats=(
                 "운영단계 활용에는 기관 심의가 필요합니다 — 승인 전에는 참고용입니다",
             ),
+            confirmed_absence=not records,
         )
 
 
@@ -158,9 +160,14 @@ class AirQualityConnector(Connector[Observation]):
 
     def parse(self, response: RawResponse, **kwargs: Any) -> FetchOutcome[Observation]:
         payload = response.json()
+        header = payload.get("response", {}).get("header", {})
+        if not isinstance(header, dict) or str(header.get("resultCode", "")) not in ("00", "0"):
+            raise ValueError("응답이 정상 봉투가 아닙니다 (resultCode 확인 실패)")
         items = payload.get("response", {}).get("body", {}).get("items") or []
-        if not isinstance(items, list) or not items:
-            return FetchOutcome(caveats=("대기질 측정값이 조회되지 않았습니다",))
+        if not isinstance(items, list):
+            raise ValueError("items가 배열이 아닙니다")
+        if not items:
+            return confirmed_empty("대기질 측정값이 조회되지 않았습니다")
 
         station_filter = kwargs.get("station")
         records = []
@@ -192,7 +199,7 @@ class AirQualityConnector(Connector[Observation]):
                         observed_at=observed_at,
                     )
                 )
-        return FetchOutcome(records=tuple(records))
+        return FetchOutcome(records=tuple(records), confirmed_absence=not records)
 
 
 #: AirKorea 응답 필드 → (정규화 이름, 단위).

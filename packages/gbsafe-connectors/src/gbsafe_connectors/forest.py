@@ -19,7 +19,7 @@ from gbsafe_core.domain import HazardAlert, RiskZone, Severity, parse_severity
 from gbsafe_core.models import GeoPoint, QualityFlag
 from gbsafe_core.regions import SIDO_CODE, HazardDomain, find_sigungu
 
-from .base import KST, Connector, FetchOutcome, RawResponse
+from .base import KST, Connector, FetchOutcome, RawResponse, confirmed_empty
 
 #: 산불위험 등급 개수 필드 → 등급명.
 FIRE_GRADE_FIELDS: dict[str, str] = {
@@ -28,6 +28,22 @@ FIRE_GRADE_FIELDS: dict[str, str] = {
     "d3": "높음",
     "d4": "매우높음",
 }
+
+
+def _is_success_envelope(payload: Any) -> bool:
+    """응답 봉투가 정상인지. 산림청은 resultCode를 주지 않는 경우가 있어
+    구조 자체(response/body/items 또는 result)를 확인한다."""
+    if not isinstance(payload, dict):
+        return False
+    header = payload.get("response", {}).get("header", {})
+    if isinstance(header, dict) and "resultCode" in header:
+        return str(header["resultCode"]) in ("00", "0")
+    node: Any = payload
+    for key in ("response", "body"):
+        if not isinstance(node, dict):
+            return False
+        node = node.get(key, {})
+    return isinstance(node, dict) or "result" in payload
 
 
 def _rows(payload: Any) -> list[dict[str, Any]]:
@@ -119,9 +135,12 @@ class WildfireRiskConnector(Connector[HazardAlert]):
         }
 
     def parse(self, response: RawResponse, **kwargs: Any) -> FetchOutcome[HazardAlert]:
-        rows = _rows(response.json())
+        payload = response.json()
+        if not _is_success_envelope(payload):
+            raise ValueError("응답이 정상 봉투가 아닙니다")
+        rows = _rows(payload)
         if not rows:
-            return FetchOutcome(caveats=("산불위험예보 자료가 조회되지 않았습니다",))
+            return confirmed_empty("산불위험예보 자료가 조회되지 않았습니다")
 
         records = []
         for row in rows:
@@ -158,6 +177,7 @@ class WildfireRiskConnector(Connector[HazardAlert]):
         return FetchOutcome(
             records=tuple(records),
             caveats=("시도·시군 단위 지수입니다 — 특정 마을의 발생 확률이 아닙니다",),
+            confirmed_absence=not records,
         )
 
 
@@ -199,11 +219,12 @@ class LandslidePredictionConnector(Connector[HazardAlert]):
         return params
 
     def parse(self, response: RawResponse, **kwargs: Any) -> FetchOutcome[HazardAlert]:
-        rows = _rows(response.json())
+        payload = response.json()
+        if not _is_success_envelope(payload):
+            raise ValueError("응답이 정상 봉투가 아닙니다")
+        rows = _rows(payload)
         if not rows:
-            return FetchOutcome(
-                caveats=("현재 발효된 산사태 예보단계가 없습니다 (조회는 정상)",)
-            )
+            return confirmed_empty("현재 발효된 산사태 예보단계가 없습니다 (조회는 정상)")
 
         records = []
         for row in rows:
@@ -229,6 +250,7 @@ class LandslidePredictionConnector(Connector[HazardAlert]):
             caveats=(
                 "시군구 단위 예보입니다 — 특정 가구의 산사태 발생 확률로 표현하면 안 됩니다",
             ),
+            confirmed_absence=not records,
         )
 
 
@@ -254,9 +276,12 @@ class RoadsideLandslideConnector(Connector[RiskZone]):
         return params
 
     def parse(self, response: RawResponse, **kwargs: Any) -> FetchOutcome[RiskZone]:
-        rows = _rows(response.json())
+        payload = response.json()
+        if not _is_success_envelope(payload):
+            raise ValueError("응답이 정상 봉투가 아닙니다")
+        rows = _rows(payload)
         if not rows:
-            return FetchOutcome(caveats=("도로변 산사태 취약구간 자료가 없습니다",))
+            return confirmed_empty("도로변 산사태 취약구간 자료가 없습니다")
 
         area = kwargs.get("address")
         records = []
@@ -283,7 +308,7 @@ class RoadsideLandslideConnector(Connector[RiskZone]):
                     quality_flags=flags,
                 )
             )
-        return FetchOutcome(records=tuple(records))
+        return FetchOutcome(records=tuple(records), confirmed_absence=not records)
 
 
 class PastLandslideConnector(Connector[RiskZone]):
@@ -308,9 +333,12 @@ class PastLandslideConnector(Connector[RiskZone]):
         return params
 
     def parse(self, response: RawResponse, **kwargs: Any) -> FetchOutcome[RiskZone]:
-        rows = _rows(response.json())
+        payload = response.json()
+        if not _is_success_envelope(payload):
+            raise ValueError("응답이 정상 봉투가 아닙니다")
+        rows = _rows(payload)
         if not rows:
-            return FetchOutcome(caveats=("조건에 해당하는 과거 산사태 기록이 없습니다",))
+            return confirmed_empty("조건에 해당하는 과거 산사태 기록이 없습니다")
 
         records = []
         for index, row in enumerate(rows):
@@ -342,6 +370,7 @@ class PastLandslideConnector(Connector[RiskZone]):
         return FetchOutcome(
             records=tuple(records),
             caveats=("과거 이력입니다 — 현재 위험 상태를 나타내지 않습니다",),
+            confirmed_absence=not records,
         )
 
 

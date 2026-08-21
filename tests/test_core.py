@@ -788,3 +788,79 @@ class TestQualityFlags:
     def test_terms_summary_present(self) -> None:
         for code in LicenseCode:
             assert terms_for(code).summary
+
+
+class TestSourceReceipts:
+    """빈 결과의 의미를 추정하지 않고 증명한다."""
+
+    def test_records_outcome_requires_records(self) -> None:
+        from gbsafe_core.models import SourceOutcome, SourceReceipt
+
+        with pytest.raises(ValueError, match="레코드가 하나 이상"):
+            SourceReceipt(
+                connector="weather_now",
+                dataset_id="15084084",
+                outcome=SourceOutcome.RECORDS,
+                record_count=0,
+                checked_at=datetime.now(UTC),
+                upstream_status=UpstreamStatus.OK,
+            )
+
+    def test_empty_outcome_forbids_records(self) -> None:
+        from gbsafe_core.models import SourceOutcome, SourceReceipt
+
+        with pytest.raises(ValueError, match="레코드를 가질 수 없습니다"):
+            SourceReceipt(
+                connector="weather_now",
+                dataset_id="15084084",
+                outcome=SourceOutcome.CONFIRMED_EMPTY,
+                record_count=3,
+                checked_at=datetime.now(UTC),
+                upstream_status=UpstreamStatus.OK,
+            )
+
+    def test_failed_receipt_makes_answer_incomplete(self) -> None:
+        """실패한 원천이 있으면 degradation이 없어도 불완전하다."""
+        from gbsafe_core.models import SourceOutcome, SourceReceipt
+
+        answer: Answer[dict[str, int]] = Answer(
+            query="t",
+            receipts=(
+                SourceReceipt(
+                    connector="landslide_forecast",
+                    dataset_id="15074800",
+                    outcome=SourceOutcome.FAILED,
+                    record_count=0,
+                    checked_at=datetime.now(UTC),
+                    upstream_status=UpstreamStatus.NOT_AUTHORIZED,
+                ),
+            ),
+        )
+        assert not answer.is_complete
+        assert not answer.absence_is_confirmed
+        assert answer.failed_sources() == ("landslide_forecast",)
+
+    def test_confirmed_empty_allows_absence(self) -> None:
+        """원천이 '해당 없음'을 명시하면 빈 결과를 그렇게 읽어도 된다."""
+        from gbsafe_core.models import SourceOutcome, SourceReceipt
+
+        answer: Answer[dict[str, int]] = Answer(
+            query="t",
+            receipts=(
+                SourceReceipt(
+                    connector="weather_warning",
+                    dataset_id="15000415",
+                    outcome=SourceOutcome.CONFIRMED_EMPTY,
+                    record_count=0,
+                    checked_at=datetime.now(UTC),
+                    upstream_status=UpstreamStatus.OK,
+                ),
+            ),
+        )
+        assert answer.is_complete
+        assert answer.absence_is_confirmed
+
+    def test_no_receipts_means_absence_unconfirmed(self) -> None:
+        """아무 원천도 조회하지 않았으면 확인된 것이 없다."""
+        answer: Answer[dict[str, int]] = Answer(query="t")
+        assert not answer.absence_is_confirmed

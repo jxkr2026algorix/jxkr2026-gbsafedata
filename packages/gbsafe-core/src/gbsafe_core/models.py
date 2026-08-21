@@ -246,6 +246,50 @@ class Record[PayloadT](BaseModel):
         return hashlib.sha256(seed.encode("utf-8")).hexdigest()[:16]
 
 
+class SourceOutcome(StrEnum):
+    """한 원천을 조회한 결과의 종류.
+
+    빈 결과의 의미를 추정하지 않기 위해 존재한다. `CONFIRMED_EMPTY`는 원천이
+    정상 응답으로 "해당 없음"을 명시한 경우이고, `FAILED`는 응답을 해석하지
+    못한 경우다. 둘을 구별하지 않으면 파싱 실패가 '위험 없음'이 된다.
+    """
+
+    RECORDS = "records"
+    CONFIRMED_EMPTY = "confirmed_empty"
+    FAILED = "failed"
+
+    @property
+    def is_trustworthy_absence(self) -> bool:
+        """결과가 비어 있을 때 그것을 '해당 없음'으로 읽어도 되는지."""
+        return self is SourceOutcome.CONFIRMED_EMPTY
+
+
+class SourceReceipt(Frozen):
+    """어떤 원천을 언제 조회해서 무엇을 얻었는지에 대한 영수증.
+
+    실패만 기록하면 "조회하지 않은 원천"과 "조회해서 비어 있던 원천"을 구별할
+    수 없다. 성공한 조회도 남겨야 빈 결과의 근거가 생긴다.
+    """
+
+    connector: str
+    dataset_id: str
+    outcome: SourceOutcome
+    record_count: int = Field(ge=0)
+    checked_at: datetime
+    upstream_status: UpstreamStatus
+    detail: str = ""
+
+    @model_validator(mode="after")
+    def _consistent(self) -> Self:
+        if self.outcome is SourceOutcome.RECORDS and self.record_count == 0:
+            raise ValueError("RECORDS는 레코드가 하나 이상이어야 합니다")
+        if self.outcome is not SourceOutcome.RECORDS and self.record_count:
+            raise ValueError(f"{self.outcome.value}는 레코드를 가질 수 없습니다")
+        if self.checked_at.tzinfo is None:
+            raise ValueError("checked_at은 시간대를 포함해야 합니다")
+        return self
+
+
 class Degradation(Frozen):
     """원천 장애나 권한 부재를 응답에 실어 보내는 구조.
 
@@ -286,6 +330,9 @@ class Answer[PayloadT](BaseModel):
     query: str
     records: tuple[Record[PayloadT], ...] = ()
     degradations: tuple[Degradation, ...] = ()
+    receipts: tuple[SourceReceipt, ...] = Field(
+        default=(), description="조회한 원천별 결과. 빈 결과의 근거가 된다"
+    )
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     caveats: tuple[str, ...] = ()
 
@@ -299,7 +346,32 @@ class Answer[PayloadT](BaseModel):
 
     @property
     def is_complete(self) -> bool:
-        return not any(item.blocks_interpretation for item in self.degradations)
+        """모든 원천을 조회했고 해석을 막는 실패가 없는지."""
+        if any(item.blocks_interpretation for item in self.degradations):
+            return False
+        return all(
+            receipt.outcome is not SourceOutcome.FAILED for receipt in self.receipts
+        )
+
+    @property
+    def absence_is_confirmed(self) -> bool:
+        """결과가 비어 있는 것을 '해당 없음'으로 읽어도 되는지.
+
+        조회한 원천이 하나도 없으면 확인된 것이 없으므로 False다.
+        """
+        if not self.receipts:
+            return False
+        return self.is_complete and all(
+            receipt.outcome.is_trustworthy_absence or receipt.record_count
+            for receipt in self.receipts
+        )
+
+    def failed_sources(self) -> tuple[str, ...]:
+        return tuple(
+            receipt.connector
+            for receipt in self.receipts
+            if receipt.outcome is SourceOutcome.FAILED
+        )
 
     def modes(self) -> tuple[DataMode, ...]:
         return tuple({record.provenance.mode for record in self.records})

@@ -105,12 +105,27 @@ def _answer_payload(answer: Answer[Any], query: dict[str, Any]) -> dict[str, Any
             "일부 원천을 조회하지 못했습니다. 결과가 비어 있어도 '위험 없음'을 의미하지 않습니다"
         )
 
+    failed = [item.connector for item in body.receipts if item.outcome == "failed"]
+    if failed:
+        warnings.append(
+            f"조회하지 못한 원천: {', '.join(failed)} — 이 원천이 다루는 위험은 "
+            "확인되지 않았습니다"
+        )
+    if body.record_count == 0 and not body.absence_confirmed:
+        warnings.append(
+            "결과가 비어 있지만 원천이 '해당 없음'을 확인해 주지 않았습니다. "
+            "위험이 없다고 답하지 마세요."
+        )
+
     return {
         "query": body.query,
         "record_count": body.record_count,
         "complete": body.complete,
+        "absence_confirmed": body.absence_confirmed,
         "records": [record.model_dump(mode="json") for record in body.records],
         "citations": [citation.model_dump(mode="json") for citation in body.citations],
+        "sources_checked": [receipt.model_dump(mode="json") for receipt in body.receipts],
+        "degradations": [item.model_dump(mode="json") for item in body.degradations],
         "caveats": body.caveats,
         "warnings": warnings,
         "how_to_cite": CITE_INSTRUCTION,

@@ -27,7 +27,7 @@ from gbsafe_core.domain import (
 from gbsafe_core.models import GeoPoint, QualityFlag
 from gbsafe_core.regions import HazardDomain, KmaGrid, find_sigungu, to_kma_grid
 
-from .base import KST, Connector, FetchOutcome, RawResponse
+from .base import KST, Connector, FetchOutcome, RawResponse, confirmed_empty
 from .stations import GYEONGBUK_STATIONS, describe_station, serves_gyeongbuk
 
 #: 기상청 카테고리 코드 → (정규화 이름, 단위).
@@ -119,6 +119,18 @@ def _resolve_grid(location: str | GeoPoint | KmaGrid) -> KmaGrid:
     return to_kma_grid(sigungu.center)
 
 
+def _is_success_envelope(payload: Any) -> bool:
+    """응답이 정상 봉투인지 확인한다.
+
+    이것을 확인하지 않고 빈 목록을 '해당 없음'으로 보고하면, 구조를 알아보지
+    못한 응답이 '위험 없음'이 된다.
+    """
+    if not isinstance(payload, dict):
+        return False
+    header = payload.get("response", {}).get("header", {})
+    return isinstance(header, dict) and str(header.get("resultCode", "")) in ("00", "0")
+
+
 def _items(payload: Any) -> list[dict[str, Any]]:
     """기상청 응답에서 item 목록을 꺼낸다. 단일 항목이 dict로 오는 경우도 있다."""
     body = payload.get("response", {}).get("body", {})
@@ -162,11 +174,12 @@ class UltraShortNowcastConnector(Connector[Observation]):
         }
 
     def parse(self, response: RawResponse, **kwargs: Any) -> FetchOutcome[Observation]:
-        items = _items(response.json())
+        payload = response.json()
+        if not _is_success_envelope(payload):
+            raise ValueError("응답이 정상 봉투가 아닙니다 (resultCode 확인 실패)")
+        items = _items(payload)
         if not items:
-            return FetchOutcome(
-                caveats=("해당 시각·격자에 실황 자료가 없습니다 (발표 지연 가능)",)
-            )
+            return confirmed_empty("해당 시각·격자에 실황 자료가 없습니다 (발표 지연 가능)")
 
         grid = _resolve_grid(kwargs["location"])
         point = None
@@ -213,7 +226,7 @@ class UltraShortNowcastConnector(Connector[Observation]):
                     ),
                 )
             )
-        return FetchOutcome(records=tuple(records))
+        return FetchOutcome(records=tuple(records), confirmed_absence=not records)
 
 
 class ShortTermForecastConnector(Connector[Observation]):
@@ -242,9 +255,12 @@ class ShortTermForecastConnector(Connector[Observation]):
         }
 
     def parse(self, response: RawResponse, **kwargs: Any) -> FetchOutcome[Observation]:
-        items = _items(response.json())
+        payload = response.json()
+        if not _is_success_envelope(payload):
+            raise ValueError("응답이 정상 봉투가 아닙니다 (resultCode 확인 실패)")
+        items = _items(payload)
         if not items:
-            return FetchOutcome(caveats=("해당 발표시각의 예보 자료가 없습니다",))
+            return confirmed_empty("해당 발표시각의 예보 자료가 없습니다")
 
         grid = _resolve_grid(kwargs["location"])
         wanted = kwargs.get("categories") or {"TMP", "PCP", "POP", "REH", "WSD", "SKY"}
@@ -281,6 +297,7 @@ class ShortTermForecastConnector(Connector[Observation]):
         return FetchOutcome(
             records=tuple(records),
             caveats=("예보값입니다 — 현재 관측 상황과 구별해야 합니다",),
+            confirmed_absence=not records,
         )
 
 
@@ -313,11 +330,12 @@ class WeatherWarningConnector(Connector[HazardAlert]):
         return params
 
     def parse(self, response: RawResponse, **kwargs: Any) -> FetchOutcome[HazardAlert]:
-        items = _items(response.json())
+        payload = response.json()
+        if not _is_success_envelope(payload):
+            raise ValueError("응답이 정상 봉투가 아닙니다 (resultCode 확인 실패)")
+        items = _items(payload)
         if not items:
-            return FetchOutcome(
-                caveats=("조회 기간에 발효된 기상특보가 없습니다 (조회는 정상)",)
-            )
+            return confirmed_empty("조회 기간에 발효된 기상특보가 없습니다 (조회는 정상)")
 
         # 이 API는 지역명이 아니라 발표관서 번호를 준다. 필터하지 않으면
         # 전국 특보가 경북 특보처럼 섞인다.
@@ -373,7 +391,11 @@ class WeatherWarningConnector(Connector[HazardAlert]):
             caveats.append(f"해제 통보문 {skipped_cancelled}건을 제외했습니다 (이미 종료된 위험)")
         if not records:
             caveats.append("경북 관할 구역에 발효 중인 특보가 없습니다 (조회는 정상)")
-        return FetchOutcome(records=tuple(records), caveats=tuple(caveats))
+        return FetchOutcome(
+            records=tuple(records),
+            caveats=tuple(caveats),
+            confirmed_absence=not records,
+        )
 
 
 def _hazard_from_title(title: str) -> HazardDomain:

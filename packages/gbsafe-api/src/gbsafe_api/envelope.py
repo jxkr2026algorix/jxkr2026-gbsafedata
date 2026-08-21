@@ -121,6 +121,20 @@ class CitationInfo(BaseModel):
     text: str = Field(description="사람이 읽을 수 있는 완성된 인용 문구")
 
 
+class SourceReceiptInfo(BaseModel):
+    """조회한 원천별 결과. 빈 결과의 근거가 된다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    connector: str
+    dataset_id: str
+    outcome: str = Field(description="records | confirmed_empty | failed")
+    record_count: int
+    checked_at: datetime
+    upstream_status: str
+    detail: str = ""
+
+
 class ApiEnvelope(BaseModel):
     """모든 데이터 응답의 공통 봉투."""
 
@@ -129,10 +143,17 @@ class ApiEnvelope(BaseModel):
     query: dict[str, Any]
     records: list[RecordEnvelope]
     citations: list[CitationInfo]
+    receipts: list[SourceReceiptInfo] = Field(
+        default_factory=list,
+        description="조회한 원천별 결과. failed가 있으면 결과가 불완전하다",
+    )
     degradations: list[DegradationInfo] = Field(default_factory=list)
     caveats: list[str] = Field(default_factory=list)
     complete: bool = Field(
         description="false면 일부 원천 조회에 실패했다. records만 보고 판단하면 안 된다"
+    )
+    absence_confirmed: bool = Field(
+        description="true면 빈 결과를 '해당 없음'으로 읽어도 된다. false면 확인되지 않았다"
     )
     record_count: int
     generated_at: datetime
@@ -221,9 +242,22 @@ def envelope(answer: Answer[Any], query: dict[str, Any]) -> ApiEnvelope:
         query=query,
         records=[to_record_envelope(record) for record in answer.records],
         citations=[to_citation_info(citation) for citation in answer.citations],
+        receipts=[
+            SourceReceiptInfo(
+                connector=receipt.connector,
+                dataset_id=receipt.dataset_id,
+                outcome=receipt.outcome.value,
+                record_count=receipt.record_count,
+                checked_at=receipt.checked_at,
+                upstream_status=receipt.upstream_status.value,
+                detail=receipt.detail,
+            )
+            for receipt in answer.receipts
+        ],
         degradations=[to_degradation_info(item) for item in answer.degradations],
         caveats=list(answer.caveats),
         complete=answer.is_complete,
+        absence_confirmed=answer.absence_is_confirmed,
         record_count=len(answer.records),
         generated_at=answer.generated_at,
         modes=[mode.value for mode in answer.modes()],
@@ -237,6 +271,7 @@ __all__ = [
     "FreshnessInfo",
     "RecordEnvelope",
     "SourceInfo",
+    "SourceReceiptInfo",
     "envelope",
     "to_citation_info",
     "to_degradation_info",

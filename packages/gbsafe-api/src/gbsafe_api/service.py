@@ -26,7 +26,14 @@ from gbsafe_connectors.filedata import local_response
 from gbsafe_core.catalog import AccessRoute, DatasetEntry
 from gbsafe_core.domain import DatasetDescriptor
 from gbsafe_core.licensing import LicenseViolation, Operation, require, terms_for
-from gbsafe_core.models import Answer, Degradation, Record, UpstreamStatus
+from gbsafe_core.models import (
+    Answer,
+    Degradation,
+    Record,
+    SourceOutcome,
+    SourceReceipt,
+    UpstreamStatus,
+)
 from gbsafe_core.regions import (
     SIGUNGU,
     HazardDomain,
@@ -382,25 +389,42 @@ class SafeDataService:
         records: list[Record[Any]] = []
         degradations: list[Degradation] = []
         caveats: list[str] = []
+        receipts: list[SourceReceipt] = []
+
         for name, outcome in zip(names, outcomes, strict=True):
+            spec = self._registry.spec(name)
+            dataset_id = spec.dataset_id if spec else name
             if isinstance(outcome, BaseException):
                 degradations.append(
                     Degradation(
-                        dataset_id=name,
+                        dataset_id=dataset_id,
                         status=UpstreamStatus.UNAVAILABLE,
                         detail=f"{type(outcome).__name__}: {outcome}",
                         occurred_at=datetime.now(UTC),
+                    )
+                )
+                receipts.append(
+                    SourceReceipt(
+                        connector=name,
+                        dataset_id=dataset_id,
+                        outcome=SourceOutcome.FAILED,
+                        record_count=0,
+                        checked_at=datetime.now(UTC),
+                        upstream_status=UpstreamStatus.UNAVAILABLE,
+                        detail=f"{type(outcome).__name__}: {outcome}",
                     )
                 )
                 continue
             records.extend(outcome.records)
             degradations.extend(outcome.degradations)
             caveats.extend(outcome.caveats)
+            receipts.append(outcome.receipt(connector=name, dataset_id=dataset_id))
 
         return Answer(
             query=f"{sigungu.full_name} {hazard_domain.value}",
             records=tuple(records),
             degradations=tuple(degradations),
+            receipts=tuple(receipts),
             caveats=tuple(dict.fromkeys(caveats)),
         )
 
@@ -434,10 +458,16 @@ class SafeDataService:
                 ),
             )
         outcome = await connector.fetch(**kwargs)
+        spec = self._registry.spec(name)
         return Answer(
             query=f"{name} {kwargs}",
             records=outcome.records,
             degradations=outcome.degradations,
+            receipts=(
+                outcome.receipt(
+                    connector=name, dataset_id=spec.dataset_id if spec else name
+                ),
+            ),
             caveats=outcome.caveats,
         )
 
@@ -452,10 +482,17 @@ class SafeDataService:
         connector = self._registry.create(connector_name)
         response = local_response(path_or_bytes)
         outcome = connector.parse(response, **kwargs)
+        spec = self._registry.spec(connector_name)
         return Answer(
             query=f"{connector_name} (local file)",
             records=outcome.records,
             degradations=outcome.degradations,
+            receipts=(
+                outcome.receipt(
+                    connector=connector_name,
+                    dataset_id=spec.dataset_id if spec else connector_name,
+                ),
+            ),
             caveats=outcome.caveats,
         )
 

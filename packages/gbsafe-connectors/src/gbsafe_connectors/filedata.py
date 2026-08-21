@@ -172,8 +172,8 @@ class ShelterCsvConnector(Connector[Shelter]):
     def parse(self, response: RawResponse, **kwargs: Any) -> FetchOutcome[Shelter]:
         rows, encoding, was_cp949 = decode_csv(response.body)
         if not rows:
-            return FetchOutcome(
-                caveats=("CSV를 읽을 수 없거나 데이터 행이 없습니다",)
+            raise ValueError(
+                "CSV에 데이터 행이 없습니다 — 파일이 비었거나 인코딩·구분자가 다릅니다"
             )
 
         region = kwargs.get("region")
@@ -238,7 +238,9 @@ class ShelterCsvConnector(Connector[Shelter]):
         if was_cp949:
             caveats.append(f"CP949 인코딩을 {encoding}로 해석했습니다")
 
-        return FetchOutcome(records=tuple(records), caveats=tuple(caveats))
+        return FetchOutcome(
+            records=tuple(records), caveats=tuple(caveats), confirmed_absence=not records
+        )
 
 
 class LandslideRiskZoneCsvConnector(Connector[RiskZone]):
@@ -260,7 +262,9 @@ class LandslideRiskZoneCsvConnector(Connector[RiskZone]):
     def parse(self, response: RawResponse, **kwargs: Any) -> FetchOutcome[RiskZone]:
         rows, encoding, was_cp949 = decode_csv(response.body)
         if not rows:
-            return FetchOutcome(caveats=("CSV를 읽을 수 없거나 데이터 행이 없습니다",))
+            raise ValueError(
+                "CSV에 데이터 행이 없습니다 — 파일이 비었거나 인코딩·구분자가 다릅니다"
+            )
 
         region = kwargs.get("region")
         records = []
@@ -305,7 +309,9 @@ class LandslideRiskZoneCsvConnector(Connector[RiskZone]):
             caveats.append(f"{without_coords}건은 좌표가 없습니다")
         if was_cp949:
             caveats.append(f"CP949 인코딩을 {encoding}로 해석했습니다")
-        return FetchOutcome(records=tuple(records), caveats=tuple(caveats))
+        return FetchOutcome(
+            records=tuple(records), caveats=tuple(caveats), confirmed_absence=not records
+        )
 
 
 def local_response(

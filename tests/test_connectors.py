@@ -625,3 +625,45 @@ class TestConcurrencyAndCache:
         assert any("캐시" in caveat for caveat in second.caveats)
         assert len(second.records) == len(first.records)
         await clear_cache()
+
+
+class TestOutcomeClassification:
+    """파싱 실패를 '해당 없음'으로 보고하면 위험이 은폐된다."""
+
+    def test_malformed_envelope_is_failure_not_absence(self, settings: Settings) -> None:
+        connector = UltraShortNowcastConnector(settings=settings)
+        with pytest.raises(ValueError, match="정상 봉투"):
+            connector.parse(make_response({"unexpected": "shape"}), location="문경시")
+
+    def test_error_result_code_is_failure(self, settings: Settings) -> None:
+        body = {"response": {"header": {"resultCode": "99", "resultMsg": "NO_DATA"}}}
+        connector = UltraShortNowcastConnector(settings=settings)
+        with pytest.raises(ValueError, match="정상 봉투"):
+            connector.parse(make_response(body), location="문경시")
+
+    def test_documented_no_data_is_confirmed_empty(self, settings: Settings) -> None:
+        """정상 응답에 항목이 없는 것은 확인된 부재다."""
+        body = {"response": {"header": {"resultCode": "00"}, "body": {"items": ""}}}
+        connector = UltraShortNowcastConnector(settings=settings)
+        outcome = connector.parse(make_response(body), location="문경시")
+        assert outcome.is_empty_but_healthy
+        assert outcome.outcome.is_trustworthy_absence
+
+    def test_records_outcome(self, settings: Settings) -> None:
+        connector = UltraShortNowcastConnector(settings=settings)
+        outcome = connector.parse(make_response(KMA_NOWCAST_BODY), location="문경시")
+        assert outcome.outcome.value == "records"
+        assert not outcome.is_empty_but_healthy
+
+    def test_receipt_records_what_happened(self, settings: Settings) -> None:
+        connector = UltraShortNowcastConnector(settings=settings)
+        outcome = connector.parse(make_response(KMA_NOWCAST_BODY), location="문경시")
+        receipt = outcome.receipt(connector="weather_now", dataset_id="15084084")
+        assert receipt.record_count == len(outcome.records)
+        assert receipt.outcome.value == "records"
+
+    def test_empty_csv_is_failure_not_absence(self, settings: Settings) -> None:
+        """헤더만 있는 CSV와 인코딩 오류를 구별할 수 없으므로 실패로 본다."""
+        connector = ShelterCsvConnector(settings=settings)
+        with pytest.raises(ValueError, match="데이터 행이 없습니다"):
+            connector.parse(local_response(b""))
