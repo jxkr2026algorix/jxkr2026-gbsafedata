@@ -81,6 +81,7 @@ dev/
 uv run gbsafe doctor                        # 원천 상태 진단
 uv run gbsafe search 산사태 --ready          # 지금 호출 가능한 것만 검색
 uv run gbsafe verify 15074800 --operation derive   # 가공해도 되는지 판정
+uv run gbsafe cite 15084084                 # 보고서에 붙일 출처 문구
 uv run gbsafe region 문경시                  # 코드·좌표·기상격자 변환
 uv run gbsafe hazard 문경시 --type landslide # 현재 위험 상황
 uv run gbsafe quality                       # 확인된 데이터 결함
@@ -127,7 +128,7 @@ uv run gbsafe-mcp
 
 설정은 [`plugins/`](plugins)에 있다. 도구 10종 전부 읽기 전용이다.
 
-`gbsafe_search_datasets` · `gbsafe_describe_dataset` · `gbsafe_verify_dataset` · `gbsafe_resolve_region` · `gbsafe_hazard_context` · `gbsafe_list_sources` · `gbsafe_fetch_source` · `gbsafe_data_health` · `gbsafe_quality_report` · `gbsafe_population_guidance`
+`gbsafe_search_datasets` · `gbsafe_describe_dataset` · `gbsafe_verify_dataset` · `gbsafe_cite_dataset` · `gbsafe_resolve_region` · `gbsafe_hazard_context` · `gbsafe_list_sources` · `gbsafe_fetch_source` · `gbsafe_data_health` · `gbsafe_quality_report` · `gbsafe_population_guidance`
 
 [`skills/gb-safedata`](skills/gb-safedata)를 함께 설치하면 AI가 데이터를 안전하게 해석하는 규칙까지 적용된다. MCP만 붙이면 도구는 쓸 수 있지만 인용 규칙과 안전 경계가 빠진다.
 

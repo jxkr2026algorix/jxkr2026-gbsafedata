@@ -182,3 +182,17 @@ class TestSecretsNotLeaked:
         payload = json.loads(result.output)
         for info in payload["credentials"].values():
             assert set(info) == {"present", "source"}
+
+
+class TestCiteCommand:
+    def test_cite_succeeds(self) -> None:
+        result = runner.invoke(app, ["cite", "15084084"])
+        assert result.exit_code == 0
+        assert "기상청" in result.output
+
+    def test_cite_unknown_is_nonzero(self) -> None:
+        assert runner.invoke(app, ["cite", "99999999"]).exit_code == 1
+
+    def test_cite_json_parses(self) -> None:
+        result = runner.invoke(app, ["cite", "15084084", "--json"])
+        assert json.loads(result.output)["text"]

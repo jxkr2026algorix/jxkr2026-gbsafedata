@@ -25,7 +25,13 @@ from gbsafe_connectors import FetchOutcome, Registry, get_registry
 from gbsafe_connectors.filedata import local_response
 from gbsafe_core.catalog import AccessRoute, DatasetEntry
 from gbsafe_core.domain import DatasetDescriptor, Shelter
-from gbsafe_core.licensing import LicenseViolation, Operation, require, terms_for
+from gbsafe_core.licensing import (
+    LicenseViolation,
+    Operation,
+    attribution_notice,
+    require,
+    terms_for,
+)
 from gbsafe_core.models import (
     Answer,
     Degradation,
@@ -305,6 +311,49 @@ class SafeDataService:
             warnings=tuple(warnings),
             obtain_via=obtain,
         )
+
+    def cite_dataset(self, dataset_id: str) -> dict[str, Any]:
+        """데이터셋의 인용 문구를 만든다.
+
+        보고서·발표자료에 붙일 출처 표기가 필요할 때 쓴다. 데이터를 조회하지
+        않고도 인용을 얻을 수 있어야 한다 — 데이터셋을 언급하는 것만으로도
+        출처표시 의무가 생기기 때문이다.
+        """
+        entry = self._registry.catalog.get(dataset_id)
+        if entry is None:
+            return {
+                "found": False,
+                "dataset_id": dataset_id,
+                "message": f"카탈로그에 '{dataset_id}'가 없습니다",
+            }
+
+        terms = terms_for(entry.license)
+        attribution = attribution_notice(entry.license, entry.provider, entry.name)
+        parts = [f"{entry.provider} 「{entry.name}」"]
+        if entry.modified:
+            parts.append(f"기준 {entry.modified}")
+        parts.append(terms.summary)
+        if entry.url:
+            parts.append(entry.url)
+
+        return {
+            "found": True,
+            "dataset_id": entry.dataset_id,
+            "text": " · ".join(parts),
+            "attribution": attribution,
+            "provider": entry.provider,
+            "dataset_name": entry.name,
+            "license": entry.license.value,
+            "license_summary": terms.summary,
+            "attribution_required": terms.attribution_required,
+            "share_alike": terms.share_alike,
+            "source_url": entry.url or None,
+            "modified": entry.modified or None,
+            "caveat": (
+                "이 문구는 데이터셋 메타데이터 기준입니다. 실제 값을 인용할 때는 "
+                "조회 응답의 citations를 쓰세요 — 관측 시각이 포함됩니다."
+            ),
+        }
 
     # ── 지역 ────────────────────────────────────────────────────
     def resolve_region(self, query: str) -> dict[str, Any]:

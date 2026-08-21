@@ -85,13 +85,14 @@ cp -r skills/gb-safedata ~/.claude/skills/
 
 ## 도구 목록
 
-10개 모두 읽기 전용이다.
+11개 모두 읽기 전용이다.
 
 | 도구 | 용도 |
 | --- | --- |
 | `gbsafe_search_datasets` | 데이터셋 검색 (라이선스·심의 상태 포함) |
 | `gbsafe_describe_dataset` | 데이터셋 상세 — 취득 방법·결함 |
 | `gbsafe_verify_dataset` | 이 용도로 써도 되는지 판정 |
+| `gbsafe_cite_dataset` | 보고서에 붙일 출처 표기 문구 |
 | `gbsafe_resolve_region` | 지역명 → 코드·좌표·기상격자 |
 | `gbsafe_hazard_context` | 지역 현재 위험 상황 (다중 원천) |
 | `gbsafe_list_sources` | 조회 가능한 원천 목록 |

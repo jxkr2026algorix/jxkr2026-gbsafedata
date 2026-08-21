@@ -261,6 +261,34 @@ def verify(
 
 
 @app.command()
+def cite(
+    dataset_id: Annotated[str, typer.Argument(help="데이터셋 ID")],
+    as_json: Annotated[bool, typer.Option("--json", help="전체 필드를 JSON으로")] = False,
+) -> None:
+    """데이터셋의 출처 표기 문구를 만든다.
+
+    보고서에 붙일 인용이 필요할 때 쓴다. 실제 값을 인용할 때는 조회 응답의
+    citations를 쓰는 편이 정확하다 — 관측 시각이 포함된다.
+    """
+    result = _get_service().cite_dataset(dataset_id)
+    if not result.get("found"):
+        console.print(f"[red]{result['message']}[/red]")
+        raise typer.Exit(1)
+    if as_json:
+        _print_json(result)
+        return
+    console.print(result["text"])
+    if result["attribution"]:
+        console.print(f"[dim]{result['attribution']}[/dim]")
+    if result["share_alike"]:
+        console.print(
+            "[yellow]![/yellow] share-alike 라이선스입니다 — 다른 라이선스 데이터와 "
+            "병합해 배포하면 전염됩니다"
+        )
+    console.print(f"[dim]{result['caveat']}[/dim]")
+
+
+@app.command()
 def region(
     query: Annotated[str, typer.Argument(help="시군명 또는 코드")],
     as_json: Annotated[

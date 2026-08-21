@@ -62,6 +62,19 @@
 | --- | --- | --- | --- |
 | `dataset_id` | path | 예 |  |
 
+### `GET /v1/datasets/{dataset_id}/citation`
+
+출처 표기 문구
+
+보고서에 붙일 인용 문구를 만듭니다.
+
+실제 관측값을 인용할 때는 조회 응답의 `citations`를 쓰는 편이 정확합니다 —
+관측 시각이 포함됩니다.
+
+| 파라미터 | 위치 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `dataset_id` | path | 예 |  |
+
 ### `GET /v1/datasets/{dataset_id}/verify`
 
 이 용도로 써도 되는지 판정

@@ -298,7 +298,7 @@ class TestMcpTools:
         assert validated_tools() == TOOLS
 
     def test_tool_count(self) -> None:
-        assert len(TOOLS) == 10
+        assert len(TOOLS) == 11
 
     def test_schemas_are_strict(self) -> None:
         for tool in TOOLS:
@@ -500,3 +500,41 @@ class TestEnforcedGuards:
         answer = service.normalize_csv("shelters", csv, hazard="heavy_rain")
         joined = " ".join(answer.caveats)
         assert "운영 여부" in joined or "자동 배정 대상이 아닙니다" in joined
+
+
+class TestCitationCommand:
+    """데이터셋을 언급하는 것만으로도 출처표시 의무가 생긴다."""
+
+    def test_cite_returns_attribution(self, service: SafeDataService) -> None:
+        result = service.cite_dataset("15084084")
+        assert result["found"]
+        assert "기상청" in result["text"]
+        assert result["attribution"]
+        assert result["attribution_required"]
+
+    def test_cite_reports_modification_ban(self, service: SafeDataService) -> None:
+        """KOGL-3은 변경금지이므로 인용 문구에 드러나야 한다."""
+        result = service.cite_dataset("15073861")
+        assert "변경금지" in result["license_summary"]
+
+    def test_cite_unknown_dataset(self, service: SafeDataService) -> None:
+        result = service.cite_dataset("99999999")
+        assert not result["found"]
+
+    def test_cite_endpoint(self, client: TestClient) -> None:
+        payload = client.get("/v1/datasets/15084084/citation").json()
+        assert payload["text"]
+        assert payload["caveat"]
+
+    def test_cite_endpoint_404(self, client: TestClient) -> None:
+        assert client.get("/v1/datasets/99999999/citation").status_code == 404
+
+    async def test_cite_tool(self, service: SafeDataService) -> None:
+        payload = json.loads(
+            await execute(service, "gbsafe_cite_dataset", {"dataset_id": "15084084"})
+        )
+        assert payload["found"]
+        assert payload["text"]
+
+    def test_tool_count_includes_cite(self) -> None:
+        assert len(TOOLS) == 11

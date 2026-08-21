@@ -154,6 +154,10 @@ async def _verify_dataset(service: SafeDataService, args: dict[str, Any]) -> dic
     return result.to_dict()
 
 
+async def _cite_dataset(service: SafeDataService, args: dict[str, Any]) -> dict[str, Any]:
+    return service.cite_dataset(str(args["dataset_id"]))
+
+
 async def _resolve_region(service: SafeDataService, args: dict[str, Any]) -> dict[str, Any]:
     return service.resolve_region(str(args["region"]))
 
@@ -275,6 +279,22 @@ TOOLS: tuple[ToolDef, ...] = (
             ["dataset_id"],
         ),
         handler=_verify_dataset,
+    ),
+    ToolDef(
+        name="gbsafe_cite_dataset",
+        title="출처 표기 문구 생성",
+        description=(
+            "데이터셋의 출처 표기 문구를 만듭니다. 보고서나 발표자료에 인용을 "
+            "붙일 때 쓰세요.\n\n"
+            "실제 관측값을 인용할 때는 조회 응답의 citations를 쓰는 편이 정확합니다 "
+            "— 관측 시각이 포함되기 때문입니다. 이 도구는 데이터셋 자체를 언급할 때 "
+            "필요한 표기를 줍니다."
+        ),
+        schema=_object(
+            {"dataset_id": {"type": "string", "description": "data.go.kr 데이터셋 ID"}},
+            ["dataset_id"],
+        ),
+        handler=_cite_dataset,
     ),
     ToolDef(
         name="gbsafe_resolve_region",

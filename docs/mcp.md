@@ -3,7 +3,7 @@
 `uv run gbsafe-mcp` 로 기동한다. 설정은 [`plugins/`](../plugins)에 있다.
 이 문서는 실제 도구 정의에서 생성했다.
 
-**10개 모두 읽기 전용이다.** 서버가 기동 시점에 도구 이름을 검사한다 — 조회 동사를
+**11개 모두 읽기 전용이다.** 서버가 기동 시점에 도구 이름을 검사한다 — 조회 동사를
 포함하고 변경 동사가 없어야 통과한다.
 
 ## `gbsafe_search_datasets`
@@ -45,6 +45,18 @@ operation='derive'는 재투영, 클리핑, 래스터화, 조인, 파생 라벨 
 | --- | --- | --- | --- |
 | `dataset_id` | string | 예 |  |
 | `operation` | string | 아니오 | 확인할 연산 (기본 read) (`read` / `derive` / `redistribute` / `commercial`) |
+
+## `gbsafe_cite_dataset`
+
+**출처 표기 문구 생성**
+
+데이터셋의 출처 표기 문구를 만듭니다. 보고서나 발표자료에 인용을 붙일 때 쓰세요.
+
+실제 관측값을 인용할 때는 조회 응답의 citations를 쓰는 편이 정확합니다 — 관측 시각이 포함되기 때문입니다. 이 도구는 데이터셋 자체를 언급할 때 필요한 표기를 줍니다.
+
+| 인자 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `dataset_id` | string | 예 | data.go.kr 데이터셋 ID |
 
 ## `gbsafe_resolve_region`
 

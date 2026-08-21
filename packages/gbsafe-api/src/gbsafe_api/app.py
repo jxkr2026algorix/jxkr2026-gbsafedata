@@ -148,6 +148,22 @@ def create_app(service: SafeDataService | None = None) -> FastAPI:
         """
         return resolved.verify_dataset(dataset_id, operation).to_dict()
 
+    @app.get(
+        "/v1/datasets/{dataset_id}/citation",
+        tags=["catalog"],
+        summary="출처 표기 문구",
+    )
+    async def cite_dataset(dataset_id: str) -> dict[str, Any]:
+        """보고서에 붙일 인용 문구를 만듭니다.
+
+        실제 관측값을 인용할 때는 조회 응답의 `citations`를 쓰는 편이 정확합니다 —
+        관측 시각이 포함됩니다.
+        """
+        result = resolved.cite_dataset(dataset_id)
+        if not result.get("found"):
+            raise HTTPException(status_code=404, detail=result)
+        return result
+
     @app.get("/v1/quality", tags=["ops"], summary="검증으로 확인된 데이터 품질 결함")
     async def quality_report() -> dict[str, Any]:
         """포털 메타데이터가 틀린 사례 목록.
