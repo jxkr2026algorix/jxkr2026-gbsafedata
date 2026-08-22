@@ -135,8 +135,10 @@ uv run gbsafe-mcp
 
 ### 내 AI에 연결하기 (설치 없음)
 
-Claude 설정의 Connectors에 아래 주소를 붙여넣으면 끝난다. 터미널도, 인증키도,
-가입도 필요 없고 **무료 플랜에서도 된다**.
+**[▶ Claude에 추가하기](https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=%EC%82%B4%EA%B8%B8%20%EC%9E%AC%EB%82%9C%EB%8D%B0%EC%9D%B4%ED%84%B0&connectorUrl=https%3A%2F%2Fdatainfra.salgil.gyeongbuk.kr%2Fmcp%2F)** 를 누르면 값이 채워진 창이 열리고, 확인만 하면
+끝난다. 터미널도, 인증키도, 가입도 필요 없고 **무료 플랜에서도 된다**.
+
+직접 넣으려면 Claude 설정의 Connectors에 아래 주소를 붙여넣으면 된다.
 
 ```
 https://datainfra.salgil.gyeongbuk.kr/mcp/
