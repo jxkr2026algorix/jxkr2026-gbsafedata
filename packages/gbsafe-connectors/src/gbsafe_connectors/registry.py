@@ -28,6 +28,7 @@ from .forest import (
     RoadsideLandslideConnector,
     WildfireRiskConnector,
 )
+from .hrfco import FloodForecastConnector, RiverLevelConnector
 from .kma import (
     ShortTermForecastConnector,
     UltraShortNowcastConnector,
@@ -106,6 +107,18 @@ SPECS: tuple[ConnectorSpec, ...] = (
         factory=AirQualityConnector,
         summary="시도별 실시간 대기오염도 — 산불 연무 보조지표 (한국환경공단)",
         hazards=(HazardDomain.WILDFIRE,),
+    ),
+    ConnectorSpec(
+        name="river_level",
+        factory=RiverLevelConnector,
+        summary="경북 하천 실시간 수위 + 기관 고시 임계수위 (한강홍수통제소)",
+        hazards=(HazardDomain.FLOOD, HazardDomain.HEAVY_RAIN),
+    ),
+    ConnectorSpec(
+        name="flood_forecast",
+        factory=FloodForecastConnector,
+        summary="홍수특보 발령 현황 (한강홍수통제소)",
+        hazards=(HazardDomain.FLOOD, HazardDomain.HEAVY_RAIN),
     ),
     ConnectorSpec(
         name="shelters",

@@ -548,9 +548,16 @@ class TestFallbackCatalog:
         }
         registry = Registry()
         for spec in registry.all_specs():
-            assert spec.dataset_id in names, f"{spec.name}: {spec.dataset_id} 누락"
-            label = names[spec.dataset_id]
-            assert label and label != spec.dataset_id, f"{spec.name}: 이름 없음"
+            connector = registry.create(spec.name)
+            if spec.dataset_id in names:
+                label = names[spec.dataset_id]
+                assert label and label != spec.dataset_id, f"{spec.name}: 이름 없음"
+                continue
+            # data.go.kr 밖의 원천(홍수통제소 등)은 카탈로그에 없다. 대신
+            # 커넥터가 이름과 기관을 직접 밝혀야 한다 — ID만 노출되면
+            # 인용문에 기관 없는 값이 실린다.
+            assert connector.dataset_name != spec.dataset_id, f"{spec.name}: 이름 없음"
+            assert connector.provider != "미확인", f"{spec.name}: 기관 없음"
 
 
 class TestConcurrencyAndCache:
