@@ -26,6 +26,9 @@ from pathlib import Path
 
 import httpx
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "packages/gbsafe-core/src"))
+from gbsafe_core.regions import GYEONGBUK_BBOX
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TARGET = (
     REPO_ROOT
@@ -55,6 +58,23 @@ def load_key() -> str:
         if found:
             return found.group(1).strip()
     return ""
+
+
+def _threshold(value: object) -> float | None:
+    """고시 임계수위. 미측정 자리표시자는 None으로 만든다.
+
+    제원에 `wrnwl='0'`처럼 0이 들어오는 관측소가 12곳 있는데, 이것은
+    "수위 0m에서 주의보"가 아니라 임계값이 고시되지 않았다는 표시다. 0을
+    실제 임계값으로 두면 평상시 0.1m가 경보 초과로 보고된다.
+    """
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = float(text)
+    except ValueError:
+        return None
+    return parsed if parsed > 0 else None
 
 
 def _float(value: object) -> float | None:
@@ -101,22 +121,35 @@ def main() -> int:
         return 1
 
     stations: list[dict[str, object]] = []
+    dropped: list[str] = []
     for row in content:
         address = str(row.get("addr") or "")
         if not address.startswith(GYEONGBUK_PREFIXES):
             continue
+        lat, lon = _dms(row.get("lat")), _dms(row.get("lon"))
+        # 경북 밖 좌표는 버린다. 제원의 위경도가 주소와 어긋나는 행이 있고,
+        # 실제로 문경 경천댐이 경도 126.12(약 180km 서쪽)로 들어와 있었다.
+        # 좌표가 틀린 관측소를 지도에 올리면 엉뚱한 하천을 보고 판단하게 된다.
+        if lat is not None and lon is not None:
+            inside = (
+                GYEONGBUK_BBOX.min_lat <= lat <= GYEONGBUK_BBOX.max_lat
+                and GYEONGBUK_BBOX.min_lon <= lon <= GYEONGBUK_BBOX.max_lon
+            )
+            if not inside:
+                dropped.append(f"{row.get('obsnm')} ({lat}, {lon})")
+                lat = lon = None
         stations.append(
             {
                 "station_id": str(row.get("wlobscd") or "").strip(),
                 "name": str(row.get("obsnm") or "").strip(),
                 "address": address,
-                "lat": _dms(row.get("lat")),
-                "lon": _dms(row.get("lon")),
-                "attention_m": _float(row.get("attwl")),
-                "advisory_m": _float(row.get("wrnwl")),
-                "warning_m": _float(row.get("almwl")),
-                "serious_m": _float(row.get("srswl")),
-                "plan_flood_m": _float(row.get("pfh")),
+                "lat": lat,
+                "lon": lon,
+                "attention_m": _threshold(row.get("attwl")),
+                "advisory_m": _threshold(row.get("wrnwl")),
+                "warning_m": _threshold(row.get("almwl")),
+                "serious_m": _threshold(row.get("srswl")),
+                "plan_flood_m": _threshold(row.get("pfh")),
                 "is_forecast_point": str(row.get("fstnyn") or "").strip().upper() == "Y",
             }
         )
@@ -142,6 +175,8 @@ def main() -> int:
         f"{TARGET.relative_to(REPO_ROOT)} — 경북 {len(stations)}개 "
         f"(임계수위 보유 {with_thresholds}개, 미보유 {len(stations) - with_thresholds}개)"
     )
+    if dropped:
+        print(f"좌표가 경북 밖이라 버린 것 {len(dropped)}개: {', '.join(dropped)}")
     return 0
 
 

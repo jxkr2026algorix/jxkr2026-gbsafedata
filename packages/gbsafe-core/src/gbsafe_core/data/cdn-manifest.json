@@ -1,0 +1,138 @@
+{
+ "note": "git에 넣기엔 큰 자료를 CDN에서 받는다. 인증이 필요 없다. 받는 쪽은 scripts/fetch_cdn_data.py를 쓴다.",
+ "base_url": "https://cdn.salgil.gyeongbuk.kr",
+ "updated_at": "2026-08-22T17:49:04+09:00",
+ "processing": {
+  "fgis": {
+   "source": "산림청 산림공간정보서비스 (map.forest.go.kr)",
+   "original_size_mb": 9318,
+   "extent": "문경시 (임상도·토양도) / 경상북도 전역 (산사태위험지도)",
+   "crs": "EPSG:5179 (벡터) / EPSG:5181 (래스터)",
+   "simplify_m": 5.0,
+   "features_preserved": "100%",
+   "note": "산사태위험지도 래스터는 원본 그대로다. 벡터만 단순화했다."
+  },
+  "fgis-gb": {
+   "source": "산림청 산림공간정보서비스 (map.forest.go.kr)",
+   "original_size_mb": 9318,
+   "published_size_mb": 251,
+   "extent": "경상북도 전역 23개 시군",
+   "crs": "EPSG:5179",
+   "simplify_m": 5.0,
+   "features_preserved": "100% (임상도 752188, 토양도 388947)",
+   "vertices_kept_pct": 9.9,
+   "area_error_pct": 0.091,
+   "columns_kept": {
+    "forest": [
+     "FRTP_NM",
+     "KOFTR_NM",
+     "DMCLS_NM",
+     "AGCLS_NM",
+     "DNST_NM",
+     "HEIGHT",
+     "갱신년도"
+    ],
+    "soil": [
+     "PRRCK_LARG",
+     "PRRCK_MDDL",
+     "LOCTN_ALTT",
+     "LOCTN_GRDN",
+     "SLDPT_TPCD",
+     "SCSTX_CD",
+     "SLTP_CD",
+     "EIGHT_AGL"
+    ]
+   },
+   "columns_dropped": {
+    "코드 중복": [
+     "FROR_CD",
+     "FRTP_CD",
+     "KOFTR_GROU",
+     "DMCLS_CD",
+     "AGCLS_CD",
+     "DNST_CD",
+     "HEIGHT_NM"
+    ],
+    "재계산 가능": [
+     "Shape_Leng",
+     "Shape_Area"
+    ],
+    "관리용 메타": [
+     "STORUNST",
+     "LDMARK_STN",
+     "MAP_LABEL",
+     "ETC_PCMTT"
+    ]
+   },
+   "safe_for": [
+    "마을·읍면동 단위 산불 연료량 판단",
+    "산사태 토양 인자",
+    "시군 단위 집계"
+   ],
+   "not_safe_for": [
+    "필지 경계 판정",
+    "지적 측량",
+    "10m 미만 정밀 분석"
+   ],
+   "note": "꼭짓점을 10분의 1로 줄였지만 면적 오차는 0.091%다. 버린 컬럼은 대부분 보존한 *_NM의 코드 쌍이라 실질 손실이 아니다. 원본 전체가 필요하면 FGIS에서 직접 받아야 한다 (docs/USER-ACTION.md 2순위)."
+  }
+ },
+ "files": [
+  {
+   "group": "fgis",
+   "key": "fgis/47.clr",
+   "path": "data/manual/fgis/47.clr",
+   "size": 59,
+   "sha256": "7c46da045f29d46ec9c9d893911f9a8054f3542b0c4390f8932feca70c367971"
+  },
+  {
+   "group": "fgis",
+   "key": "fgis/47.tfw",
+   "path": "data/manual/fgis/47.tfw",
+   "size": 91,
+   "sha256": "57bf4c5495b3b8d583981195d6a06ff8a4a1638df29dcd5cebf0ac22fc9bbc37"
+  },
+  {
+   "group": "fgis",
+   "key": "fgis/47.tif",
+   "path": "data/manual/fgis/47.tif",
+   "size": 44561231,
+   "sha256": "04008b321ed6e8a80223736bad41b6d1c9cd51635c80b89b4b2affb7d6ecd317"
+  },
+  {
+   "group": "fgis",
+   "key": "fgis/47.tif.vat.dbf",
+   "path": "data/manual/fgis/47.tif.vat.dbf",
+   "size": 248,
+   "sha256": "3dc51c0b2481a85aae1ae2ce2f9756ccfe9683923416bc6a3bb3cf525ee9f658"
+  },
+  {
+   "group": "fgis",
+   "key": "fgis/mungyeong_forest.parquet",
+   "path": "data/manual/fgis/mungyeong_forest.parquet",
+   "size": 21390056,
+   "sha256": "e3863d75c89db23ba6f3123d3770f80d302202e1fe808236f0c3a57a94609906"
+  },
+  {
+   "group": "fgis",
+   "key": "fgis/mungyeong_soil.parquet",
+   "path": "data/manual/fgis/mungyeong_soil.parquet",
+   "size": 16067031,
+   "sha256": "c42da31606c971541d21094a1110ad66da1e28e5ca7879f87175d680b550d455"
+  },
+  {
+   "group": "fgis-gb",
+   "key": "fgis-gyeongbuk/gyeongbuk_forest.parquet",
+   "path": "data/manual/fgis-gyeongbuk/gyeongbuk_forest.parquet",
+   "size": 141843912,
+   "sha256": "943ce226ef5951c8631e962648b2487c0f605003dc02d7cca41c29bfeb8eb6a3"
+  },
+  {
+   "group": "fgis-gb",
+   "key": "fgis-gyeongbuk/gyeongbuk_soil.parquet",
+   "path": "data/manual/fgis-gyeongbuk/gyeongbuk_soil.parquet",
+   "size": 121427507,
+   "sha256": "26fd4fc1fe65c49fc8de7d1974168e3a056fa96416b31ad5cb8a3225cedaea59"
+  }
+ ]
+}
