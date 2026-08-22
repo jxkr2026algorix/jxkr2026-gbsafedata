@@ -18,6 +18,7 @@ import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Annotated, Any, Literal
+from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -44,6 +45,28 @@ from .schemas import (
     ToolCatalog,
 )
 from .service import HAZARD_PLAYBOOK, SafeDataService
+
+# 배포된 인스턴스의 공개 주소. 로컬에서 띄운 서버가 만든 링크도 이 주소를 가리켜야
+# 한다 — 공유용 링크를 받은 사람은 우리 개발 머신이 아니라 배포본에 붙어야 하므로,
+# 설정으로 빼지 않고 고정한다.
+PUBLIC_MCP_URL = "https://datainfra.salgil.gyeongbuk.kr/mcp/"
+
+CONNECTOR_NAME = "SALGIL | 살길 – 재난데이터인프라"
+
+
+def claude_connector_link() -> str:
+    """claude.ai의 커넥터 추가 창을 미리 채워서 여는 링크.
+
+    값을 채워 줄 뿐 사용자 확인을 건너뛰지 않는다. Claude는 외부 링크에서 온
+    값이라는 안내를 함께 띄우고, 추가 여부는 사용자가 결정한다.
+    """
+    name = quote(CONNECTOR_NAME, safe="")
+    url = quote(PUBLIC_MCP_URL, safe="")
+    return (
+        "https://claude.ai/customize/connectors"
+        f"?modal=add-custom-connector&connectorName={name}&connectorUrl={url}"
+    )
+
 
 TITLE = "GB SafeData API"
 DESCRIPTION = """
@@ -335,6 +358,18 @@ def create_app(
             "read_only": True,
             "note": "이 API는 조회만 제공합니다. 전화·대피명령·상태변경 기능이 없습니다.",
         }
+
+    @app.get("/add-claude", include_in_schema=False)
+    async def add_claude() -> RedirectResponse:
+        """Claude의 커넥터 추가 창을 이름과 주소가 채워진 상태로 연다.
+
+        claude.ai로 가는 실제 링크는 이름과 URL이 퍼센트 인코딩돼 들어가 200자가
+        넘는다. 발표 자료나 문자로 옮겨 적을 수 있는 길이가 아니라서, 사람이
+        보고 칠 수 있는 주소를 서버가 대신 들고 있는다.
+
+        302다. 표시 이름은 바뀔 수 있고, 그때 캐시된 옛 링크가 남으면 안 된다.
+        """
+        return RedirectResponse(url=claude_connector_link(), status_code=302)
 
     @app.get("/v1/health", tags=["ops"], summary="원천 상태와 인증 정보 현황")
     async def health() -> HealthReport:
