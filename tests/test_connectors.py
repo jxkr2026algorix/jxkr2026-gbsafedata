@@ -1282,3 +1282,145 @@ class TestCacheKeepsTheAbsenceVerdict:
         assert second.outcome is first.outcome
         assert any("캐시" in caveat for caveat in second.caveats)
         await clear_cache()
+
+
+class TestMissingSentinelsNeverBecomeMeasurements:
+    """기관이 "측정하지 못했다"로 쓰는 숫자가 실측으로 통과하면 안 된다.
+
+    강수량 -99mm는 눈에 띄지만 수위 -99m는 모든 경보 임계값 아래라 조용히
+    안전해 보인다. 그 방향의 실패가 이 저장소가 막으려는 것이다.
+    """
+
+    def test_signed_quantities_keep_real_cold(self) -> None:
+        """-9℃는 경북 산간의 실제 겨울 기온이다. 한파를 결측으로 지우면 안 된다."""
+        from gbsafe_connectors.base import missing_sentinel
+
+        assert not missing_sentinel(-9.0)
+        assert not missing_sentinel(-20.0)
+        assert missing_sentinel(-99.0)
+        assert missing_sentinel(-99.9)
+
+    def test_non_negative_quantities_reject_every_negative(self) -> None:
+        from gbsafe_connectors.base import missing_or_impossible
+
+        for value in (-0.1, -9.0, -99.0, -999.0):
+            assert missing_or_impossible(value), value
+        assert not missing_or_impossible(0.0), "무강수 0은 실측이다"
+
+    def test_non_finite_is_never_a_measurement(self) -> None:
+        """`inf`는 모든 임계값을 넘어 무한대 경보를 만든다."""
+        from gbsafe_connectors.base import missing_or_impossible, missing_sentinel
+
+        for value in (float("inf"), float("-inf"), float("nan")):
+            assert missing_sentinel(value)
+            assert missing_or_impossible(value)
+
+    @pytest.mark.parametrize("sentinel", ["-99", "-99.9", "-9"])
+    def test_rainfall_sentinel_does_not_become_rain(self, sentinel: str) -> None:
+        from gbsafe_connectors.kma import _parse_measure
+
+        assert _parse_measure(sentinel, "RN1") is None
+
+    def test_temperature_keeps_minus_nine(self) -> None:
+        from gbsafe_connectors.kma import _parse_measure
+
+        assert _parse_measure("-9", "T1H") == -9.0
+        assert _parse_measure("-99", "T1H") is None
+
+    @pytest.mark.parametrize("sentinel", ["-99", "-99.9", "-9"])
+    def test_river_sentinel_does_not_become_low_water(self, sentinel: str) -> None:
+        from gbsafe_connectors.hrfco import _level
+
+        assert _level(sentinel) is None
+
+    def test_missing_fire_index_is_unknown_not_low(self) -> None:
+        """측정하지 못한 산불 위험이 '낮음'으로 보고되면 안 된다."""
+        from gbsafe_connectors.forest import _fire_severity
+        from gbsafe_core.domain import Severity
+
+        for value in (-99.0, -99.9, -9.0, 150.0, None):
+            assert _fire_severity(value) is Severity.UNKNOWN, value
+        assert _fire_severity(0.0) is Severity.INFO
+
+    def test_shelter_capacity_sentinel_is_not_made_positive(self) -> None:
+        """부호를 떼면 -99.9가 999명 수용으로 둔갑한다."""
+        from gbsafe_connectors.bundled import _int
+
+        assert _int("-99.9") is None
+        assert _int("-99") is None
+        assert _int("1,200") == 1200
+
+
+class TestCacheIsScopedToCredentials:
+    """캐시가 인증 실패를 성공으로 바꾸면 안 된다.
+
+    캐시 키에 인증정보가 빠져 있어서, 정상 키로 채운 캐시가 잘못된 키를 쓴
+    호출자에게 성공으로 나갔다. 사용자별 키를 주입하는 배치에서는 남의 응답을
+    받는 것이기도 하다.
+    """
+
+    async def test_a_bad_key_stays_failed_after_a_good_one_warmed_the_cache(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from gbsafe_connectors.base import Connector, FetchOutcome, clear_cache
+        from gbsafe_core.config import CredentialName, Settings
+        from pydantic_settings import SettingsConfigDict
+
+        class _NoDotenv(Settings):
+            model_config = SettingsConfigDict(
+                env_prefix="GBSAFE_", env_file=None, extra="ignore", frozen=True
+            )
+
+        class _Echo(Connector[dict]):
+            dataset_id = "15084084"
+            credential = CredentialName.DATA_GO_KR
+
+            def base_url(self) -> str:
+                return "https://example.test/echo"
+
+            def build_params(self, **kwargs: object) -> dict[str, str]:
+                return {}
+
+            def parse(self, response, **kwargs: object) -> FetchOutcome[dict]:
+                return FetchOutcome(records=(), confirmed_absence=True)
+
+        seen: list[str] = []
+
+        async def fake_send(self, url: str, params: dict[str, str]):
+            seen.append(params.get("serviceKey", ""))
+            return make_response({"ok": True})
+
+        monkeypatch.setattr(Connector, "_send", fake_send)
+        await clear_cache()
+
+        good = _NoDotenv(data_go_kr_service_key="good-key", store_dir=tmp_path / "s")
+        bad = _NoDotenv(data_go_kr_service_key="bad-key", store_dir=tmp_path / "s")
+
+        await _Echo(settings=good).fetch()
+        await _Echo(settings=bad).fetch()
+
+        assert seen == ["good-key", "bad-key"], (
+            f"두 번째 호출이 캐시를 재사용했습니다: {seen}"
+        )
+        await clear_cache()
+
+    async def test_offline_does_not_share_a_cache_with_online(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from gbsafe_core.config import Settings
+        from pydantic_settings import SettingsConfigDict
+
+        class _NoDotenv(Settings):
+            model_config = SettingsConfigDict(
+                env_prefix="GBSAFE_", env_file=None, extra="ignore", frozen=True
+            )
+
+        online = _NoDotenv(data_go_kr_service_key="k", store_dir=tmp_path / "s")
+        offline = _NoDotenv(
+            data_go_kr_service_key="k", store_dir=tmp_path / "s", offline=True
+        )
+        from gbsafe_connectors.kma import UltraShortNowcastConnector
+
+        assert UltraShortNowcastConnector(settings=online)._cache_scope() != (
+            UltraShortNowcastConnector(settings=offline)._cache_scope()
+        )

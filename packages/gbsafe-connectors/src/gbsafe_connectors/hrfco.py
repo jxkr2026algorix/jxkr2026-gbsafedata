@@ -25,7 +25,14 @@ from gbsafe_core.domain import AlertAction, HazardAlert, Observation, Severity
 from gbsafe_core.models import GeoPoint, QualityFlag
 from gbsafe_core.regions import HazardDomain, find_sigungu
 
-from .base import KST, Connector, FetchOutcome, RawResponse, confirmed_empty
+from .base import (
+    KST,
+    Connector,
+    FetchOutcome,
+    RawResponse,
+    confirmed_empty,
+    missing_or_impossible,
+)
 
 _STATION_FILE = Path(__file__).parent / "data" / "hrfco-stations.json"
 
@@ -122,9 +129,11 @@ def _level(raw: Any) -> float | None:
     if not text:
         return None
     try:
-        return float(text)
+        value = float(text)
     except ValueError:
         return None
+    # -99는 모든 경보 임계값 아래라 조용히 '안전한 낮은 수위'로 읽힌다.
+    return None if missing_or_impossible(value) else value
 
 
 def _observed_at(raw: Any) -> datetime | None:

@@ -605,6 +605,37 @@ MUTATIONS: tuple[Mutation, ...] = (
         "실데이터에 모드 표시를 붙여 훈련 데이터와 구별을 흐린다",
     ),
     Mutation(
+        "cache-ignores-credentials",
+        CONNECTORS / "base.py",
+        'cache_key = f"{self._cache_scope()}|{url}?{sorted(params.items())}"',
+        'cache_key = f"{url}?{sorted(params.items())}"',
+        "정상 키로 채운 캐시를 잘못된 키 호출자에게 성공으로 돌려준다",
+    ),
+    Mutation(
+        "rainfall-sentinel-becomes-rain",
+        CONNECTORS / "kma.py",
+        (
+            "    if category in _NON_NEGATIVE_CATEGORIES:\n"
+            "        return None if missing_or_impossible(value) else value"
+        ),
+        "    if category in _NON_NEGATIVE_CATEGORIES:\n        return value",
+        "결측 강수(-99)를 실측 강수량으로 보고한다",
+    ),
+    Mutation(
+        "river-sentinel-becomes-low-water",
+        CONNECTORS / "hrfco.py",
+        "    return None if missing_or_impossible(value) else value",
+        "    return value",
+        "결측 수위(-99m)를 모든 경보 아래의 안전한 수위로 보고한다",
+    ),
+    Mutation(
+        "missing-fire-index-reads-as-low",
+        CONNECTORS / "forest.py",
+        "    if index is None or missing_or_impossible(index) or index > 100:",
+        "    if index is None:",
+        "측정하지 못한 산불위험을 '낮음'으로 보고한다",
+    ),
+    Mutation(
         "undetectable-hazard-reported-complete",
         API / "service.py",
         "        if not capability.readiness.can_detect:",

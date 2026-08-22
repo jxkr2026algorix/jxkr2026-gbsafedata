@@ -23,7 +23,13 @@ from gbsafe_core.domain import Shelter, ShelterKind
 from gbsafe_core.models import GeoPoint, QualityFlag, UpstreamStatus
 from gbsafe_core.regions import SIDO_NAME_FULL, SIDO_NAME_SHORT, HazardDomain, find_sigungu
 
-from .base import Connector, FetchOutcome, RawResponse, confirmed_empty
+from .base import (
+    Connector,
+    FetchOutcome,
+    RawResponse,
+    confirmed_empty,
+    missing_or_impossible,
+)
 
 #: 동봉 파일 이름. 조사 저장소의 UTF-8 변환본과 같다.
 CHEMICAL_SHELTER_FILE = "15128910_전국_화학사고대피장소(좌표포함).csv"
@@ -44,10 +50,13 @@ def _int(raw: Any) -> int | None:
     if not text:
         return None
     try:
-        value = int(float(text))
+        parsed = float(text)
     except ValueError:
         return None
-    return value if value >= 0 else None
+    # -99.9를 999로 만들지 않는다. 부호를 떼면 결측이 큰 수용인원이 된다.
+    if missing_or_impossible(parsed):
+        return None
+    return int(parsed)
 
 
 class ChemicalShelterConnector(Connector[Shelter]):

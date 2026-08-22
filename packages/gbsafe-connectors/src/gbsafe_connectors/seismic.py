@@ -23,6 +23,18 @@ from .base import KST, Connector, FetchOutcome, RawResponse, confirmed_empty
 from .kma import _items
 
 
+def _has_identity(item: Any, *fields: str) -> bool:
+    """이 행이 실제 사건을 가리키는지.
+
+    통보문 API가 빈 객체를 섞어 보내는 경우가 있는데, 그것을 레코드로 만들면
+    "규모 미확인, 위치 미확인, 시각 미확인인 지진이 발생했다"가 된다. 없는
+    사건을 발생으로 보고하는 것은 있는 사건을 놓치는 것만큼 나쁘다.
+    """
+    if not isinstance(item, dict):
+        return False
+    return any(str(item.get(field) or "").strip() for field in fields)
+
+
 def _number(raw: Any) -> float | None:
     """결측 수치를 0으로 만들지 않는다. 0은 실제 규모·반경으로 오인될 수 있다."""
     text = str(raw if raw is not None else "").strip()
@@ -166,7 +178,13 @@ class EarthquakeConnector(_DatedKmaConnector[Observation]):
 
         records = []
         seen: set[tuple[str, str]] = set()
+        skipped = 0
         for item in items:
+            # 신원이 하나도 없는 행은 지진이 아니다. 빈 객체를 통과시키면
+            # 규모·진앙·시각이 전부 None인 '지진 발생' 레코드가 만들어진다.
+            if not _has_identity(item, "tmFc", "tmSeq", "mt", "loc", "lat", "lon"):
+                skipped += 1
+                continue
             published = _stamp(item.get("tmFc"))
             sequence = str(item.get("tmSeq") or "").strip()
             key = (str(item.get("tmFc") or ""), sequence)
@@ -238,7 +256,11 @@ class TsunamiConnector(_DatedKmaConnector[HazardAlert]):
             return confirmed_empty("정상 성공 봉투의 지진해일 통보문 목록이 비어 있습니다")
 
         records = []
+        skipped = 0
         for item in items:
+            if not _has_identity(item, "tmFc", "title", "rem", "cnt", "loc"):
+                skipped += 1
+                continue
             title = str(
                 item.get("title") or item.get("rem") or item.get("cnt") or "지진해일 통보문"
             ).strip()
@@ -257,7 +279,7 @@ class TsunamiConnector(_DatedKmaConnector[HazardAlert]):
             records.append(
                 self.record(
                     HazardAlert(
-                        hazard=HazardDomain.EARTHQUAKE,
+                        hazard=HazardDomain.TSUNAMI,
                         severity=parse_severity(title),
                         headline=title,
                         area_name=area,

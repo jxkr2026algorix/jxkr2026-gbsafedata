@@ -19,7 +19,9 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
+import math
 import re
 import time
 from abc import ABC, abstractmethod
@@ -149,6 +151,40 @@ class FetchOutcome[PayloadT]:
             upstream_status=status,
             detail=detail,
         )
+
+
+#: 기관이 "측정하지 못했다"를 나타내려고 쓰는 숫자.
+#:
+#: 이 값들이 실측치로 통과하면 결측이 관측으로 둔갑한다. 강수량 -99mm는
+#: 눈에 띄지만, 수위 -99m는 모든 경보 임계값 아래라 **조용히 안전해 보인다.**
+_MISSING_SENTINELS: frozenset[float] = frozenset(
+    {-99.0, -99.9, -999.0, -999.9, -9999.0}
+)
+
+
+def missing_sentinel(value: float | None) -> bool:
+    """부호가 있는 양(기온·기압)에서 결측인지.
+
+    `-9`는 넣지 않는다. 경북 산간의 실제 겨울 기온이고, 한파는 우리가 다루는
+    재난 중 하나다. 결측을 지우려다 진짜 한파를 지우면 안 된다.
+
+    `inf`와 `nan`도 결측이다. 파이썬은 `float("inf")`를 조용히 받아들이고,
+    그 값은 모든 임계값을 넘어 무한대 수위 경보 같은 것을 만든다.
+    """
+    if value is None or not math.isfinite(value):
+        return True
+    return value in _MISSING_SENTINELS
+
+
+def missing_or_impossible(value: float | None) -> bool:
+    """음수가 물리적으로 불가능한 양(강수·적설·수위·인원)에서 결측인지.
+
+    이런 양에서는 음수 전체가 결측 표기다. 기관마다 -9·-99·-999를 섞어 쓰는데
+    어느 쪽이든 실측이 아니다.
+    """
+    if value is None or not math.isfinite(value):
+        return True
+    return value < 0 or value in _MISSING_SENTINELS
 
 
 def confirmed_empty(*caveats: str) -> FetchOutcome[Any]:
@@ -427,10 +463,28 @@ class Connector[PayloadT](ABC):
             )
         return outcome
 
+    def _cache_scope(self) -> str:
+        """캐시를 나누는 기준. 인증정보와 오프라인 여부를 포함한다.
+
+        URL과 파라미터만으로 키를 만들면 인증정보가 빠진다. 인증키는 파라미터가
+        아니라 그 뒤에 붙기 때문이다. 그러면 정상 키로 채워둔 캐시가 **잘못된
+        키를 쓴 호출자에게 성공으로 나간다** — 인증 실패가 '조회 성공'이 되는
+        것이고, 사용자별 키를 주입하는 배치에서는 남의 응답을 받는 것이기도 하다.
+
+        키 자체는 넣지 않고 해시만 넣는다. 캐시 키는 로그와 예외 메시지에
+        섞여 나갈 수 있다.
+        """
+        offline = "offline" if self._settings.offline else "online"
+        if self.credential is None:
+            return f"{offline}:nokey"
+        secret = self._settings.credential(self.credential) or ""
+        digest = hashlib.sha256(secret.encode("utf-8")).hexdigest()[:16] if secret else "none"
+        return f"{offline}:{self.credential.value}:{digest}"
+
     async def _request(self, **kwargs: Any) -> RawResponse:
         params = self.build_params(**kwargs)
         url = self.base_url()
-        cache_key = f"{url}?{sorted(params.items())}"
+        cache_key = f"{self._cache_scope()}|{url}?{sorted(params.items())}"
 
         cached = await _CACHE.get(cache_key)
         if cached is not None:

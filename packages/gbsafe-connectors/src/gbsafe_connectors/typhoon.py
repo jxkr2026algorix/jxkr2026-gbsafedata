@@ -77,7 +77,15 @@ class TyphoonConnector(_DatedKmaConnector[TyphoonObservation]):
             return confirmed_empty("정상 성공 봉투의 태풍 정보 목록이 비어 있습니다")
 
         records = []
+        skipped = 0
         for item in items:
+            # 태풍 번호도 이름도 시각도 위치도 없으면 태풍이 아니다.
+            if not isinstance(item, dict) or not any(
+                str(item.get(field) or "").strip()
+                for field in ("typSeq", "typEn", "typName", "typTm", "tmFc", "typLat", "typLon")
+            ):
+                skipped += 1
+                continue
             target_time = _stamp(item.get("typTm") or item.get("tmFc"))
             latitude = _latitude(item.get("typLat"))
             longitude = _longitude(item.get("typLon"))
