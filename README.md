@@ -162,6 +162,7 @@ The three landslide APIs have it backwards from everything else: **development-s
 | [docs/mcp.md](docs/mcp.md) | Tool reference (generated from the definitions) |
 | [docs/safety.md](docs/safety.md) | Each boundary and the mechanism enforcing it |
 | [docs/install.md](docs/install.md) | Per-harness setup, credentials, and troubleshooting |
+| [docs/pitch-differentiation.md](docs/pitch-differentiation.md) | Measured comparison against a naive integration |
 | [docs/data-sources.md](docs/data-sources.md) | Per-agency acquisition, quirks, and known defects |
 
 ## Development

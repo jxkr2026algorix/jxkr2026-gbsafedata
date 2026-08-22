@@ -162,6 +162,7 @@ uv run gbsafe-mcp
 | [docs/mcp.md](docs/mcp.md) | 도구 명세 (도구 정의에서 생성) |
 | [docs/safety.md](docs/safety.md) | 각 안전 경계와 그것을 강제하는 방식 |
 | [docs/install.md](docs/install.md) | 하네스별 설정·인증키·문제 해결 |
+| [docs/pitch-differentiation.md](docs/pitch-differentiation.md) | 뻔한 구현과의 정량 비교 근거 |
 | [docs/data-sources.md](docs/data-sources.md) | 기관별 취득 방법·함정·확인된 결함 |
 
 ## 개발
