@@ -133,6 +133,64 @@ uv run gbsafe-mcp
 
 [`skills/gb-safedata`](skills/gb-safedata)를 함께 설치한다. MCP 서버는 에이전트에게 도구를 주고, Skill은 재난 데이터를 정직하게 읽는 규칙을 준다 — 확인하지 않은 부재를 보고하지 않기, 예보를 관측으로 제시하지 않기, 집계로 개인을 추정하지 않기, 대피를 결정하지 않기.
 
+### 내 AI 하네스에 붙이기
+
+서버가 배포돼 있어 따로 띄울 필요가 없다. 하네스를 아래 주소로 가리키면 도구가
+바로 뜬다.
+
+```
+https://datainfra.salgil.gyeongbuk.kr/mcp/
+```
+
+**Claude Code**
+
+```bash
+claude mcp add --transport http gbsafedata https://datainfra.salgil.gyeongbuk.kr/mcp/
+```
+
+**opencode** — `opencode.json`, 또는 [`plugins/opencode-remote.json`](plugins/opencode-remote.json) 복사
+
+```json
+{
+  "mcp": {
+    "gbsafedata": {
+      "type": "remote",
+      "url": "https://datainfra.salgil.gyeongbuk.kr/mcp/",
+      "enabled": true
+    }
+  }
+}
+```
+
+**Cursor** — `.cursor/mcp.json`, 또는 [`plugins/cursor-remote.json`](plugins/cursor-remote.json)
+
+```json
+{ "mcpServers": { "gbsafedata": { "url": "https://datainfra.salgil.gyeongbuk.kr/mcp/" } } }
+```
+
+**Claude Desktop** — stdio만 말하므로 다리를 놓는다. [`plugins/claude-desktop-remote.json`](plugins/claude-desktop-remote.json)
+
+```json
+{
+  "mcpServers": {
+    "gbsafedata": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://datainfra.salgil.gyeongbuk.kr/mcp/"]
+    }
+  }
+}
+```
+
+끝의 슬래시를 빼지 않는다. `/mcp`는 307로 `/mcp/`에 넘기고 대부분의 클라이언트가
+따라가지만, POST에서 리다이렉트를 따라가지 않는 것도 있다.
+
+인증키는 필요 없다 — 서버가 정부 인증키를 들고 있다. 붙였으면 *문경시 산사태 위험
+확인해줘* 같은 것을 물어보면 된다. 제대로 붙었다면 **읽지 못한 원천의 이름을 대고**,
+조회 실패를 위험 없음으로 답하지 않는다.
+
+직접 띄우고 싶다면 [`plugins/`](plugins)의 stdio 설정이 그대로 유효하고
+`install.sh`가 그것을 깔아 준다.
+
 ### 웹 챗봇에 붙이기
 
 브라우저 백엔드는 stdio MCP 서버를 띄울 수 없어서, 같은 도구 12개를 HTTP로도
@@ -192,6 +250,7 @@ JSON-RPC가 POST를 요구하기 때문이다.
 | [docs/mcp.md](docs/mcp.md) | 도구 명세 (도구 정의에서 생성) |
 | [docs/safety.md](docs/safety.md) | 각 안전 경계와 그것을 강제하는 방식 |
 | [docs/install.md](docs/install.md) | 하네스별 설정·인증키·문제 해결 |
+| [docs/handoff.md](docs/handoff.md) | **배포된 인스턴스와 다른 팀이 붙이는 법** |
 | [docs/pitch-differentiation.md](docs/pitch-differentiation.md) | 뻔한 구현과의 정량 비교 근거 |
 | [docs/data-sources.md](docs/data-sources.md) | 기관별 취득 방법·함정·확인된 결함 |
 

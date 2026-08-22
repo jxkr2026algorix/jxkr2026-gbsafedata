@@ -1,0 +1,27 @@
+# salgil-aws 배포. 공통 인프라(salgil-infra)는 별도 스택으로 이미 떠 있다.
+#
+# 앞단은 Cloudflare(orange cloud) → Caddy(443) → API(8000)다. Caddy는 이 서버의
+# 여러 서비스가 공유하므로 시스템 서비스로 따로 두고, 설정은 deploy/caddy/에 있다.
+name: gbsafedata
+
+services:
+  api:
+    image: gbsafedata:local
+    container_name: gbsafedata-api
+    restart: unless-stopped
+    # Caddy가 네이티브라 컨테이너 이름으로 못 찾는다. 루프백에만 열어
+    # 외부 노출은 Caddy가 담당한다.
+    ports:
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - .env
+    environment:
+      GBSAFE_CORS_ALLOW_ORIGINS: ${GBSAFE_CORS_ALLOW_ORIGINS:-}
+      GBSAFE_API_KEYS: ${GBSAFE_API_KEYS:-}
+      GBSAFE_STORE_DIR: /var/lib/gbsafe
+    volumes:
+      # 원본 응답 스냅샷. 재시작해도 마지막 정상자료를 유지한다.
+      - gbsafe-store:/var/lib/gbsafe
+
+volumes:
+  gbsafe-store:

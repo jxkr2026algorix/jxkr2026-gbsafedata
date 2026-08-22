@@ -133,6 +133,65 @@ Client configs are in [`plugins/`](plugins). All 11 tools are read-only:
 
 Install [`skills/gb-safedata`](skills/gb-safedata) alongside it. The MCP server gives an agent the tools; the skill gives it the rules for reading disaster data honestly — never report absence you did not verify, never present a forecast as an observation, never infer an individual from aggregate statistics, never decide an evacuation.
 
+### Attaching it to your own AI harness
+
+The server is deployed, so you do not have to run anything. Point your harness at
+the hosted MCP endpoint and the tools appear.
+
+```
+https://datainfra.salgil.gyeongbuk.kr/mcp/
+```
+
+**Claude Code**
+
+```bash
+claude mcp add --transport http gbsafedata https://datainfra.salgil.gyeongbuk.kr/mcp/
+```
+
+**opencode** — `opencode.json`, or copy [`plugins/opencode-remote.json`](plugins/opencode-remote.json)
+
+```json
+{
+  "mcp": {
+    "gbsafedata": {
+      "type": "remote",
+      "url": "https://datainfra.salgil.gyeongbuk.kr/mcp/",
+      "enabled": true
+    }
+  }
+}
+```
+
+**Cursor** — `.cursor/mcp.json`, or [`plugins/cursor-remote.json`](plugins/cursor-remote.json)
+
+```json
+{ "mcpServers": { "gbsafedata": { "url": "https://datainfra.salgil.gyeongbuk.kr/mcp/" } } }
+```
+
+**Claude Desktop** — it speaks stdio only, so bridge it. See [`plugins/claude-desktop-remote.json`](plugins/claude-desktop-remote.json)
+
+```json
+{
+  "mcpServers": {
+    "gbsafedata": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://datainfra.salgil.gyeongbuk.kr/mcp/"]
+    }
+  }
+}
+```
+
+Keep the trailing slash. `/mcp` redirects to `/mcp/` with a 307, which most clients
+follow, but not all of them do it on a POST.
+
+No credential is needed — the server holds the government keys. Then ask it
+something like *문경시 산사태 위험 확인해줘*. A correct setup names the sources it
+could not read rather than reporting the absence of a reading as the absence of
+risk.
+
+Prefer running it yourself? The stdio configs in [`plugins/`](plugins) still work,
+and `install.sh` sets them up.
+
 ### Attaching it to a web chatbot
 
 A browser backend cannot spawn a stdio MCP server, so the same eleven tools are
@@ -192,6 +251,7 @@ The three landslide APIs have it backwards from everything else: **development-s
 | [docs/mcp.md](docs/mcp.md) | Tool reference (generated from the definitions) |
 | [docs/safety.md](docs/safety.md) | Each boundary and the mechanism enforcing it |
 | [docs/install.md](docs/install.md) | Per-harness setup, credentials, and troubleshooting |
+| [docs/handoff.md](docs/handoff.md) | **Deployed instance, and how another team wires it in** |
 | [docs/pitch-differentiation.md](docs/pitch-differentiation.md) | Measured comparison against a naive integration |
 | [docs/data-sources.md](docs/data-sources.md) | Per-agency acquisition, quirks, and known defects |
 

@@ -272,7 +272,12 @@ class Registry:
 
             # 키가 있어도 개발단계 심의 대기 중이면 실제 호출은 403이 된다.
             # 키 보유만 보고 '사용 가능'으로 보고하면 진단이 거짓이 된다.
-            pending_review = bool(entry and not entry.dev_ready)
+            #
+            # 다만 심의는 **data.go.kr의 절차**다. 기상청 API허브나 홍수통제소처럼
+            # 다른 인증체계를 쓰는 커넥터에까지 적용하면, 멀쩡히 동작하는 원천이
+            # '심의 대기'로 보고된다 — 진단이 반대 방향으로 거짓이 된다.
+            uses_portal = type(connector).credential is CredentialName.DATA_GO_KR
+            pending_review = bool(entry and not entry.dev_ready and uses_portal)
             reason = connector.unavailable_reason()
             if reason is None and pending_review:
                 reason = (
