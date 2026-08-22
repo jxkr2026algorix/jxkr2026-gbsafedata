@@ -15,6 +15,7 @@ log() { echo "[$(date -Is)] $*"; }
 SERVICES=(
   "/opt/gbsafedata|https://github.com/jxkr2026algorix/jxkr2026-gbsafedata.git|deploy_gbsafedata"
   "/opt/platform-backend|https://github.com/jxkr2026algorix/jxkr2026-platform-backend.git|deploy_platform"
+  "/opt/platform-frontend|https://github.com/jxkr2026algorix/jxkr2026-platform-frontend.git|deploy_frontend"
 )
 
 deploy_gbsafedata() {
@@ -28,11 +29,27 @@ deploy_platform() {
     up -d --build --force-recreate api
 }
 
+deploy_frontend() {
+  # gateway 는 오버레이가 무력화한다 — 이 서버의 80/443 은 시스템 Caddy 것이다.
+  # 앱 세 개만 만들고 올린다.
+  #
+  # --env-file 을 빼면 안 된다. compose 는 .env 만 자동으로 읽고 .env.production
+  # 은 읽지 않아서, gateway 의 필수 변수 치환이 실패하며 빌드가 통째로 멈춘다.
+  docker compose --env-file .env.production \
+    -f docker-compose.production.yml -f deploy/docker-compose.salgil-aws.yml \
+    build console mobile map
+  docker compose --env-file .env.production \
+    -f docker-compose.production.yml -f deploy/docker-compose.salgil-aws.yml \
+    up -d --force-recreate console mobile map
+}
+
 # 지금 돌고 있는 컨테이너 ID. 배포 전후로 비교해 실제로 교체됐는지 본다.
 container_id() {
   case "$1" in
     /opt/gbsafedata) docker ps -q --filter name=gbsafedata-api ;;
     /opt/platform-backend) docker ps -q --filter name=jxkr2026-platform-backend-api ;;
+    # 세 컨테이너를 한 줄로 이어 비교한다. 하나라도 바뀌면 값이 달라진다.
+    /opt/platform-frontend) docker ps -q --filter name=salgil-production | sort | tr '\n' ' ' ;;
   esac
 }
 
@@ -82,6 +99,7 @@ health_url() {
   case "$1" in
     /opt/gbsafedata) echo "http://127.0.0.1:8000/v1/health" ;;
     /opt/platform-backend) echo "http://127.0.0.1:8001/healthz" ;;
+    /opt/platform-frontend) echo "http://127.0.0.1:8090/healthz" ;;
   esac
 }
 
