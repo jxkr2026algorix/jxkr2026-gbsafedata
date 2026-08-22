@@ -33,6 +33,7 @@ PROBES: tuple[tuple[str, dict[str, object]], ...] = (
     ("air_quality", {"rows": 10}),
     ("river_level", {"region": "문경시"}),
     ("flood_forecast", {}),
+    ("aws_observation", {"station_id": "273"}),
 )
 
 #: 심의 대기 중이라 403이 정상인 원천. 승인되면 목록에서 빼야 한다.
