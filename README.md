@@ -209,7 +209,7 @@ A surviving mutation means no test catches that failure, so CI treats it as a bu
 
 `live-api` exists because recorded responses keep passing when an agency changes its schema — production is what breaks. It calls each source once to respect the quotas and asserts the review-pending sources still return `not_authorized`, so we learn when approval lands.
 
-**It cannot fully run on GitHub.** `apis.data.go.kr` blocks non-Korean IPs, and hosted runners are in the US, so every call times out. The script distinguishes that from a real defect: if *every* source is unreachable it reports the geographic restriction and exits zero rather than crying wolf. Schema verification therefore has to happen from a Korean IP — run `uv run python scripts/smoke_live_apis.py` locally, or point the job at a self-hosted runner in a Korean region.
+It distinguishes three kinds of failure, because treating them alike makes the job useless. A parser that can no longer read a source is a real defect and fails the build. Every source being unreachable is a network or region problem, reported and exited zero. And AirKorea returns intermittent 504s — the source survey measured roughly one failure in three even after four retries and warns against making it a hard dependency — so its failure is reported without breaking the build.
 
 ## Licence
 

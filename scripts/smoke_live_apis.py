@@ -40,15 +40,23 @@ PENDING_REVIEW: frozenset[str] = frozenset(
 
 #: 네트워크에 닿지 못한 것을 나타내는 문구.
 #:
-#: `apis.data.go.kr`은 해외 IP를 차단한다. GitHub 러너는 미국에 있어 전부
-#: ConnectTimeout이 된다. 이것은 파서 결함이 아니라 실행 위치 제약이므로
-#: 코드 결함과 구별해야 한다 — 섞으면 CI가 늑대소년이 된다.
+#: 원천 전체가 이 상태면 실행 위치·네트워크 문제이고 파서 결함이 아니다.
+#: 둘을 섞으면 CI가 늑대소년이 된다.
 _UNREACHABLE_MARKERS: tuple[str, ...] = (
     "ConnectTimeout",
     "ConnectError",
     "ReadTimeout",
     "원천에 연결할 수 없습니다",
 )
+
+#: 원천 자체가 불안정해 실패가 예상되는 커넥터.
+#:
+#: AirKorea는 간헐적으로 504와 `resultCode 04`를 반환한다. 조사 기록에 따르면
+#: 4회 재시도로도 3회 중 1회는 실패하므로, 대피 판단 경로의 필수 의존으로 두면
+#: 안 된다고 명시되어 있다. 이 원천 하나의 실패로 빌드를 깨면 CI가 신호를
+#: 잃는다 — 보고는 하되 실패로 세지 않는다.
+#: 근거: jxkr2026-datasets/docs/api-operations.md
+FLAKY_UPSTREAMS: frozenset[str] = frozenset({"air_quality"})
 
 
 def _is_unreachable(detail: str) -> bool:
@@ -63,6 +71,7 @@ async def main() -> int:
     registry = get_registry()
     failures: list[str] = []
     unreachable: list[str] = []
+    flaky: list[str] = []
     checked = 0
 
     for name, kwargs in PROBES:
@@ -83,6 +92,8 @@ async def main() -> int:
         if outcome.outcome is SourceOutcome.FAILED:
             if _is_unreachable(detail):
                 unreachable.append(name)
+            elif name in FLAKY_UPSTREAMS:
+                flaky.append(f"{name}: {detail[:120]}")
             else:
                 failures.append(f"{name}: {status} — {detail[:160]}")
 
@@ -119,6 +130,11 @@ async def main() -> int:
 
     if unreachable:
         print(f"\n일부 원천에 연결하지 못했습니다: {', '.join(unreachable)}")
+
+    if flaky:
+        print("\n원천 자체가 불안정해 실패했습니다 (빌드 실패로 세지 않습니다):")
+        for item in flaky:
+            print(f"  - {item}")
 
     if failures:
         print("\n실패:", file=sys.stderr)
