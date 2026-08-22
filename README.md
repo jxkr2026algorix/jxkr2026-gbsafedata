@@ -3,7 +3,7 @@
 **English** · [한국어](README.ko.md)
 
 [![CI](https://img.shields.io/github/actions/workflow/status/jxkr2026algorix/jxkr2026-gbsafedata/ci.yml?branch=main&label=CI&logo=githubactions&logoColor=white)](https://github.com/jxkr2026algorix/jxkr2026-gbsafedata/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-623%20passing-brightgreen)](tests)
+[![tests](https://img.shields.io/badge/tests-668%20passing-brightgreen)](tests)
 [![live APIs](https://img.shields.io/badge/live%20APIs-6%20connected-0a7bbb)](scripts/smoke_live_apis.py)
 [![python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue?logo=python&logoColor=white)](pyproject.toml)
 [![uv](https://img.shields.io/badge/uv-managed-261230?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
@@ -135,7 +135,7 @@ Install [`skills/gb-safedata`](skills/gb-safedata) alongside it. The MCP server 
 
 ## Connected sources
 
-One `data.go.kr` development key drives all of these.
+One `data.go.kr` development key drives most of these. The two flood-control sources use a separate HRFCO key, and that key is bound to the URL you register it against — it returns code 940 anywhere else.
 
 | Connector | Dataset | Status |
 | --- | --- | --- |
@@ -145,6 +145,9 @@ One `data.go.kr` development key drives all of these.
 | `wildfire_risk` | KFS wildfire risk index | live |
 | `emergency_beds` | Real-time emergency beds | live |
 | `air_quality` | AirKorea | live (500/day) |
+| `river_level` | HRFCO river gauges + gazetted alert levels | live |
+| `flood_forecast` | HRFCO flood alerts in effect | live |
+| `aws_observation` | KMA AWS minute observations (API Hub) | live |
 | `landslide_forecast` | KFS landslide prediction | review pending |
 | `landslide_roadside` | KFS roadside landslide | review pending |
 | `landslide_history` | KFS past landslides | review pending |

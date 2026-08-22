@@ -260,7 +260,13 @@ class Connector[PayloadT](ABC):
 
     dataset_id: ClassVar[str]
     credential: ClassVar[CredentialName | None] = CredentialName.DATA_GO_KR
-    service_key_param: ClassVar[str] = "serviceKey"
+
+    #: 인증키를 실어 보낼 쿼리 파라미터 이름.
+    #:
+    #: None이면 base가 키를 붙이지 않는다. 홍수통제소처럼 키가 **URL 경로**에
+    #: 들어가는 원천이 있어서다. 그 경우 쿼리로도 키를 덧붙이면 서명이 어긋나
+    #: 거절되므로, 키 배치는 커넥터의 `base_url()`이 직접 책임진다.
+    service_key_param: ClassVar[str | None] = "serviceKey"
 
     #: 지역을 지정할 때 이 커넥터가 받는 인자 이름.
     #:
@@ -466,7 +472,7 @@ class Connector[PayloadT](ABC):
             )
 
         request_params = dict(params)
-        if self.credential is not None:
+        if self.credential is not None and self.service_key_param is not None:
             key = self._settings.credential(self.credential)
             if key:
                 request_params[self.service_key_param] = key

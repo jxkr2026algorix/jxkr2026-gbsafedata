@@ -38,6 +38,22 @@ def isolate_env(monkeypatch: pytest.MonkeyPatch) -> None:
             monkeypatch.delenv(name, raising=False)
 
 
+@pytest.fixture(autouse=True)
+async def isolate_response_cache():
+    """커넥터 응답 캐시를 테스트마다 비운다.
+
+    캐시는 모듈 전역이라 한 테스트가 넣어둔 응답을 다음 테스트가 그대로
+    집는다. 실제로 새 테스트 파일이 늘었을 때 관계없는 스냅샷 테스트가
+    깨졌고, 단독 실행에서는 통과해 원인을 찾기 어려웠다. 각 테스트가
+    `clear_cache()`를 기억해서 부르는 방식은 잊는 순간 같은 일이 다시 난다.
+    """
+    from gbsafe_connectors.base import clear_cache
+
+    await clear_cache()
+    yield
+    await clear_cache()
+
+
 class _NoDotenvSettings(Settings):
     """`.env` 파일을 읽지 않는 설정. 테스트 전용."""
 

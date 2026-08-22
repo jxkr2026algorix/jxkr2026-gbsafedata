@@ -20,6 +20,7 @@ from gbsafe_core.config import CREDENTIAL_SOURCES, CredentialName, Settings, get
 from gbsafe_core.regions import HazardDomain
 from gbsafe_core.snapshot import SnapshotStore
 
+from .apihub import AwsObservationConnector
 from .base import Connector
 from .filedata import LandslideRiskZoneCsvConnector, ShelterCsvConnector
 from .forest import (
@@ -28,6 +29,7 @@ from .forest import (
     RoadsideLandslideConnector,
     WildfireRiskConnector,
 )
+from .hrfco import FloodForecastConnector, RiverLevelConnector
 from .kma import (
     ShortTermForecastConnector,
     UltraShortNowcastConnector,
@@ -53,6 +55,12 @@ class ConnectorSpec:
 
 #: 등록된 커넥터. 이름은 MCP 도구·API 파라미터에서 그대로 쓰인다.
 SPECS: tuple[ConnectorSpec, ...] = (
+    ConnectorSpec(
+        name="aws_observation",
+        factory=AwsObservationConnector,
+        summary="AWS 방재기상관측 — 지점별 1분 기온·강우·바람 (기상청 API허브)",
+        hazards=(HazardDomain.HEAVY_RAIN, HazardDomain.WILDFIRE),
+    ),
     ConnectorSpec(
         name="weather_now",
         factory=UltraShortNowcastConnector,
@@ -106,6 +114,18 @@ SPECS: tuple[ConnectorSpec, ...] = (
         factory=AirQualityConnector,
         summary="시도별 실시간 대기오염도 — 산불 연무 보조지표 (한국환경공단)",
         hazards=(HazardDomain.WILDFIRE,),
+    ),
+    ConnectorSpec(
+        name="river_level",
+        factory=RiverLevelConnector,
+        summary="경북 하천 실시간 수위 + 기관 고시 임계수위 (한강홍수통제소)",
+        hazards=(HazardDomain.FLOOD, HazardDomain.HEAVY_RAIN),
+    ),
+    ConnectorSpec(
+        name="flood_forecast",
+        factory=FloodForecastConnector,
+        summary="홍수특보 발령 현황 (한강홍수통제소)",
+        hazards=(HazardDomain.FLOOD, HazardDomain.HEAVY_RAIN),
     ),
     ConnectorSpec(
         name="shelters",

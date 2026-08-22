@@ -3,7 +3,7 @@
 [English](README.md) · **한국어**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/jxkr2026algorix/jxkr2026-gbsafedata/ci.yml?branch=main&label=CI&logo=githubactions&logoColor=white)](https://github.com/jxkr2026algorix/jxkr2026-gbsafedata/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-623%20passing-brightgreen)](tests)
+[![tests](https://img.shields.io/badge/tests-668%20passing-brightgreen)](tests)
 [![live APIs](https://img.shields.io/badge/live%20APIs-6%20connected-0a7bbb)](scripts/smoke_live_apis.py)
 [![python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue?logo=python&logoColor=white)](pyproject.toml)
 [![uv](https://img.shields.io/badge/uv-managed-261230?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
@@ -135,7 +135,7 @@ uv run gbsafe-mcp
 
 ## 연동된 원천
 
-`data.go.kr` 개발계정 키 하나로 아래 전부가 동작한다.
+`data.go.kr` 개발계정 키 하나로 대부분이 동작한다. 홍수통제소 두 건은 별도 HRFCO 키를 쓰며, 그 키는 신청할 때 등록한 사용 URL에 묶여 있어 다른 곳에서 부르면 코드 940이 돌아온다.
 
 | 커넥터 | 데이터셋 | 상태 |
 | --- | --- | --- |
@@ -145,6 +145,9 @@ uv run gbsafe-mcp
 | `wildfire_risk` | 산림청 산불위험예보 | 동작 |
 | `emergency_beds` | 응급실 실시간 가용병상 | 동작 |
 | `air_quality` | AirKorea 대기오염정보 | 동작 (일 500건) |
+| `river_level` | 홍수통제소 하천수위 + 고시 임계수위 | 동작 |
+| `flood_forecast` | 홍수통제소 홍수특보 발령 현황 | 동작 |
+| `aws_observation` | 기상청 AWS 방재기상관측 1분자료 (API허브) | 동작 |
 | `landslide_forecast` | 산림청 산사태 예측정보 | 심의 대기 |
 | `landslide_roadside` | 산림청 도로변 산사태 정보 | 심의 대기 |
 | `landslide_history` | 산림청 과거 산사태 정보 | 심의 대기 |
