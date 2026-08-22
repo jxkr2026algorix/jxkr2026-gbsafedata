@@ -604,6 +604,13 @@ MUTATIONS: tuple[Mutation, ...] = (
         "실데이터에 모드 표시를 붙여 훈련 데이터와 구별을 흐린다",
     ),
     Mutation(
+        "cache-drops-the-absence-verdict",
+        CONNECTORS / "base.py",
+        "                confirmed_absence=outcome.confirmed_absence,\n",
+        "",
+        "캐시를 거친 '해당 없음'을 조회 실패로 강등해 확인된 부재를 버린다",
+    ),
+    Mutation(
         "citation-drops-source-url",
         CORE / "models.py",
         "if self.source_url:",
