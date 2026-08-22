@@ -58,13 +58,24 @@ warm_routes() {
   local key
   key=$(grep -oP '(?<=^SALGIL_API_KEYS=)[^:]+' /opt/platform-backend/.env 2>/dev/null) || return 0
   [ -n "$key" ] || return 0
+  local warmed=() cold=()
   for mode in foot car bicycle assisted; do
-    curl -fsS --max-time 180 -X POST http://127.0.0.1:8001/api/v1/routing/evacuation \
+    if curl -fsS --max-time 600 -X POST http://127.0.0.1:8001/api/v1/routing/evacuation \
       -H "x-api-key: $key" -H 'Content-Type: application/json' \
       -d "{\"lat\":36.4356,\"lon\":129.0572,\"hazard\":\"wildfire\",\"mode\":\"$mode\"}" \
-      >/dev/null 2>&1 || true
+      >/dev/null 2>&1; then
+      warmed+=("$mode")
+    else
+      cold+=("$mode")
+    fi
   done
-  log "$1: 경로 그래프 데우기 완료 (4개 수단)"
+  # 어느 수단이 데워졌는지 그대로 적는다. 예전에는 전부 실패해도 "4개 수단 완료"
+  # 라고 남겨서, 캐시가 하나도 안 만들어진 것을 로그로는 알 수 없었다.
+  if [ ${#cold[@]} -eq 0 ]; then
+    log "$1: 경로 그래프 데우기 완료 (${warmed[*]})"
+  else
+    log "$1: 경로 그래프 데우기 부분 실패 — 성공: ${warmed[*]:-없음} / 실패: ${cold[*]}"
+  fi
 }
 
 health_url() {
