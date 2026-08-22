@@ -31,6 +31,8 @@ PROBES: tuple[tuple[str, dict[str, object]], ...] = (
     ("wildfire_risk", {}),
     ("emergency_beds", {"sigungu": "문경시"}),
     ("air_quality", {"rows": 10}),
+    ("river_level", {"region": "문경시"}),
+    ("flood_forecast", {}),
 )
 
 #: 심의 대기 중이라 403이 정상인 원천. 승인되면 목록에서 빼야 한다.
@@ -57,6 +59,14 @@ _UNREACHABLE_MARKERS: tuple[str, ...] = (
 #: 잃는다 — 보고는 하되 실패로 세지 않는다.
 #: 근거: jxkr2026-datasets/docs/api-operations.md
 FLAKY_UPSTREAMS: frozenset[str] = frozenset({"air_quality"})
+
+#: 인증키가 **호출 위치에 묶인** 원천.
+#:
+#: 홍수통제소는 신청할 때 등록한 사용 URL에서만 키를 받아주고, 다른 곳에서
+#: 부르면 코드 940을 돌려준다. GitHub 러너는 등록 위치가 아니므로 여기서
+#: 실패하는 것은 파서 결함이 아니다. 보고는 하되 빌드를 깨지 않는다.
+#: 근거: jxkr2026-datasets/docs/external-portals.md
+LOCATION_BOUND_UPSTREAMS: frozenset[str] = frozenset({"river_level", "flood_forecast"})
 
 
 def _is_unreachable(detail: str) -> bool:
@@ -94,6 +104,8 @@ async def main() -> int:
                 unreachable.append(name)
             elif name in FLAKY_UPSTREAMS:
                 flaky.append(f"{name}: {detail[:120]}")
+            elif name in LOCATION_BOUND_UPSTREAMS and ("940" in detail or "인증" in detail):
+                flaky.append(f"{name}: 등록 위치 밖 호출로 보입니다 — {detail[:100]}")
             else:
                 failures.append(f"{name}: {status} — {detail[:160]}")
 
