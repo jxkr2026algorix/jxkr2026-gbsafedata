@@ -3,7 +3,7 @@
 [English](README.md) · **한국어**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/jxkr2026algorix/jxkr2026-gbsafedata/ci.yml?branch=main&label=CI&logo=githubactions&logoColor=white)](https://github.com/jxkr2026algorix/jxkr2026-gbsafedata/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-668%20passing-brightgreen)](tests)
+[![tests](https://img.shields.io/badge/tests-682%20passing-brightgreen)](tests)
 [![live APIs](https://img.shields.io/badge/live%20APIs-6%20connected-0a7bbb)](scripts/smoke_live_apis.py)
 [![python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue?logo=python&logoColor=white)](pyproject.toml)
 [![uv](https://img.shields.io/badge/uv-managed-261230?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
@@ -132,6 +132,33 @@ uv run gbsafe-mcp
 `gbsafe_search_datasets` · `gbsafe_describe_dataset` · `gbsafe_verify_dataset` · `gbsafe_cite_dataset` · `gbsafe_resolve_region` · `gbsafe_hazard_context` · `gbsafe_list_sources` · `gbsafe_fetch_source` · `gbsafe_data_health` · `gbsafe_quality_report` · `gbsafe_population_guidance`
 
 [`skills/gb-safedata`](skills/gb-safedata)를 함께 설치한다. MCP 서버는 에이전트에게 도구를 주고, Skill은 재난 데이터를 정직하게 읽는 규칙을 준다 — 확인하지 않은 부재를 보고하지 않기, 예보를 관측으로 제시하지 않기, 집계로 개인을 추정하지 않기, 대피를 결정하지 않기.
+
+### 웹 챗봇에 붙이기
+
+브라우저 백엔드는 stdio MCP 서버를 띄울 수 없어서, 같은 도구 11개를 HTTP로도
+제공한다. 어느 표면을 쓸지는 쓰는 모델 클라이언트가 정한다.
+
+```bash
+docker compose up            # http://localhost:8000
+```
+
+| 클라이언트 | 쓸 것 | 이유 |
+| --- | --- | --- |
+| Upstage Solar, OpenAI chat completions | `GET /v1/tools` + `GET /v1/tools/{name}` | function calling 클라이언트는 MCP 클라이언트를 따로 만들지 않으면 MCP를 못 쓴다 |
+| OpenAI Responses API 등 MCP 네이티브 | `POST /mcp` | URL만 주면 도구 발견과 호출을 스스로 한다 |
+
+도구 경로는 `GET`이다. 인자가 전부 스칼라라 질의문자열로 충분하고, 그래서 이
+계층의 "쓰기 라우트 없음" 보장이 유지된다. `POST /mcp` 하나만 예외이며
+JSON-RPC가 POST를 요구하기 때문이다.
+
+**`GET /v1/agent/system-prompt`를 받아서 반드시 함께 적용한다.** 이걸 빼고
+도구만 붙이는 것이 이 프로젝트가 막으려는 실패다. 403으로 실패해 빈 결과를
+받은 모델은 "산사태 위험 없습니다"라고 답한다. 도움이 되려는 것이 기본
+동작이기 때문이다.
+
+인터넷에 노출하기 전에 `GBSAFE_API_KEYS`와 `GBSAFE_CORS_ALLOW_ORIGINS`를
+설정한다. 둘 다 기본은 꺼져 있어 로컬 작업에는 설정이 필요 없고, 어느 쪽도
+전체 허용이 기본이 아니다 — 이 서비스는 우리 정부 인증키로 원천을 부른다.
 
 ## 연동된 원천
 

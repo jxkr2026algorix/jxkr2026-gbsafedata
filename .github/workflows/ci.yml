@@ -69,11 +69,15 @@ jobs:
       - run: uv sync --all-packages
 
       - name: API exposes no write routes
-        # 공공데이터 계층은 조회만 제공한다. POST·PUT·DELETE가 생기면 실패한다.
+        # 데이터 경로는 조회만 제공한다. 유일하게 허용되는 POST는 MCP 전송으로,
+        # JSON-RPC라 프로토콜이 POST를 요구한다. 그 POST로 무엇을 할 수 있는지는
+        # 등록된 도구가 정하며, 전부 조회 전용인지 아래에서 함께 검사한다.
         run: |
           uv run python - <<'PY'
           from fastapi.testclient import TestClient
           from gbsafe_api.app import create_app
+          from gbsafe_core.safety import assert_read_only
+          from gbsafe_mcp.tools import validated_tools
           spec = TestClient(create_app()).get("/openapi.json").json()
           offending = [
               f"{method.upper()} {path}"
@@ -81,8 +85,11 @@ jobs:
               for method in operations
               if method.lower() not in ("get", "head", "options")
           ]
-          assert not offending, f"write routes found: {offending}"
-          print(f"{len(spec['paths'])} routes, all read-only")
+          assert set(offending) <= {"POST /mcp"}, f"write routes found: {offending}"
+          for tool in validated_tools():
+              assert_read_only(tool.name)
+          print(f"{len(spec['paths'])} routes; only MCP transport uses POST; "
+                f"{len(validated_tools())} tools all read-only")
           PY
 
       - name: MCP tools pass the read-only gate

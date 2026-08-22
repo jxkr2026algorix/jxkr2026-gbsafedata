@@ -78,11 +78,37 @@ class TestApiRoutes:
         assert payload["read_only"] is True
 
     def test_no_write_methods_exist(self, client: TestClient) -> None:
-        """공공데이터 계층은 부작용이 없어야 한다."""
+        """데이터 경로는 부작용이 없어야 한다.
+
+        `/mcp`는 예외다. MCP는 JSON-RPC라 프로토콜 자체가 POST를 쓴다. 그
+        POST가 무엇을 할 수 있는지는 HTTP 메서드가 아니라 등록된 도구가
+        정한다 — `validated_tools()`가 기동 시점에 전부 조회 전용인지
+        검사하고, 아래 테스트가 그것을 다시 확인한다.
+        """
         spec = client.get("/openapi.json").json()
         for path, operations in spec["paths"].items():
+            if path.startswith("/mcp"):
+                continue
             for method in operations:
                 assert method.lower() in ("get", "head", "options"), f"{method} {path}"
+
+    def test_the_only_post_route_is_the_mcp_transport(self, client: TestClient) -> None:
+        """POST가 늘어나면 그것이 무엇인지 여기서 드러나야 한다."""
+        spec = client.get("/openapi.json").json()
+        posts = {
+            f"{method.upper()} {path}"
+            for path, operations in spec["paths"].items()
+            for method in operations
+            if method.lower() not in ("get", "head", "options")
+        }
+        assert posts <= {"POST /mcp"}, f"예상하지 못한 쓰기 경로: {sorted(posts)}"
+
+    def test_every_tool_reachable_over_mcp_is_read_only(self) -> None:
+        """전송을 열어도 도구 경계는 그대로여야 한다."""
+        from gbsafe_core.safety import assert_read_only
+
+        for tool in validated_tools():
+            assert_read_only(tool.name)
 
     def test_health(self, client: TestClient) -> None:
         payload = client.get("/v1/health").json()
@@ -662,3 +688,105 @@ class TestFileDataSourcesDiagnoseCorrectly:
         monkeypatch.setattr(httpx.AsyncClient, "request", explode)
         answer = await service.fetch_connector(name)
         assert not answer.is_complete
+
+
+class TestGatewayIsOffByDefaultAndRealWhenOn:
+    """인증과 CORS는 기본이 꺼져 있고, 켜면 실제로 막아야 한다.
+
+    기본을 열어두는 것은 로컬·CI가 설정 없이 돌기 위해서다. 다만 이 API는
+    정부 인증키로 원천을 부르므로, 켰는데 실제로 막히지 않으면 우리 호출
+    한도를 남이 소진한다.
+    """
+
+    def _client(self, **overrides: object) -> TestClient:
+        from gbsafe_api.app import create_app
+        from gbsafe_core.config import Settings
+        from pydantic_settings import SettingsConfigDict
+
+        class _NoDotenv(Settings):
+            model_config = SettingsConfigDict(
+                env_prefix="GBSAFE_", env_file=None, extra="ignore", frozen=True
+            )
+
+        return TestClient(create_app(settings=_NoDotenv(**overrides)))  # type: ignore[arg-type]
+
+    def test_open_when_no_keys_configured(self) -> None:
+        assert self._client().get("/v1/regions").status_code == 200
+
+    def test_rejects_a_request_without_a_key(self) -> None:
+        assert self._client(api_keys="k1").get("/v1/regions").status_code == 401
+
+    def test_rejects_a_wrong_key(self) -> None:
+        client = self._client(api_keys="k1")
+        assert client.get("/v1/regions", headers={"x-api-key": "nope"}).status_code == 401
+
+    @pytest.mark.parametrize(
+        "headers",
+        [{"x-api-key": "k1"}, {"Authorization": "Bearer k2"}],
+    )
+    def test_accepts_either_header_style(self, headers: dict[str, str]) -> None:
+        client = self._client(api_keys="k1,k2")
+        assert client.get("/v1/regions", headers=headers).status_code == 200
+
+    def test_health_stays_open_so_probes_still_work(self) -> None:
+        """헬스체크가 막히면 로드밸런서가 정상 인스턴스를 죽인다."""
+        client = self._client(api_keys="k1")
+        assert client.get("/v1/health").status_code == 200
+        assert client.get("/openapi.json").status_code == 200
+
+    def test_mcp_transport_is_gated_too(self) -> None:
+        """도구 경로만 열려 있으면 인증이 의미가 없다."""
+        client = self._client(api_keys="k1")
+        response = client.post("/mcp/", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+        assert response.status_code == 401
+
+    def test_no_cors_headers_without_configuration(self) -> None:
+        """기본이 `*`이면 배포하는 순간 아무 사이트나 우리 키를 쓴다."""
+        response = self._client().get(
+            "/v1/regions", headers={"Origin": "https://evil.example"}
+        )
+        assert "access-control-allow-origin" not in {
+            key.lower() for key in response.headers
+        }
+
+    def test_declared_origin_is_allowed(self) -> None:
+        client = self._client(cors_allow_origins="https://dashboard.example")
+        response = client.get(
+            "/v1/regions", headers={"Origin": "https://dashboard.example"}
+        )
+        assert response.headers.get("access-control-allow-origin") == (
+            "https://dashboard.example"
+        )
+
+    def test_undeclared_origin_is_not_allowed(self) -> None:
+        client = self._client(cors_allow_origins="https://dashboard.example")
+        response = client.get("/v1/regions", headers={"Origin": "https://evil.example"})
+        assert response.headers.get("access-control-allow-origin") != (
+            "https://evil.example"
+        )
+
+
+class TestBothSurfacesNameTheSameThing:
+    """REST는 `receipts`, 도구는 `sources_checked`로 부른다.
+
+    이름이 다른 것은 의도했지만, 한쪽만 아는 개발자가 다른 표면에서 헤매면
+    영수증을 아예 안 보게 된다. 영수증을 안 보면 실패가 부재로 읽힌다.
+    """
+
+    def test_rest_envelope_carries_both_names(self, client: TestClient) -> None:
+        payload = client.get(
+            "/v1/hazards/context", params={"region": "문경시", "hazard": "landslide"}
+        ).json()
+        assert "receipts" in payload
+        assert "sources_checked" in payload
+        assert payload["receipts"] == payload["sources_checked"]
+
+    async def test_tool_surface_uses_sources_checked(
+        self, service: SafeDataService
+    ) -> None:
+        payload = json.loads(
+            await execute(
+                service, "gbsafe_hazard_context", {"region": "문경시", "hazard": "landslide"}
+            )
+        )
+        assert "sources_checked" in payload

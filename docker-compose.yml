@@ -1,0 +1,27 @@
+# GB SafeData API — 플랫폼팀 배포용.
+#
+# 인증키는 이미지에 굽지 않는다. `.env`를 마운트하거나 오케스트레이터의 시크릿을
+# 쓴다. 이 파일은 형태를 보여주기 위한 것이며 운영 설정은 그쪽 표준을 따른다.
+
+services:
+  api:
+    build: .
+    image: gbsafedata-api:local
+    ports:
+      - "8000:8000"
+    environment:
+      # 원천 인증키. 없으면 카탈로그·검증·인용 도구만 동작한다.
+      GBSAFE_DATA_GO_KR_SERVICE_KEY: ${GBSAFE_DATA_GO_KR_SERVICE_KEY:-}
+      GBSAFE_HRFCO_SERVICE_KEY: ${GBSAFE_HRFCO_SERVICE_KEY:-}
+      GBSAFE_KMA_APIHUB_AUTH_KEY: ${GBSAFE_KMA_APIHUB_AUTH_KEY:-}
+
+      # 인터넷에 노출한다면 이 둘을 반드시 채운다. 비어 있으면 무인증이다.
+      GBSAFE_API_KEYS: ${GBSAFE_API_KEYS:-}
+      GBSAFE_CORS_ALLOW_ORIGINS: ${GBSAFE_CORS_ALLOW_ORIGINS:-}
+    volumes:
+      # 원본 응답 스냅샷. 재시작해도 '마지막 정상자료'를 유지하려면 필요하다.
+      - gbsafe-store:/var/lib/gbsafe
+    restart: unless-stopped
+
+volumes:
+  gbsafe-store:

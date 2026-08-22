@@ -56,6 +56,22 @@ class ToolDef:
         )
 
 
+    def to_openai_function(self) -> dict[str, Any]:
+        """OpenAI·Upstage Solar가 받는 function calling 스키마.
+
+        웹 챗봇은 MCP(stdio)를 붙이기 어려워 HTTP로 같은 도구를 노출한다.
+        정의를 양쪽에 따로 적으면 한쪽만 고쳐지므로 여기서 함께 만든다.
+        """
+        return {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": self.schema,
+            },
+        }
+
+
 def _object(properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
     return {
         "type": "object",
