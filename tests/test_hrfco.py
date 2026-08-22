@@ -318,3 +318,63 @@ class TestOperationalConstraintsAreDisclosed:
             make_response(_body([{"wlobscd": station_id, "ymdhm": "202608221510", "wl": "1.0"}]))
         )
         assert any("지연" in caveat for caveat in outcome.caveats), outcome.caveats
+
+
+class TestReferenceTableIsSane:
+    """참조표에 들어온 값 자체를 검사한다.
+
+    파서가 아무리 옳아도 임계값이나 좌표가 틀리면 답이 틀린다. 실제로 둘 다
+    있었다 — 임계수위 자리에 0이 들어와 평상시 0.1m가 경보 초과로 보고됐고,
+    문경 경천댐 좌표가 경도 126.12(약 180km 서쪽)였다.
+    """
+
+    def test_no_threshold_is_zero(self) -> None:
+        """제원의 `0`은 "수위 0m에서 경보"가 아니라 미고시 표시다."""
+        offenders = [
+            (station.name, level)
+            for station in STATIONS.values()
+            for level in (
+                station.attention_m,
+                station.advisory_m,
+                station.warning_m,
+                station.serious_m,
+            )
+            if level == 0
+        ]
+        assert not offenders, f"임계수위가 0인 관측소: {offenders[:5]}"
+
+    def test_every_coordinate_is_inside_gyeongbuk(self) -> None:
+        from gbsafe_core.regions import GYEONGBUK_BBOX
+
+        outside = [
+            (station.name, station.location.lat, station.location.lon)
+            for station in STATIONS.values()
+            if station.location is not None
+            and not GYEONGBUK_BBOX.contains(station.location)
+        ]
+        assert not outside, f"경북 밖 좌표: {outside}"
+
+    def test_thresholds_are_ordered(self) -> None:
+        """관심 < 주의보 < 경보 < 심각이 아니면 단계 판정이 뒤집힌다."""
+        broken = []
+        for station in STATIONS.values():
+            levels = [
+                value
+                for value in (
+                    station.attention_m,
+                    station.advisory_m,
+                    station.warning_m,
+                    station.serious_m,
+                )
+                if isinstance(value, int | float)
+            ]
+            if levels != sorted(levels):
+                broken.append((station.name, levels))
+        assert not broken, f"임계수위 순서가 어긋난 관측소: {broken[:5]}"
+
+    def test_a_station_without_thresholds_never_reports_an_exceedance(self) -> None:
+        """임계값이 없으면 어떤 수위도 초과로 판정되면 안 된다."""
+        for station in STATIONS.values():
+            if station.has_thresholds:
+                continue
+            assert station.exceeded_threshold(999.0) is None, station.name

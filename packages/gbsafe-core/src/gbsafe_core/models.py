@@ -379,6 +379,14 @@ class Answer[PayloadT](BaseModel):
         """
         if not self.receipts:
             return False
+
+        # 영수증이 레코드를 가졌다고 하는데 답변이 비어 있으면 둘 중 하나가
+        # 틀린 것이다. 어느 쪽이 틀렸는지 모르는 상태를 '부재 확인'으로 읽으면
+        # 안 된다 — 원천은 무언가를 찾았다고 말하고 있다.
+        claimed = sum(receipt.record_count for receipt in self.receipts)
+        if claimed and not self.records:
+            return False
+
         return self.is_complete and all(
             receipt.outcome.is_trustworthy_absence or receipt.record_count
             for receipt in self.receipts

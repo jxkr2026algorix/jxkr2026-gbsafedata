@@ -27,6 +27,22 @@ from gbsafe_core.licensing import TERMS, Operation
 from gbsafe_core.regions import SIGUNGU, HazardDomain
 
 from .envelope import ApiEnvelope, envelope
+from .schemas import (
+    ApiError,
+    DatasetCitation,
+    DatasetDetail,
+    DatasetSearch,
+    DatasetVerification,
+    HazardCapabilities,
+    HazardTypeList,
+    HealthReport,
+    LicenseList,
+    QualityReport,
+    RegionList,
+    RegionResolution,
+    SystemPrompt,
+    ToolCatalog,
+)
 from .service import HAZARD_PLAYBOOK, SafeDataService
 
 TITLE = "GB SafeData API"
@@ -238,7 +254,15 @@ def _mount_mcp(app: FastAPI, service: SafeDataService) -> None:
 
     app.mount("/mcp", handle)
 
-    @app.post("/mcp", tags=["agent"], summary="MCP Streamable HTTP 전송")
+    @app.post(
+        "/mcp",
+        tags=["agent"],
+        summary="MCP Streamable HTTP 전송",
+        response_description=(
+            "JSON-RPC 2.0 응답. 이 경로는 MCP 프로토콜을 그대로 통과시키므로 "
+            "고정된 스키마가 없습니다. 도구 목록은 `tools/list`, 실행은 `tools/call`입니다."
+        ),
+    )
     async def mcp_without_trailing_slash() -> Response:
         """`/mcp`도 받는다.
 
@@ -260,10 +284,44 @@ def create_app(
         version="0.1.0",
         license_info={"name": "Apache-2.0"},
         openapi_tags=[
-            {"name": "catalog", "description": "데이터셋 검색·검증·인용"},
-            {"name": "hazard", "description": "지역별 위험 상황 조회"},
-            {"name": "reference", "description": "지역 코드·좌표 변환"},
-            {"name": "ops", "description": "원천 상태와 데이터 품질"},
+            {
+                "name": "hazard",
+                "description": (
+                    "지역별 위험 상황. **`complete`와 `absence_confirmed`를 먼저 읽으세요.** "
+                    "`complete=false`면 일부 원천 조회에 실패한 것이고, "
+                    "`absence_confirmed=false`면 결과가 비어 있어도 '위험 없음'이 아닙니다."
+                ),
+            },
+            {
+                "name": "catalog",
+                "description": (
+                    "데이터셋 검색·검증·인용. 라이선스가 허용하는 연산을 코드로 확인할 수 "
+                    "있습니다 — KOGL 3·4형은 변경금지라 재투영·클리핑·파생 라벨이 막힙니다."
+                ),
+            },
+            {
+                "name": "reference",
+                "description": (
+                    "지역 코드·좌표 변환. 기관마다 지역 식별자가 달라(시도명 문자열, "
+                    "시군구 코드, 기상청 격자, 관측지점번호) 조회의 전제 조건입니다."
+                ),
+            },
+            {
+                "name": "ops",
+                "description": (
+                    "원천 상태와 데이터 품질. 어떤 원천이 왜 안 되는지 — 인증키 부재, "
+                    "심의 대기, 파일 필요를 구별해 알려줍니다."
+                ),
+            },
+            {
+                "name": "agent",
+                "description": (
+                    "LLM 연동. chat completions 클라이언트는 `/v1/tools`를, MCP를 말하는 "
+                    "클라이언트는 `POST /mcp`를 씁니다. **어느 쪽이든 "
+                    "`/v1/agent/system-prompt`를 함께 적용해야** 합니다 — 도구만 붙이면 "
+                    "조회 실패로 빈 결과를 받은 모델이 '위험 없습니다'라고 답합니다."
+                ),
+            },
         ],
     )
 
@@ -279,7 +337,7 @@ def create_app(
         }
 
     @app.get("/v1/health", tags=["ops"], summary="원천 상태와 인증 정보 현황")
-    async def health() -> dict[str, Any]:
+    async def health() -> HealthReport:
         """어떤 데이터 원천이 지금 쓸 수 있는지, 못 쓰면 왜인지.
 
         키가 없거나 심의 대기 중인 상태는 오류가 아니라 정상적인 운영 상태로
@@ -287,7 +345,12 @@ def create_app(
         """
         return resolved.data_health()
 
-    @app.get("/v1/datasets", tags=["catalog"], summary="데이터셋 검색")
+    @app.get(
+        "/v1/datasets",
+        tags=["catalog"],
+        summary="데이터셋 검색",
+        response_model=DatasetSearch,
+    )
     async def search_datasets(
         q: Annotated[str, Query(description="검색어 (예: 산사태 대피소)")] = "",
         hazard: Annotated[
@@ -321,6 +384,8 @@ def create_app(
 
     @app.get(
         "/v1/datasets/{dataset_id}",
+        response_model=DatasetDetail,
+        responses={404: {"model": ApiError, "description": "카탈로그에 없는 데이터셋"}},
         tags=["catalog"],
         summary="데이터셋 상세 — 취득 방법·라이선스·결함",
     )
@@ -332,6 +397,8 @@ def create_app(
 
     @app.get(
         "/v1/datasets/{dataset_id}/verify",
+        response_model=DatasetVerification,
+        responses={404: {"model": ApiError, "description": "카탈로그에 없는 데이터셋"}},
         tags=["catalog"],
         summary="이 용도로 써도 되는지 판정",
     )
@@ -351,6 +418,8 @@ def create_app(
 
     @app.get(
         "/v1/datasets/{dataset_id}/citation",
+        response_model=DatasetCitation,
+        responses={404: {"model": ApiError, "description": "카탈로그에 없는 데이터셋"}},
         tags=["catalog"],
         summary="출처 표기 문구",
     )
@@ -365,8 +434,13 @@ def create_app(
             raise HTTPException(status_code=404, detail=result)
         return result
 
-    @app.get("/v1/quality", tags=["ops"], summary="검증으로 확인된 데이터 품질 결함")
-    async def quality_report() -> dict[str, Any]:
+    @app.get(
+        "/v1/quality",
+        tags=["ops"],
+        summary="검증으로 확인된 데이터 품질 결함",
+        response_model=QualityReport,
+    )
+    async def quality_report() -> QualityReport:
         """포털 메타데이터가 틀린 사례 목록.
 
         행 수 과소 표기, 빈 등록물, 확장자 불일치 등 실제 다운로드·호출로
@@ -374,7 +448,12 @@ def create_app(
         """
         return resolved.quality_report()
 
-    @app.get("/v1/regions", tags=["reference"], summary="경북 시군 목록")
+    @app.get(
+        "/v1/regions",
+        tags=["reference"],
+        summary="경북 시군 목록",
+        response_model=RegionList,
+    )
     async def list_regions() -> dict[str, Any]:
         return {
             "count": len(SIGUNGU),
@@ -391,6 +470,7 @@ def create_app(
 
     @app.get(
         "/v1/regions/resolve",
+        response_model=RegionResolution,
         tags=["reference"],
         summary="지역명 → 코드·좌표·기상격자",
     )
@@ -486,8 +566,13 @@ def create_app(
             )
         return envelope(answer, {"connector": connector, "region": region})
 
-    @app.get("/v1/hazard-types", tags=["reference"], summary="지원하는 재난 유형")
-    async def hazard_types() -> dict[str, Any]:
+    @app.get(
+        "/v1/hazard-types",
+        tags=["reference"],
+        summary="지원하는 재난 유형",
+        response_model=HazardTypeList,
+    )
+    async def hazard_types() -> HazardTypeList:
         return {
             "hazards": [
                 {
@@ -498,8 +583,22 @@ def create_app(
             ]
         }
 
+    @app.get(
+        "/v1/hazards/capabilities",
+        tags=["hazard"],
+        summary="재난별로 지금 어디까지 답할 수 있는지",
+    )
+    async def hazard_capabilities() -> HazardCapabilities:
+        """탐지·위험도·대피소 세 축의 가용성.
+
+        재난 유형 목록만 보면 13종 전부 대응 가능한 것처럼 보인다. 실제로는
+        다섯만 세 축이 다 있고, 지진은 발생을 알려주지만 어느 대피소로 보낼지
+        모른다. 그 차이를 화면에서 지우면 갈 곳 없는 안내가 나간다.
+        """
+        return resolved.hazard_capabilities()
+
     @app.get("/v1/tools", tags=["agent"], summary="OpenAI 호환 도구 정의")
-    async def tools() -> dict[str, Any]:
+    async def tools() -> ToolCatalog:
         """LLM에 그대로 넘길 수 있는 function calling 스키마.
 
         MCP 서버와 **같은 정의**에서 나온다. 웹 챗봇은 MCP(stdio)를 붙이기
@@ -523,6 +622,15 @@ def create_app(
 
     @app.get(
         "/v1/tools/{name}",
+        response_description=(
+            "도구별 응답. 형태는 도구마다 다르며 각 스키마는 `/v1/tools`에 있습니다. "
+            "위험 상황 도구는 `complete`·`absence_confirmed`·`sources_checked`를 담습니다."
+        ),
+        responses={
+            404: {"model": ApiError, "description": "그런 도구가 없음"},
+            422: {"model": ApiError, "description": "인자 형식이 스키마와 다름"},
+            503: {"model": ApiError, "description": "도구 정의를 불러오지 못함"},
+        },
         tags=["agent"],
         summary="도구 실행 (조회 전용)",
     )
@@ -551,7 +659,7 @@ def create_app(
         tags=["agent"],
         summary="이 도구를 안전하게 쓰기 위한 시스템 프롬프트",
     )
-    async def system_prompt() -> dict[str, Any]:
+    async def system_prompt() -> SystemPrompt:
         """도구만 붙이면 생기는 사고를 막는 지침.
 
         모델은 기본적으로 도움이 되려 한다. 산사태 조회가 403으로 실패해
@@ -563,8 +671,13 @@ def create_app(
             "source": "skills/gb-safedata/SKILL.md",
         }
 
-    @app.get("/v1/licenses", tags=["catalog"], summary="라이선스별 허용 연산")
-    async def licenses() -> dict[str, Any]:
+    @app.get(
+        "/v1/licenses",
+        tags=["catalog"],
+        summary="라이선스별 허용 연산",
+        response_model=LicenseList,
+    )
+    async def licenses() -> LicenseList:
         """어떤 라이선스에서 무엇이 금지되는지.
 
         변경금지(KOGL 3·4)가 이 프로젝트에서 특히 중요합니다. 재투영·클리핑·

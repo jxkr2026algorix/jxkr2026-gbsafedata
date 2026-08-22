@@ -30,7 +30,15 @@ from gbsafe_core.domain import (
 from gbsafe_core.models import GeoPoint, QualityFlag
 from gbsafe_core.regions import HazardDomain, KmaGrid, find_sigungu, to_kma_grid
 
-from .base import KST, Connector, FetchOutcome, RawResponse, confirmed_empty
+from .base import (
+    KST,
+    Connector,
+    FetchOutcome,
+    RawResponse,
+    confirmed_empty,
+    missing_or_impossible,
+    missing_sentinel,
+)
 from .stations import GYEONGBUK_STATIONS, describe_station, serves_gyeongbuk
 
 #: 기상청 카테고리 코드 → (정규화 이름, 단위).
@@ -76,6 +84,11 @@ _MISSING_VALUES = frozenset({"-", "", "null", "none", "nan"})
 #: 기온·습도·풍속에서 결측을 0으로 바꾸면 0℃·습도 0%가 실측처럼 보인다.
 _ZEROABLE_CATEGORIES = frozenset({"RN1", "PCP", "SNO", "POP", "PTY"})
 
+#: 음수가 물리적으로 불가능한 관측 항목. 여기서는 음수 전체가 결측이다.
+_NON_NEGATIVE_CATEGORIES = frozenset(
+    {"RN1", "PCP", "SNO", "POP", "PTY", "REH", "WSD", "SKY", "VEC", "UUU", "VVV"}
+)
+
 
 def _parse_measure(raw: str, category: str = "") -> float | None:
     """기상청 값 문자열을 숫자로.
@@ -94,9 +107,16 @@ def _parse_measure(raw: str, category: str = "") -> float | None:
         return 0.5
     cleaned = text.replace("mm", "").replace("cm", "").replace("이상", "").strip()
     try:
-        return float(cleaned)
+        value = float(cleaned)
     except ValueError:
         return None
+
+    # 숫자로 온 결측을 실측으로 통과시키지 않는다. 강수·적설처럼 음수가
+    # 불가능한 항목은 음수 전체가 결측이고, 기온처럼 부호가 있는 항목은
+    # 명시된 센티널만 결측이다 — -9℃는 경북 산간의 실제 겨울 기온이다.
+    if category in _NON_NEGATIVE_CATEGORIES:
+        return None if missing_or_impossible(value) else value
+    return None if missing_sentinel(value) else value
 
 
 def _parse_stamp(date_text: str, time_text: str) -> datetime | None:
@@ -495,13 +515,18 @@ def _reconcile(
 def _hazard_from_title(title: str) -> HazardDomain:
     """특보 제목에서 재난 유형을 추정한다."""
     for needle, domain in (
+        # 지진해일을 지진보다 먼저 본다. "지진해일주의보"에 "지진"이 들어 있어
+        # 순서가 뒤바뀌면 해일 특보가 지진으로 분류된다.
+        ("지진해일", HazardDomain.TSUNAMI),
         ("호우", HazardDomain.HEAVY_RAIN),
-        ("대설", HazardDomain.HEAVY_RAIN),
-        ("태풍", HazardDomain.HEAVY_RAIN),
+        ("대설", HazardDomain.HEAVY_SNOW),
+        ("태풍", HazardDomain.TYPHOON),
         ("홍수", HazardDomain.FLOOD),
         ("건조", HazardDomain.WILDFIRE),
         ("폭염", HazardDomain.HEATWAVE),
-        ("한파", HazardDomain.HEATWAVE),
+        # 한파는 폭염의 정반대다. 같은 유형으로 묶으면 난방이 필요한 상황에
+        # 냉방 시설을 안내한다.
+        ("한파", HazardDomain.COLD_WAVE),
         ("지진", HazardDomain.EARTHQUAKE),
     ):
         if needle in title:

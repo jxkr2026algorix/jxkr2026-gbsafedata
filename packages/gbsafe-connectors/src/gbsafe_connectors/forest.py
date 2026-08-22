@@ -25,7 +25,14 @@ from gbsafe_core.domain import (
 from gbsafe_core.models import GeoPoint, QualityFlag
 from gbsafe_core.regions import SIDO_CODE, HazardDomain, find_sigungu
 
-from .base import KST, Connector, FetchOutcome, RawResponse, confirmed_empty
+from .base import (
+    KST,
+    Connector,
+    FetchOutcome,
+    RawResponse,
+    confirmed_empty,
+    missing_or_impossible,
+)
 
 #: 산불위험 등급 개수 필드 → 등급명.
 FIRE_GRADE_FIELDS: dict[str, str] = {
@@ -116,9 +123,12 @@ def _coord(row: dict[str, Any], *names: str) -> float | None:
         if raw in (None, "", "-"):
             continue
         try:
-            return float(str(raw).strip())
+            value = float(str(raw).strip())
         except ValueError:
             continue
+        if missing_or_impossible(value):
+            continue
+        return value
     return None
 
 
@@ -208,8 +218,13 @@ class WildfireRiskConnector(Connector[HazardAlert]):
 
 
 def _fire_severity(index: float | None) -> Severity:
-    """산불위험지수를 정규화 단계로. 산림청 등급 구간을 따른다."""
-    if index is None:
+    """산불위험지수를 정규화 단계로. 산림청 등급 구간을 따른다.
+
+    지수는 0~100이다. 범위를 벗어난 값은 결측 표기(-99 등)이며 **'낮음'이
+    아니라 '미확인'이다.** 51 미만을 전부 info로 떨어뜨리면 측정하지 못한
+    산불 위험이 안전으로 보고된다.
+    """
+    if index is None or missing_or_impossible(index) or index > 100:
         return Severity.UNKNOWN
     if index >= 86:
         return Severity.EMERGENCY

@@ -1,7 +1,7 @@
 {
  "_comment": "한강홍수통제소 수위관측소 제원(경북). 경보 임계수위는 거의 바뀌지 않아 참조데이터로 동봉한다. scripts/sync_hrfco_stations.py로 재생성한다.",
  "source": "https://api.hrfco.go.kr/<인증키>/waterlevel/info.json",
- "generated_at": "2026-08-22T06:21:43+00:00",
+ "generated_at": "2026-08-22T08:55:23+00:00",
  "stations": [
   {
    "station_id": "2001615",
@@ -62,10 +62,10 @@
    "lat": 36.88333333333333,
    "lon": 129.0011111111111,
    "attention_m": null,
-   "advisory_m": 0.0,
-   "warning_m": 0.0,
+   "advisory_m": null,
+   "warning_m": null,
    "serious_m": null,
-   "plan_flood_m": 0.0,
+   "plan_flood_m": null,
    "is_forecast_point": false
   },
   {
@@ -140,10 +140,10 @@
    "lat": 36.760555555555555,
    "lon": 128.89638888888888,
    "attention_m": null,
-   "advisory_m": 0.0,
-   "warning_m": 0.0,
+   "advisory_m": null,
+   "warning_m": null,
    "serious_m": null,
-   "plan_flood_m": 0.0,
+   "plan_flood_m": null,
    "is_forecast_point": false
   },
   {
@@ -169,7 +169,7 @@
    "advisory_m": null,
    "warning_m": null,
    "serious_m": null,
-   "plan_flood_m": 0.0,
+   "plan_flood_m": null,
    "is_forecast_point": false
   },
   {
@@ -182,7 +182,7 @@
    "advisory_m": null,
    "warning_m": null,
    "serious_m": null,
-   "plan_flood_m": 0.0,
+   "plan_flood_m": null,
    "is_forecast_point": false
   },
   {
@@ -192,10 +192,10 @@
    "lat": 36.58444444444444,
    "lon": 128.7711111111111,
    "attention_m": null,
-   "advisory_m": 0.0,
-   "warning_m": 0.0,
+   "advisory_m": null,
+   "warning_m": null,
    "serious_m": null,
-   "plan_flood_m": 0.0,
+   "plan_flood_m": null,
    "is_forecast_point": false
   },
   {
@@ -205,10 +205,10 @@
    "lat": 36.58277777777778,
    "lon": 128.775,
    "attention_m": null,
-   "advisory_m": 0.0,
-   "warning_m": 0.0,
+   "advisory_m": null,
+   "warning_m": null,
    "serious_m": null,
-   "plan_flood_m": 0.0,
+   "plan_flood_m": null,
    "is_forecast_point": false
   },
   {
@@ -218,10 +218,10 @@
    "lat": 36.56638888888889,
    "lon": 128.74916666666667,
    "attention_m": null,
-   "advisory_m": 0.0,
-   "warning_m": 0.0,
+   "advisory_m": null,
+   "warning_m": null,
    "serious_m": null,
-   "plan_flood_m": 0.0,
+   "plan_flood_m": null,
    "is_forecast_point": false
   },
   {
@@ -335,10 +335,10 @@
    "lat": 36.653055555555554,
    "lon": 129.1063888888889,
    "attention_m": null,
-   "advisory_m": 0.0,
-   "warning_m": 0.0,
+   "advisory_m": null,
+   "warning_m": null,
    "serious_m": null,
-   "plan_flood_m": 0.0,
+   "plan_flood_m": null,
    "is_forecast_point": false
   },
   {
@@ -465,10 +465,10 @@
    "lat": 36.44277777777778,
    "lon": 129.0302777777778,
    "attention_m": null,
-   "advisory_m": 0.0,
-   "warning_m": 0.0,
+   "advisory_m": null,
+   "warning_m": null,
    "serious_m": null,
-   "plan_flood_m": 0.0,
+   "plan_flood_m": null,
    "is_forecast_point": false
   },
   {
@@ -478,10 +478,10 @@
    "lat": 36.53777777777778,
    "lon": 128.88,
    "attention_m": null,
-   "advisory_m": 0.0,
-   "warning_m": 0.0,
+   "advisory_m": null,
+   "warning_m": null,
    "serious_m": null,
-   "plan_flood_m": 0.0,
+   "plan_flood_m": null,
    "is_forecast_point": false
   },
   {
@@ -491,10 +491,10 @@
    "lat": 36.535,
    "lon": 128.8836111111111,
    "attention_m": null,
-   "advisory_m": 0.0,
-   "warning_m": 0.0,
+   "advisory_m": null,
+   "warning_m": null,
    "serious_m": null,
-   "plan_flood_m": 0.0,
+   "plan_flood_m": null,
    "is_forecast_point": false
   },
   {
@@ -504,10 +504,10 @@
    "lat": 36.53638888888889,
    "lon": 128.8452777777778,
    "attention_m": null,
-   "advisory_m": 0.0,
-   "warning_m": 0.0,
+   "advisory_m": null,
+   "warning_m": null,
    "serious_m": null,
-   "plan_flood_m": 0.0,
+   "plan_flood_m": null,
    "is_forecast_point": false
   },
   {
@@ -556,10 +556,10 @@
    "lat": 36.53472222222222,
    "lon": 128.79527777777778,
    "attention_m": null,
-   "advisory_m": 0.0,
-   "warning_m": 0.0,
+   "advisory_m": null,
+   "warning_m": null,
    "serious_m": null,
-   "plan_flood_m": 0.0,
+   "plan_flood_m": null,
    "is_forecast_point": false
   },
   {
@@ -585,7 +585,7 @@
    "advisory_m": null,
    "warning_m": null,
    "serious_m": null,
-   "plan_flood_m": 0.0,
+   "plan_flood_m": null,
    "is_forecast_point": false
   },
   {
@@ -595,10 +595,10 @@
    "lat": 36.55027777777777,
    "lon": 128.69972222222222,
    "attention_m": null,
-   "advisory_m": 0.0,
-   "warning_m": 0.0,
+   "advisory_m": null,
+   "warning_m": null,
    "serious_m": null,
-   "plan_flood_m": 0.0,
+   "plan_flood_m": null,
    "is_forecast_point": false
   },
   {
@@ -1047,13 +1047,13 @@
    "station_id": "2004685",
    "name": "경천댐",
    "address": "경상북도 문경시",
-   "lat": 36.21,
-   "lon": 126.11999999999999,
+   "lat": null,
+   "lon": null,
    "attention_m": null,
    "advisory_m": null,
    "warning_m": null,
    "serious_m": null,
-   "plan_flood_m": 0.0,
+   "plan_flood_m": null,
    "is_forecast_point": false
   },
   {
@@ -1339,7 +1339,7 @@
    "advisory_m": null,
    "warning_m": null,
    "serious_m": null,
-   "plan_flood_m": 0.0,
+   "plan_flood_m": null,
    "is_forecast_point": false
   },
   {
@@ -1404,7 +1404,7 @@
    "advisory_m": null,
    "warning_m": null,
    "serious_m": null,
-   "plan_flood_m": 0.0,
+   "plan_flood_m": null,
    "is_forecast_point": false
   },
   {
@@ -1417,7 +1417,7 @@
    "advisory_m": null,
    "warning_m": null,
    "serious_m": null,
-   "plan_flood_m": 0.0,
+   "plan_flood_m": null,
    "is_forecast_point": false
   },
   {
@@ -1586,7 +1586,7 @@
    "advisory_m": null,
    "warning_m": null,
    "serious_m": null,
-   "plan_flood_m": 0.0,
+   "plan_flood_m": null,
    "is_forecast_point": false
   },
   {
@@ -2418,7 +2418,7 @@
    "advisory_m": null,
    "warning_m": null,
    "serious_m": null,
-   "plan_flood_m": 0.0,
+   "plan_flood_m": null,
    "is_forecast_point": false
   },
   {
@@ -2555,8 +2555,8 @@
    "station_id": "2021664",
    "name": "청도군(유천교)",
    "address": "경상북도 청도군 청도읍",
-   "lat": 35.56916666666667,
-   "lon": 128.7727777777778,
+   "lat": null,
+   "lon": null,
    "attention_m": 3.8,
    "advisory_m": 4.8,
    "warning_m": 5.8,
@@ -3146,7 +3146,7 @@
    "advisory_m": null,
    "warning_m": null,
    "serious_m": null,
-   "plan_flood_m": 0.0,
+   "plan_flood_m": null,
    "is_forecast_point": false
   }
  ]

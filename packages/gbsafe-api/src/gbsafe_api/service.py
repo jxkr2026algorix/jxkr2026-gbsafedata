@@ -23,6 +23,7 @@ from typing import Any
 
 from gbsafe_connectors import FetchOutcome, Registry, get_registry
 from gbsafe_connectors.filedata import local_response
+from gbsafe_core.capability import capability_for, readiness_summary
 from gbsafe_core.catalog import AccessRoute, DatasetEntry
 from gbsafe_core.domain import DatasetDescriptor, Shelter
 from gbsafe_core.licensing import (
@@ -64,13 +65,6 @@ HAZARD_PLAYBOOK: dict[HazardDomain, tuple[str, ...]] = {
         "weather_forecast",
         "river_level",
     ),
-    HazardDomain.LANDSLIDE: (
-        "landslide_forecast",
-        "weather_warning",
-        "weather_now",
-        "landslide_roadside",
-    ),
-    HazardDomain.WILDFIRE: ("wildfire_risk", "weather_now", "air_quality"),
     HazardDomain.FLOOD: (
         "flood_forecast",
         "river_level",
@@ -78,8 +72,31 @@ HAZARD_PLAYBOOK: dict[HazardDomain, tuple[str, ...]] = {
         "weather_now",
         "weather_forecast",
     ),
-    HazardDomain.EARTHQUAKE: ("weather_warning",),
+    HazardDomain.LANDSLIDE: (
+        "landslide_forecast",
+        "weather_warning",
+        "weather_now",
+        "landslide_roadside",
+    ),
+    HazardDomain.WILDFIRE: ("wildfire_risk", "weather_now", "air_quality"),
+    HazardDomain.TYPHOON: (
+        "typhoon",
+        "weather_warning",
+        "weather_forecast",
+        "river_level",
+    ),
+    HazardDomain.EARTHQUAKE: ("earthquake", "weather_warning"),
+    HazardDomain.TSUNAMI: ("tsunami", "earthquake", "weather_warning"),
     HazardDomain.HEATWAVE: ("weather_warning", "weather_now"),
+    HazardDomain.COLD_WAVE: ("weather_warning", "weather_now"),
+    HazardDomain.HEAVY_SNOW: ("weather_warning", "weather_now", "weather_forecast"),
+    # 가뭄은 조사에서 탐지 원천 호출이 0건이었다. 기상특보만 보고 "가뭄 없음"을
+    # 확인했다고 답하면 안 된다 — 가뭄 특보라는 것은 없다.
+    HazardDomain.DROUGHT: (),
+    # 화학사고는 실시간 탐지 원천이 없다. 대피장소만 답하고, 발생 여부를 알 수
+    # 없다는 사실은 capability caveat이 함께 내보낸다.
+    HazardDomain.CHEMICAL_ACCIDENT: ("chemical_shelters",),
+    HazardDomain.NUCLEAR: (),
     HazardDomain.OTHER: ("weather_warning", "weather_now"),
 }
 
@@ -417,6 +434,56 @@ class SafeDataService:
             "caveats": tuple(caveats),
         }
 
+    def hazard_capabilities(self) -> dict[str, Any]:
+        """재난별로 지금 어디까지 답할 수 있는지.
+
+        재난 유형 목록만 주면 전부 대응 가능한 것처럼 보인다. 실제로는 13종 중
+        다섯만 탐지·위험도·대피소 세 축이 다 있고, 지진은 발생을 알려주지만
+        어느 대피소로 보낼지 모르며, 원전은 탐지 수단 자체가 없다.
+        """
+        entries = []
+        for hazard in HazardDomain:
+            if hazard is HazardDomain.OTHER:
+                continue
+            capability = capability_for(hazard)
+            entries.append(
+                {
+                    "hazard": hazard.value,
+                    "korean_name": capability.korean_name,
+                    "readiness": capability.readiness.value,
+                    "can_detect": capability.readiness.can_detect,
+                    "can_say_where_to_go": capability.readiness.can_answer_where_to_go,
+                    "axes": {
+                        axis.name: {
+                            "label": axis.label,
+                            "usable": axis.usable,
+                            "total": axis.total,
+                            "covered": axis.is_covered,
+                            "sources": list(axis.sources),
+                        }
+                        for axis in capability.axes
+                    },
+                    "missing_axes": list(capability.missing_axes),
+                    "caveat": capability.caveat(),
+                    "connectors": list(HAZARD_PLAYBOOK.get(hazard, ())),
+                }
+            )
+        return {
+            "hazards": entries,
+            "summary": {key: list(value) for key, value in readiness_summary().items()},
+            "axes": {
+                "detection": "지금 났는가 — 실시간 관측·통보",
+                "risk": "어디가 위험한가 — 정적 위험도·취약성",
+                "shelter": "어디로 가는가 — 대피 목적지",
+            },
+            "how_to_read": (
+                "readiness가 ready가 아닌 재난은 답이 불완전합니다. partial은 "
+                "발생은 알 수 있으나 위험도나 대피소 자료가 없다는 뜻이고, "
+                "blocked는 발생 여부조차 이 시스템으로 확인할 수 없다는 뜻입니다. "
+                "화면에서 partial을 ready처럼 보이게 하면 안 됩니다."
+            ),
+        }
+
     # ── 위험 상황 ───────────────────────────────────────────────
     async def hazard_context(
         self,
@@ -446,7 +513,13 @@ class SafeDataService:
                     ),
                 ),
             )
-        names = include or HAZARD_PLAYBOOK.get(hazard_domain, ("weather_warning",))
+        playbook = HAZARD_PLAYBOOK.get(hazard_domain, ("weather_warning",))
+        names = include or playbook
+
+        # 호출자가 원천을 골라 넣으면 그 재난의 나머지 원천은 조회되지 않는다.
+        # 그것을 밝히지 않으면 "호우 확인 완료"라고 답하면서 실제로는 지진만
+        # 본 결과가 나온다 — 조회하지 않은 것은 확인한 것이 아니다.
+        skipped = tuple(name for name in playbook if name not in names)
 
         sigungu = find_sigungu(region)
         if sigungu is None:
@@ -499,6 +572,67 @@ class SafeDataService:
             degradations.extend(outcome.degradations)
             caveats.extend(outcome.caveats)
             receipts.append(outcome.receipt(connector=name, dataset_id=dataset_id))
+
+        # 이 재난을 애초에 어디까지 답할 수 있는지 밝힌다. 원천이 전부 성공해도
+        # 지진처럼 대피소 자료가 없는 재난은 완전한 답이 아니며, 그것을 말하지
+        # 않으면 읽는 쪽은 완전한 답으로 받아들인다.
+        capability = capability_for(hazard_domain)
+        limitation = capability.caveat()
+        if limitation:
+            caveats.insert(0, limitation)
+
+        # 탐지 축이 없는 재난은 결과를 완전하다고 말할 수 없다.
+        #
+        # 조회할 원천이 없으면 실패한 영수증도 없어서 `complete`가 true가 되고,
+        # 빈 결과가 '확인된 부재'로 읽힌다. 원전은 발생 여부를 알 방법이 아예
+        # 없는데 "완전 · 해당 없음"으로 나오는 것이 그 결과였다. 확인할 수단이
+        # 없다는 것은 확인했다는 것의 반대다.
+        if skipped:
+            degradations.append(
+                Degradation(
+                    dataset_id=f"hazard:{hazard_domain.value}",
+                    status=UpstreamStatus.UNAVAILABLE,
+                    detail=(
+                        f"이 재난의 원천 중 {', '.join(skipped)}을(를) 조회하지 "
+                        "않았습니다 — 호출자가 원천을 지정했습니다. 결과를 "
+                        "완전한 확인으로 읽으면 안 됩니다."
+                    ),
+                    occurred_at=datetime.now(UTC),
+                )
+            )
+
+        # 조회한 원천이 하나도 없으면 확인한 것이 없다.
+        #
+        # 영수증이 비면 "실패한 영수증이 없다"가 되어 complete가 참이 된다.
+        # 가뭄처럼 탐지 원천이 선언돼 있지 않은 재난이 출처 0건으로 "확인 완료"가
+        # 됐다. 아무것도 묻지 않은 것은 답을 얻은 것이 아니다.
+        if not receipts and not records:
+            degradations.append(
+                Degradation(
+                    dataset_id=f"hazard:{hazard_domain.value}",
+                    status=UpstreamStatus.UNAVAILABLE,
+                    detail=(
+                        f"{capability.korean_name}에 대해 조회한 원천이 없습니다 — "
+                        "이 시스템에 연결된 탐지 수단이 없다는 뜻이며, 결과가 "
+                        "비어 있어도 '해당 없음'이 아닙니다."
+                    ),
+                    occurred_at=datetime.now(UTC),
+                )
+            )
+
+        if not capability.readiness.can_detect:
+            degradations.append(
+                Degradation(
+                    dataset_id=f"hazard:{hazard_domain.value}",
+                    status=UpstreamStatus.UNAVAILABLE,
+                    detail=(
+                        f"{capability.korean_name}은 실시간 탐지 원천이 없습니다 — "
+                        "발생 여부를 확인할 수 없으므로 이 결과를 '해당 없음'으로 "
+                        "읽으면 안 됩니다."
+                    ),
+                    occurred_at=datetime.now(UTC),
+                )
+            )
 
         return Answer(
             query=f"{sigungu.full_name} {hazard_domain.value}",

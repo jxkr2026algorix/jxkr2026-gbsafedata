@@ -19,7 +19,9 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
+import math
 import re
 import time
 from abc import ABC, abstractmethod
@@ -105,6 +107,13 @@ class FetchOutcome[PayloadT]:
     caveats: tuple[str, ...] = ()
     confirmed_absence: bool = False
 
+    #: 이 결과를 만든 응답의 상태. 영수증이 실제로 무엇을 읽었는지 밝힌다.
+    #:
+    #: 기본값을 OK로 두면 스냅샷에서 되살린 6년 전 자료도 영수증에
+    #: `upstream: ok`로 나가고, 레코드가 stale·unusable이라고 말하는 것과
+    #: 봉투가 정면으로 모순된다.
+    upstream_status: UpstreamStatus = UpstreamStatus.OK
+
     @property
     def ok(self) -> bool:
         return not any(item.blocks_interpretation for item in self.degradations)
@@ -128,6 +137,11 @@ class FetchOutcome[PayloadT]:
             degradations=self.degradations + other.degradations,
             caveats=tuple(dict.fromkeys(self.caveats + other.caveats)),
             confirmed_absence=self.confirmed_absence and other.confirmed_absence,
+            upstream_status=(
+                other.upstream_status
+                if self.upstream_status is UpstreamStatus.OK
+                else self.upstream_status
+            ),
         )
 
     def receipt(self, *, connector: str, dataset_id: str) -> SourceReceipt:
@@ -135,7 +149,7 @@ class FetchOutcome[PayloadT]:
         status = (
             self.degradations[0].status
             if self.degradations
-            else UpstreamStatus.OK
+            else self.upstream_status
         )
         detail = self.degradations[0].detail if self.degradations else ""
         if not self.records and not self.confirmed_absence and not self.degradations:
@@ -149,6 +163,40 @@ class FetchOutcome[PayloadT]:
             upstream_status=status,
             detail=detail,
         )
+
+
+#: 기관이 "측정하지 못했다"를 나타내려고 쓰는 숫자.
+#:
+#: 이 값들이 실측치로 통과하면 결측이 관측으로 둔갑한다. 강수량 -99mm는
+#: 눈에 띄지만, 수위 -99m는 모든 경보 임계값 아래라 **조용히 안전해 보인다.**
+_MISSING_SENTINELS: frozenset[float] = frozenset(
+    {-99.0, -99.9, -999.0, -999.9, -9999.0}
+)
+
+
+def missing_sentinel(value: float | None) -> bool:
+    """부호가 있는 양(기온·기압)에서 결측인지.
+
+    `-9`는 넣지 않는다. 경북 산간의 실제 겨울 기온이고, 한파는 우리가 다루는
+    재난 중 하나다. 결측을 지우려다 진짜 한파를 지우면 안 된다.
+
+    `inf`와 `nan`도 결측이다. 파이썬은 `float("inf")`를 조용히 받아들이고,
+    그 값은 모든 임계값을 넘어 무한대 수위 경보 같은 것을 만든다.
+    """
+    if value is None or not math.isfinite(value):
+        return True
+    return value in _MISSING_SENTINELS
+
+
+def missing_or_impossible(value: float | None) -> bool:
+    """음수가 물리적으로 불가능한 양(강수·적설·수위·인원)에서 결측인지.
+
+    이런 양에서는 음수 전체가 결측 표기다. 기관마다 -9·-99·-999를 섞어 쓰는데
+    어느 쪽이든 실측이 아니다.
+    """
+    if value is None or not math.isfinite(value):
+        return True
+    return value < 0 or value in _MISSING_SENTINELS
 
 
 def confirmed_empty(*caveats: str) -> FetchOutcome[Any]:
@@ -416,10 +464,39 @@ class Connector[PayloadT](ABC):
             )
 
         if response.status is UpstreamStatus.CACHED:
+            # 판단에 쓸 수 없을 만큼 오래된 보존자료를 되살렸다면 그것은 조회에
+            # 성공한 것이 아니다. 레코드는 stale이라고 말하는데 봉투가
+            # complete를 주면 읽는 쪽은 봉투를 믿는다.
+            # 방금 받은 응답을 나눠 쓰는 동시요청 병합과, 저장고에서 되살린
+            # 보존자료를 구별한다. 앞은 몇 초 전 자료라 정상이고, 뒤는 현재
+            # 원천을 전혀 확인하지 못한 것이다.
+            revived = self._settings.offline and response.snapshot_id is not None
+            unusable = (
+                revived
+                and bool(outcome.records)
+                and not any(
+                    record.freshness.is_usable_for_decision for record in outcome.records
+                )
+            )
+            extra: tuple[Degradation, ...] = ()
+            if unusable:
+                extra = (
+                    Degradation(
+                        dataset_id=self.dataset_id,
+                        status=UpstreamStatus.DEGRADED,
+                        detail=(
+                            "보존된 자료만 있고 현재 원천을 확인하지 못했습니다 — "
+                            "이 값은 판단 근거로 쓸 수 있는 신선도가 아닙니다."
+                        ),
+                        occurred_at=datetime.now(UTC),
+                        last_known_good_at=self._last_snapshot_time(),
+                    ),
+                )
             outcome = FetchOutcome(
                 records=outcome.records,
-                degradations=outcome.degradations,
+                degradations=outcome.degradations + extra,
                 caveats=(*outcome.caveats, "캐시된 응답입니다 (호출 한도 보호)"),
+                upstream_status=UpstreamStatus.CACHED,
                 # 캐시를 거쳤다고 '해당 없음' 판정이 사라지면 안 된다. 이 필드를
                 # 빠뜨렸을 때 원천이 확인해 준 부재가 조회 실패로 강등됐고,
                 # TTL이 10분이라 대부분의 요청이 그 잘못된 쪽을 받았다.
@@ -427,10 +504,28 @@ class Connector[PayloadT](ABC):
             )
         return outcome
 
+    def _cache_scope(self) -> str:
+        """캐시를 나누는 기준. 인증정보와 오프라인 여부를 포함한다.
+
+        URL과 파라미터만으로 키를 만들면 인증정보가 빠진다. 인증키는 파라미터가
+        아니라 그 뒤에 붙기 때문이다. 그러면 정상 키로 채워둔 캐시가 **잘못된
+        키를 쓴 호출자에게 성공으로 나간다** — 인증 실패가 '조회 성공'이 되는
+        것이고, 사용자별 키를 주입하는 배치에서는 남의 응답을 받는 것이기도 하다.
+
+        키 자체는 넣지 않고 해시만 넣는다. 캐시 키는 로그와 예외 메시지에
+        섞여 나갈 수 있다.
+        """
+        offline = "offline" if self._settings.offline else "online"
+        if self.credential is None:
+            return f"{offline}:nokey"
+        secret = self._settings.credential(self.credential) or ""
+        digest = hashlib.sha256(secret.encode("utf-8")).hexdigest()[:16] if secret else "none"
+        return f"{offline}:{self.credential.value}:{digest}"
+
     async def _request(self, **kwargs: Any) -> RawResponse:
         params = self.build_params(**kwargs)
         url = self.base_url()
-        cache_key = f"{url}?{sorted(params.items())}"
+        cache_key = f"{self._cache_scope()}|{url}?{sorted(params.items())}"
 
         cached = await _CACHE.get(cache_key)
         if cached is not None:
@@ -620,6 +715,20 @@ class Connector[PayloadT](ABC):
             )
         )
 
+    def _redact_endpoint(self, url: str) -> str:
+        """URL에서 인증정보를 지운다.
+
+        홍수통제소는 인증키가 **경로**에 들어간다. 그 URL이 그대로 provenance에
+        실려 모든 레코드의 endpoint로 나가면, 이 API를 부르는 누구나 우리
+        정부 인증키를 그대로 가져간다. 쿼리 파라미터로 붙는 원천도 마찬가지다.
+        """
+        cleaned = url
+        for name in CredentialName:
+            secret = self._settings.credential(name)
+            if secret and secret in cleaned:
+                cleaned = cleaned.replace(secret, "<redacted>")
+        return cleaned
+
     def provenance(
         self,
         response: RawResponse,
@@ -635,7 +744,7 @@ class Connector[PayloadT](ABC):
             dataset_name=self.dataset_name,
             provider=self.provider,
             source_url=entry.url if entry else None,
-            endpoint=response.endpoint,
+            endpoint=self._redact_endpoint(response.endpoint),
             license=entry.license if entry else LicenseCode.UNKNOWN,
             mode=DataMode.SNAPSHOT if response.status is UpstreamStatus.CACHED else mode,
             upstream_status=response.status,

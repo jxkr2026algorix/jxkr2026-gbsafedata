@@ -70,6 +70,8 @@ READ_VERBS: frozenset[str] = frozenset(
         "quality",
         "context",
         "guidance",
+        "capability",
+        "capabilities",
         "catalog",
         "catalogue",
         "cite",

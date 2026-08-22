@@ -25,7 +25,14 @@ from gbsafe_core.domain import AlertAction, HazardAlert, Observation, Severity
 from gbsafe_core.models import GeoPoint, QualityFlag
 from gbsafe_core.regions import HazardDomain, find_sigungu
 
-from .base import KST, Connector, FetchOutcome, RawResponse, confirmed_empty
+from .base import (
+    KST,
+    Connector,
+    FetchOutcome,
+    RawResponse,
+    confirmed_empty,
+    missing_or_impossible,
+)
 
 _STATION_FILE = Path(__file__).parent / "data" / "hrfco-stations.json"
 
@@ -122,9 +129,11 @@ def _level(raw: Any) -> float | None:
     if not text:
         return None
     try:
-        return float(text)
+        value = float(text)
     except ValueError:
         return None
+    # -99는 모든 경보 임계값 아래라 조용히 '안전한 낮은 수위'로 읽힌다.
+    return None if missing_or_impossible(value) else value
 
 
 def _observed_at(raw: Any) -> datetime | None:
@@ -268,6 +277,31 @@ class RiverLevelConnector(Connector[Observation]):
                 )
             raise ValueError("수위 관측값을 하나도 해석하지 못했습니다")
 
+        # 이 지역에 아는 관측소가 몇 곳인데 몇 곳이 왔는지 밝힌다. 전부
+        # 사라졌을 때만 실패로 보면, 12곳 중 3곳이 빠진 응답이 조용히 통과한다.
+        if sigungu is not None:
+            stem = sigungu.name.rstrip("시군")
+            known = {
+                item.station_id
+                for item in STATIONS.values()
+                if stem in item.address or stem in item.name
+            }
+            seen = {str(record.payload.raw_code) for record in records}
+            absent = known - seen
+            if absent:
+                names = ", ".join(
+                    sorted(STATIONS[item].name for item in absent if item in STATIONS)
+                )
+                caveats_missing = (
+                    f"{sigungu.name}의 수위관측소 {len(known)}곳 중 {len(absent)}곳"
+                    f"({names})의 관측값이 이번 응답에 없습니다 — 그 지점의 수위는 "
+                    "확인되지 않았습니다."
+                )
+            else:
+                caveats_missing = None
+        else:
+            caveats_missing = None
+
         caveats = [
             "수위는 관측소 지점값입니다 — 같은 하천이라도 지점마다 다릅니다",
             "임계수위는 기관 고시값이며 실제 침수 여부는 현장 확인이 필요합니다",
@@ -284,6 +318,23 @@ class RiverLevelConnector(Connector[Observation]):
             )
         if missing_level:
             caveats.append(f"수위가 결측인 관측소 {missing_level}곳이 있습니다")
+        # 좌표가 없는 관측소는 지도·거리 계산에서 조용히 빠진다. 그 지점의
+        # 수위를 읽고도 어디인지 모르는 상태이므로 밝힌다.
+        unplaced = sorted(
+            {
+                record.payload.station
+                for record in records
+                if record.payload.location is None and record.payload.station
+            }
+        )
+        if unplaced:
+            caveats.append(
+                f"좌표가 확인되지 않은 관측소 {len(unplaced)}곳"
+                f"({', '.join(unplaced[:3])}{' 외' if len(unplaced) > 3 else ''})은 "
+                "지도 표시와 거리 계산에 쓸 수 없습니다."
+            )
+        if caveats_missing:
+            caveats.insert(0, caveats_missing)
         if alerts:
             caveats.append("임계수위 초과: " + ", ".join(alerts[:5]))
 

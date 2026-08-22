@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import signal
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -29,6 +30,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CONNECTORS = REPO_ROOT / "packages/gbsafe-connectors/src/gbsafe_connectors"
 CORE = REPO_ROOT / "packages/gbsafe-core/src/gbsafe_core"
 API = REPO_ROOT / "packages/gbsafe-api/src/gbsafe_api"
+MCP = REPO_ROOT / "packages/gbsafe-mcp/src/gbsafe_mcp"
 
 
 @dataclass(frozen=True, slots=True)
@@ -604,6 +606,136 @@ MUTATIONS: tuple[Mutation, ...] = (
         "실데이터에 모드 표시를 붙여 훈련 데이터와 구별을 흐린다",
     ),
     Mutation(
+        "shelter-capacity-sign-stripped",
+        CONNECTORS / "filedata.py",
+        "    return None if missing_or_impossible(value) else int(value)",
+        "    return int(abs(value))",
+        "결측 수용인원 -99.9를 999명으로 만들어 넘치는 대피소로 보낸다",
+    ),
+    Mutation(
+        "duplicate-columns-silently-accepted",
+        CONNECTORS / "filedata.py",
+        "        _reject_duplicate_columns(text)",
+        "        pass",
+        "중복 컬럼에서 앞의 수용인원이 조용히 사라진 채로 읽는다",
+    ),
+    Mutation(
+        "credential-leaks-in-endpoint",
+        CONNECTORS / "base.py",
+        "            endpoint=self._redact_endpoint(response.endpoint),",
+        "            endpoint=response.endpoint,",
+        "URL 경로에 든 정부 인증키를 모든 레코드의 출처로 노출한다",
+    ),
+    Mutation(
+        "cold-wave-classified-as-heatwave",
+        CONNECTORS / "kma.py",
+        '        ("한파", HazardDomain.COLD_WAVE),',
+        '        ("한파", HazardDomain.HEATWAVE),',
+        "한파 특보를 폭염으로 분류해 난방이 필요한 상황에 냉방 시설을 안내한다",
+    ),
+    Mutation(
+        "no-sources-reported-complete",
+        API / "service.py",
+        "        if not receipts and not records:",
+        "        if False:",
+        "조회한 원천이 하나도 없는데 확인 완료로 보고한다",
+    ),
+    Mutation(
+        "tool-schema-freezes-hazard-list",
+        MCP / "tools.py",
+        '    "enum": [item.value for item in HazardDomain if item is not HazardDomain.OTHER],',
+        '    "enum": ["heavy_rain", "landslide", "wildfire", "flood", "earthquake", "heatwave"],',
+        "도구 스키마가 지원 재난의 절반을 거부해 없는 재난처럼 보이게 한다",
+    ),
+    Mutation(
+        "unreadable-csv-with-filter-reads-as-absence",
+        CONNECTORS / "filedata.py",
+        '        if rows and not any(pick(row, "name") for row in rows):',
+        "        if rows and not records and not region and not hazard_hint:",
+        "필터가 있으면 읽지 못한 CSV를 '해당 시군에 대피소 없음'으로 보고한다",
+    ),
+    Mutation(
+        "chemical-province-filter-accepts-outsiders",
+        CONNECTORS / "bundled.py",
+        "            if not address.startswith((SIDO_NAME_FULL, SIDO_NAME_SHORT)):",
+        "            if SIDO_NAME_FULL not in address and SIDO_NAME_SHORT not in address:",
+        "'서울특별시 경북대로'를 경북 대피소로 받아들인다",
+    ),
+    Mutation(
+        "aws-all-missing-reported-as-records",
+        CONNECTORS / "apihub.py",
+        "            if records and all(record.payload.value is None for record in records):",
+        "            if False:",
+        "관측값이 전부 결측인 지점을 관측 성공으로 보고한다",
+    ),
+    Mutation(
+        "partial-selection-claims-completeness",
+        API / "service.py",
+        "        skipped = tuple(name for name in playbook if name not in names)",
+        "        skipped = ()",
+        "원천을 골라 조회하고도 재난 전체를 확인한 것처럼 보고한다",
+    ),
+    Mutation(
+        "receipt-hides-cached-upstream",
+        CONNECTORS / "base.py",
+        (
+            "            self.degradations[0].status\n"
+            "            if self.degradations\n"
+            "            else self.upstream_status"
+        ),
+        (
+            "            self.degradations[0].status\n"
+            "            if self.degradations\n"
+            "            else UpstreamStatus.OK"
+        ),
+        "보존자료로 답하고도 영수증에 upstream=ok로 보고한다",
+    ),
+    Mutation(
+        "cache-ignores-credentials",
+        CONNECTORS / "base.py",
+        'cache_key = f"{self._cache_scope()}|{url}?{sorted(params.items())}"',
+        'cache_key = f"{url}?{sorted(params.items())}"',
+        "정상 키로 채운 캐시를 잘못된 키 호출자에게 성공으로 돌려준다",
+    ),
+    Mutation(
+        "rainfall-sentinel-becomes-rain",
+        CONNECTORS / "kma.py",
+        (
+            "    if category in _NON_NEGATIVE_CATEGORIES:\n"
+            "        return None if missing_or_impossible(value) else value"
+        ),
+        "    if category in _NON_NEGATIVE_CATEGORIES:\n        return value",
+        "결측 강수(-99)를 실측 강수량으로 보고한다",
+    ),
+    Mutation(
+        "river-sentinel-becomes-low-water",
+        CONNECTORS / "hrfco.py",
+        "    return None if missing_or_impossible(value) else value",
+        "    return value",
+        "결측 수위(-99m)를 모든 경보 아래의 안전한 수위로 보고한다",
+    ),
+    Mutation(
+        "missing-fire-index-reads-as-low",
+        CONNECTORS / "forest.py",
+        "    if index is None or missing_or_impossible(index) or index > 100:",
+        "    if index is None:",
+        "측정하지 못한 산불위험을 '낮음'으로 보고한다",
+    ),
+    Mutation(
+        "undetectable-hazard-reported-complete",
+        API / "service.py",
+        "        if not capability.readiness.can_detect:",
+        "        if False:",
+        "탐지 수단이 없는 재난을 '완전 · 해당 없음'으로 보고한다",
+    ),
+    Mutation(
+        "hazard-limit-caveat-dropped",
+        API / "service.py",
+        "        if limitation:\n            caveats.insert(0, limitation)",
+        "        if not limitation:\n            caveats.insert(0, str(limitation))",
+        "partial 재난의 한계를 지워 불완전한 답을 완전한 것처럼 보이게 한다",
+    ),
+    Mutation(
         "cache-drops-the-absence-verdict",
         CONNECTORS / "base.py",
         "                confirmed_absence=outcome.confirmed_absence,\n",
@@ -651,6 +783,23 @@ def main() -> int:
     needle = sys.argv[1] if len(sys.argv) > 1 else ""
     selected = [m for m in MUTATIONS if needle in m.name] if needle else list(MUTATIONS)
 
+    # 중단돼도 소스를 되돌린다.
+    #
+    # 이 스크립트는 실행 중 소스 파일을 실제로 변형한다. Ctrl-C나 SIGTERM으로
+    # 죽으면 `finally`가 돌지 못해 변형이 그대로 남고, 그 상태는 `git status`를
+    # 보지 않으면 눈에 띄지 않는다. 실제로 감사를 중단했다가 뒤집힌 조건문이
+    # 작업트리에 남은 적이 있다. 저장소를 지키는 도구가 저장소를 깨뜨리면 안 된다.
+    pending: dict[Path, str] = {}
+
+    def restore_and_exit(signum: int, _frame: object) -> None:
+        for path, original in pending.items():
+            path.write_text(original, encoding="utf-8")
+        print(f"\n중단됨 — 변형한 파일 {len(pending)}개를 되돌렸습니다.", file=sys.stderr)
+        raise SystemExit(130)
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, restore_and_exit)
+
     print(f"뮤테이션 {len(selected)}건을 검사합니다.\n")
     survived: list[Mutation] = []
     unapplied: list[Mutation] = []
@@ -661,6 +810,7 @@ def main() -> int:
             unapplied.append(mutation)
             print(f"[{index:2}/{len(selected)}] {mutation.name:36} 적용 불가 (코드가 변경됨)")
             continue
+        pending[mutation.path] = original
         try:
             mutation.path.write_text(
                 original.replace(mutation.old, mutation.new, 1), encoding="utf-8"
@@ -668,6 +818,7 @@ def main() -> int:
             passed, summary = run_suite()
         finally:
             mutation.path.write_text(original, encoding="utf-8")
+            pending.pop(mutation.path, None)
 
         if passed:
             survived.append(mutation)

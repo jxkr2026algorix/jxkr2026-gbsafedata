@@ -1282,3 +1282,472 @@ class TestCacheKeepsTheAbsenceVerdict:
         assert second.outcome is first.outcome
         assert any("캐시" in caveat for caveat in second.caveats)
         await clear_cache()
+
+
+class TestMissingSentinelsNeverBecomeMeasurements:
+    """기관이 "측정하지 못했다"로 쓰는 숫자가 실측으로 통과하면 안 된다.
+
+    강수량 -99mm는 눈에 띄지만 수위 -99m는 모든 경보 임계값 아래라 조용히
+    안전해 보인다. 그 방향의 실패가 이 저장소가 막으려는 것이다.
+    """
+
+    def test_signed_quantities_keep_real_cold(self) -> None:
+        """-9℃는 경북 산간의 실제 겨울 기온이다. 한파를 결측으로 지우면 안 된다."""
+        from gbsafe_connectors.base import missing_sentinel
+
+        assert not missing_sentinel(-9.0)
+        assert not missing_sentinel(-20.0)
+        assert missing_sentinel(-99.0)
+        assert missing_sentinel(-99.9)
+
+    def test_non_negative_quantities_reject_every_negative(self) -> None:
+        from gbsafe_connectors.base import missing_or_impossible
+
+        for value in (-0.1, -9.0, -99.0, -999.0):
+            assert missing_or_impossible(value), value
+        assert not missing_or_impossible(0.0), "무강수 0은 실측이다"
+
+    def test_non_finite_is_never_a_measurement(self) -> None:
+        """`inf`는 모든 임계값을 넘어 무한대 경보를 만든다."""
+        from gbsafe_connectors.base import missing_or_impossible, missing_sentinel
+
+        for value in (float("inf"), float("-inf"), float("nan")):
+            assert missing_sentinel(value)
+            assert missing_or_impossible(value)
+
+    @pytest.mark.parametrize("sentinel", ["-99", "-99.9", "-9"])
+    def test_rainfall_sentinel_does_not_become_rain(self, sentinel: str) -> None:
+        from gbsafe_connectors.kma import _parse_measure
+
+        assert _parse_measure(sentinel, "RN1") is None
+
+    def test_temperature_keeps_minus_nine(self) -> None:
+        from gbsafe_connectors.kma import _parse_measure
+
+        assert _parse_measure("-9", "T1H") == -9.0
+        assert _parse_measure("-99", "T1H") is None
+
+    @pytest.mark.parametrize("sentinel", ["-99", "-99.9", "-9"])
+    def test_river_sentinel_does_not_become_low_water(self, sentinel: str) -> None:
+        from gbsafe_connectors.hrfco import _level
+
+        assert _level(sentinel) is None
+
+    def test_missing_fire_index_is_unknown_not_low(self) -> None:
+        """측정하지 못한 산불 위험이 '낮음'으로 보고되면 안 된다."""
+        from gbsafe_connectors.forest import _fire_severity
+        from gbsafe_core.domain import Severity
+
+        for value in (-99.0, -99.9, -9.0, 150.0, None):
+            assert _fire_severity(value) is Severity.UNKNOWN, value
+        assert _fire_severity(0.0) is Severity.INFO
+
+    def test_shelter_capacity_sentinel_is_not_made_positive(self) -> None:
+        """부호를 떼면 -99.9가 999명 수용으로 둔갑한다."""
+        from gbsafe_connectors.bundled import _int
+
+        assert _int("-99.9") is None
+        assert _int("-99") is None
+        assert _int("1,200") == 1200
+
+
+class TestCacheIsScopedToCredentials:
+    """캐시가 인증 실패를 성공으로 바꾸면 안 된다.
+
+    캐시 키에 인증정보가 빠져 있어서, 정상 키로 채운 캐시가 잘못된 키를 쓴
+    호출자에게 성공으로 나갔다. 사용자별 키를 주입하는 배치에서는 남의 응답을
+    받는 것이기도 하다.
+    """
+
+    async def test_a_bad_key_stays_failed_after_a_good_one_warmed_the_cache(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from gbsafe_connectors.base import Connector, FetchOutcome, clear_cache
+        from gbsafe_core.config import CredentialName, Settings
+        from pydantic_settings import SettingsConfigDict
+
+        class _NoDotenv(Settings):
+            model_config = SettingsConfigDict(
+                env_prefix="GBSAFE_", env_file=None, extra="ignore", frozen=True
+            )
+
+        class _Echo(Connector[dict]):
+            dataset_id = "15084084"
+            credential = CredentialName.DATA_GO_KR
+
+            def base_url(self) -> str:
+                return "https://example.test/echo"
+
+            def build_params(self, **kwargs: object) -> dict[str, str]:
+                return {}
+
+            def parse(self, response, **kwargs: object) -> FetchOutcome[dict]:
+                return FetchOutcome(records=(), confirmed_absence=True)
+
+        seen: list[str] = []
+
+        async def fake_send(self, url: str, params: dict[str, str]):
+            seen.append(params.get("serviceKey", ""))
+            return make_response({"ok": True})
+
+        monkeypatch.setattr(Connector, "_send", fake_send)
+        await clear_cache()
+
+        good = _NoDotenv(data_go_kr_service_key="good-key", store_dir=tmp_path / "s")
+        bad = _NoDotenv(data_go_kr_service_key="bad-key", store_dir=tmp_path / "s")
+
+        await _Echo(settings=good).fetch()
+        await _Echo(settings=bad).fetch()
+
+        assert seen == ["good-key", "bad-key"], (
+            f"두 번째 호출이 캐시를 재사용했습니다: {seen}"
+        )
+        await clear_cache()
+
+    async def test_offline_does_not_share_a_cache_with_online(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from gbsafe_core.config import Settings
+        from pydantic_settings import SettingsConfigDict
+
+        class _NoDotenv(Settings):
+            model_config = SettingsConfigDict(
+                env_prefix="GBSAFE_", env_file=None, extra="ignore", frozen=True
+            )
+
+        online = _NoDotenv(data_go_kr_service_key="k", store_dir=tmp_path / "s")
+        offline = _NoDotenv(
+            data_go_kr_service_key="k", store_dir=tmp_path / "s", offline=True
+        )
+        from gbsafe_connectors.kma import UltraShortNowcastConnector
+
+        assert UltraShortNowcastConnector(settings=online)._cache_scope() != (
+            UltraShortNowcastConnector(settings=offline)._cache_scope()
+        )
+
+
+class TestRevivedSnapshotsAreNotSuccessfulChecks:
+    """보존자료만 있는 상태를 '조회 성공'으로 보고하면 안 된다.
+
+    레코드는 stale·usable=false라고 정확히 말하는데 봉투가 complete를 주면
+    읽는 쪽은 봉투를 믿는다. 현재 원천을 전혀 확인하지 못한 것이다.
+    """
+
+    async def test_stale_snapshot_degrades_the_answer(self, tmp_path) -> None:
+        import json
+        from datetime import UTC, datetime
+
+        from gbsafe_connectors.base import clear_cache
+        from gbsafe_connectors.registry import Registry
+        from gbsafe_core.config import Settings
+        from gbsafe_core.snapshot import SnapshotStore
+        from pydantic_settings import SettingsConfigDict
+
+        class _NoDotenv(Settings):
+            model_config = SettingsConfigDict(
+                env_prefix="GBSAFE_", env_file=None, extra="ignore", frozen=True
+            )
+
+        online = _NoDotenv(data_go_kr_service_key="k", store_dir=tmp_path / "store")
+        body = json.dumps(
+            {
+                "response": {
+                    "header": {"resultCode": "00"},
+                    "body": {
+                        "items": {
+                            "item": [
+                                {
+                                    "tmFc": "202001151200",
+                                    "tmSeq": "1",
+                                    "mt": "3.1",
+                                    "loc": "경주시",
+                                    "lat": "35.8",
+                                    "lon": "129.2",
+                                }
+                            ]
+                        }
+                    },
+                }
+            }
+        ).encode()
+        SnapshotStore.from_settings(online).put(
+            dataset_id="15000420",
+            body=body,
+            content_type="application/json",
+            endpoint="https://example.test",
+            stored_at=datetime(2020, 1, 15, tzinfo=UTC),
+        )
+
+        await clear_cache()
+        offline = _NoDotenv(
+            data_go_kr_service_key="k", store_dir=tmp_path / "store", offline=True
+        )
+        outcome = await Registry(settings=offline).create("earthquake").fetch()
+        receipt = outcome.receipt(connector="earthquake", dataset_id="15000420")
+
+        assert outcome.records, "스냅샷을 못 읽으면 이 테스트가 무의미하다"
+        assert not outcome.records[0].freshness.is_usable_for_decision
+        assert receipt.upstream_status is not UpstreamStatus.OK, (
+            "6년 전 자료를 읽고 upstream=ok로 보고합니다"
+        )
+        assert not outcome.ok, "해석을 막지 않습니다"
+        await clear_cache()
+
+    async def test_coalesced_requests_are_not_treated_as_stale(
+        self, settings: Settings, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """동시요청 병합은 방금 받은 응답을 나눠 쓰는 것이지 보존자료가 아니다."""
+        import asyncio
+
+        from gbsafe_connectors.base import Connector, FetchOutcome, clear_cache
+
+        class _Slow(Connector[dict]):
+            dataset_id = "15084084"
+            credential = None
+
+            def base_url(self) -> str:
+                return "https://example.test/slow"
+
+            def build_params(self, **kwargs: object) -> dict[str, str]:
+                return {}
+
+            def parse(self, response, **kwargs: object) -> FetchOutcome[dict]:
+                return FetchOutcome(records=(), confirmed_absence=True)
+
+        async def fake_send(self, url: str, params: dict[str, str]):
+            await asyncio.sleep(0.02)
+            return make_response({"ok": True})
+
+        monkeypatch.setattr(Connector, "_send", fake_send)
+        await clear_cache()
+        connector = _Slow(settings=settings)
+        outcomes = await asyncio.gather(*(connector.fetch() for _ in range(6)))
+        assert all(item.ok for item in outcomes)
+        await clear_cache()
+
+
+class TestCacheHitIsDisclosedInTheReceipt:
+    """캐시로 답했다는 사실이 영수증에 남아야 한다.
+
+    산문 caveat에만 적으면 기계가 읽는 경로에서는 방금 원천을 확인한 것과
+    구별되지 않는다. 영수증은 무엇을 실제로 읽었는지 말하는 자리다.
+    """
+
+    async def test_second_call_reports_cached_not_ok(
+        self, settings: Settings, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from gbsafe_connectors.base import Connector, FetchOutcome, clear_cache
+
+        class _Fresh(Connector[dict]):
+            dataset_id = "15084084"
+            credential = None
+
+            def base_url(self) -> str:
+                return "https://example.test/fresh"
+
+            def build_params(self, **kwargs: object) -> dict[str, str]:
+                return {}
+
+            def parse(self, response, **kwargs: object) -> FetchOutcome[dict]:
+                return FetchOutcome(records=(), confirmed_absence=True)
+
+        async def fake_send(self, url: str, params: dict[str, str]):
+            return make_response({"ok": True})
+
+        monkeypatch.setattr(Connector, "_send", fake_send)
+        await clear_cache()
+
+        connector = _Fresh(settings=settings)
+        first = await connector.fetch()
+        second = await connector.fetch()
+
+        first_receipt = first.receipt(connector="f", dataset_id="15084084")
+        second_receipt = second.receipt(connector="f", dataset_id="15084084")
+
+        assert first_receipt.upstream_status is UpstreamStatus.OK
+        assert second_receipt.upstream_status is UpstreamStatus.CACHED, (
+            "캐시로 답했는데 영수증이 방금 조회한 것처럼 ok를 보고합니다"
+        )
+        assert second.outcome is first.outcome
+        await clear_cache()
+
+
+class TestUnreadableCsvIsNeverAnAbsence:
+    """헤더를 알아보지 못한 것은 필터와 무관하다.
+
+    예전에는 region이 주어지면 헤더 검사를 건너뛰어, 읽지 못한 파일이
+    "'문경시'에 해당하는 항목이 없습니다"라는 확인된 부재로 나갔다.
+    """
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {},
+            {"region": "문경시"},
+            {"hazard": "heavy_rain"},
+            {"region": "문경시", "hazard": "flood"},
+        ],
+    )
+    def test_unknown_headers_fail_regardless_of_filter(
+        self, settings: Settings, kwargs: dict[str, str]
+    ) -> None:
+        from gbsafe_connectors.filedata import ShelterCsvConnector
+
+        body = "컬럼A,컬럼B,컬럼C\n1,2,3\n4,5,6\n"
+        with pytest.raises(ValueError, match="시설명 컬럼"):
+            ShelterCsvConnector(settings=settings).parse(
+                make_response(body.encode("utf-8"), content_type="text/csv"), **kwargs
+            )
+
+    def test_a_readable_file_with_no_match_is_still_an_absence(
+        self, settings: Settings
+    ) -> None:
+        """헤더를 읽을 수 있는데 그 시군이 없는 것은 진짜 부재다."""
+        from gbsafe_connectors.filedata import ShelterCsvConnector
+
+        body = (
+            "시설명,소재지도로명주소,위도,경도\n"
+            "안동체육관,경상북도 안동시 어딘가,36.56,128.72\n"
+        )
+        outcome = ShelterCsvConnector(settings=settings).parse(
+            make_response(body.encode("utf-8"), content_type="text/csv"), region="문경시"
+        )
+        assert not outcome.records
+
+
+class TestChemicalShelterProvinceFilter:
+    """주소 첫머리로 걸러야 한다.
+
+    부분일치로 보면 "서울특별시 경북대로 1"이 경북 대피소로 들어온다.
+    """
+
+    def _parse(self, settings: Settings, csv: str):
+        from gbsafe_connectors.bundled import ChemicalShelterConnector
+
+        return ChemicalShelterConnector(settings=settings).parse(
+            make_response(csv.encode("utf-8"), content_type="text/csv")
+        )
+
+    def test_other_province_address_is_excluded(self, settings: Settings) -> None:
+        csv = (
+            "대피장소명,세부위치명,수용인원,도로명주소,위도,경도,관리기관명,관리기관전화번호\n"
+            "서울쉼터,본관,100,서울특별시 경북대로 1,37.5,127.0,서울시,02-000\n"
+            "문경쉼터,본관,100,경상북도 문경시 산북면,36.68,128.25,문경시,054-000\n"
+        )
+        names = {record.payload.name.split()[0] for record in self._parse(settings, csv).records}
+        assert names == {"문경쉼터"}, names
+
+    def test_coordinate_outside_gyeongbuk_is_not_kept(self, settings: Settings) -> None:
+        """좌표가 주소와 어긋나면 대피 안내가 다른 도로 보낸다."""
+        csv = (
+            "대피장소명,세부위치명,수용인원,도로명주소,위도,경도,관리기관명,관리기관전화번호\n"
+            "좌표틀림,본관,100,경상북도 문경시 어딘가,37.5,127.0,문경시,054-000\n"
+        )
+        record = self._parse(settings, csv).records[0]
+        assert record.payload.location is None
+        assert QualityFlag.COORDINATE_OUT_OF_RANGE in record.quality_flags
+
+
+class TestCredentialsNeverLeaveInAnEndpoint:
+    """인증정보가 provenance의 endpoint로 새어 나가면 안 된다.
+
+    홍수통제소는 인증키가 URL **경로**에 들어간다. 그 URL이 그대로 나가면
+    이 API를 부르는 누구나 우리 정부 인증키를 가져간다.
+    """
+
+    def test_key_in_the_path_is_redacted(self, settings: Settings) -> None:
+        from gbsafe_connectors.hrfco import RiverLevelConnector
+
+        connector = RiverLevelConnector(settings=settings)
+        cleaned = connector._redact_endpoint(
+            "https://api.hrfco.go.kr/test-key/waterlevel/list/10M.json"
+        )
+        assert "test-key" not in cleaned
+        assert "<redacted>" in cleaned
+
+    def test_key_in_the_query_is_redacted(self, settings: Settings) -> None:
+        from gbsafe_connectors.kma import UltraShortNowcastConnector
+
+        connector = UltraShortNowcastConnector(settings=settings)
+        cleaned = connector._redact_endpoint(
+            "https://apis.data.go.kr/x?serviceKey=test-key&nx=81"
+        )
+        assert "test-key" not in cleaned
+
+    def test_a_record_never_carries_the_key(self, settings: Settings) -> None:
+        from gbsafe_connectors.hrfco import STATIONS, RiverLevelConnector
+
+        station_id = next(iter(STATIONS))
+        response = make_response(
+            {"content": [{"wlobscd": station_id, "ymdhm": "202608221200", "wl": "1.2"}]},
+            endpoint="https://api.hrfco.go.kr/test-key/waterlevel/list/10M.json",
+        )
+        outcome = RiverLevelConnector(settings=settings).parse(response)
+        for record in outcome.records:
+            assert "test-key" not in (record.provenance.endpoint or "")
+
+
+class TestShelterCapacityIsNeverFabricated:
+    """수용인원을 잘못 읽으면 사람을 넘치는 곳으로 보낸다."""
+
+    @pytest.mark.parametrize("raw", ["-99.9", "-99", "-1"])
+    def test_negative_capacity_is_missing_not_positive(self, raw: str) -> None:
+        """숫자만 추려내면 부호가 사라져 -99.9가 999명이 된다."""
+        from gbsafe_connectors.filedata import _to_int
+
+        assert _to_int(raw) is None
+
+    def test_zero_capacity_is_kept(self) -> None:
+        """0명 수용과 미확인은 다른 상태다."""
+        from gbsafe_connectors.filedata import _to_int
+
+        assert _to_int("0") == 0
+
+    @pytest.mark.parametrize(("raw", "expected"), [("1,200", 1200), ("약 300명", 300)])
+    def test_real_capacities_still_parse(self, raw: str, expected: int) -> None:
+        from gbsafe_connectors.filedata import _to_int
+
+        assert _to_int(raw) == expected
+
+
+class TestDuplicateColumnsAreRejected:
+    """같은 이름의 컬럼이 있으면 마지막 값만 남아 앞의 값이 조용히 사라진다."""
+
+    def test_duplicate_meaningful_column_is_refused(self) -> None:
+        from gbsafe_connectors.filedata import decode_csv
+
+        body = "시설명,수용인원,수용인원\n체육관,500,10\n".encode()
+        with pytest.raises(ValueError, match="같은 이름의 컬럼"):
+            decode_csv(body)
+
+    def test_duplicate_blank_columns_are_harmless(self) -> None:
+        """이름 없는 빈 컬럼이 여러 개인 것은 흔하고 해가 없다."""
+        from gbsafe_connectors.filedata import decode_csv
+
+        rows, _, _ = decode_csv("시설명,수용인원,,\n체육관,500,,\n".encode())
+        assert rows[0]["수용인원"] == "500"
+
+    def test_normal_file_still_reads(self) -> None:
+        from gbsafe_connectors.filedata import decode_csv
+
+        rows, _, _ = decode_csv("시설명,수용인원\n체육관,500\n".encode())
+        assert rows == [{"시설명": "체육관", "수용인원": "500"}]
+
+
+class TestUnplacedGaugesAreDisclosed:
+    """좌표 없는 관측소는 지도와 거리 계산에서 조용히 빠진다."""
+
+    def test_a_gauge_without_coordinates_is_named(self, settings: Settings) -> None:
+        from gbsafe_connectors.hrfco import STATIONS, RiverLevelConnector
+
+        unplaced = next(
+            (key for key, item in STATIONS.items() if item.location is None), None
+        )
+        if unplaced is None:
+            pytest.skip("좌표 없는 관측소가 없습니다")
+        outcome = RiverLevelConnector(settings=settings).parse(
+            make_response(
+                {"content": [{"wlobscd": unplaced, "ymdhm": "202608221200", "wl": "1.2"}]}
+            )
+        )
+        assert any("좌표가 확인되지 않은" in caveat for caveat in outcome.caveats)

@@ -106,24 +106,33 @@ class TestAwsObservationConnector:
     def test_missing_temperature_and_rainfall_are_never_zero(
         self, apihub_settings: Settings, sentinel: str
     ) -> None:
-        """결측 센티널을 0으로 바꾸면 0℃ 또는 무강수라는 거짓 실측이 된다."""
+        """결측 센티널을 0으로 바꾸면 0℃ 또는 무강수라는 거짓 실측이 된다.
+
+        풍향은 실측을 넣어 둔다. 전 항목이 결측인 행은 관측 자체가 실패한
+        것이라 별도로 거부되며(`test_every_field_missing_is_a_failure`),
+        여기서 보려는 것은 개별 센티널이 0이 되지 않는지다.
+        """
         body = f"""\
 #START7777
-# TM STN TA RN-15m
-202608221458,273,{sentinel},{sentinel},=
+# TM STN WD1 TA RN-15m
+202608221458,273,180.0,{sentinel},{sentinel},=
 #7777END
 """
         connector = AwsObservationConnector(settings=apihub_settings)
         outcome = connector.parse(_text_response(body), station_id="273")
 
-        assert {record.payload.kind for record in outcome.records} == {
-            "temperature",
-            "rainfall_15m",
+        assert {"temperature", "rainfall_15m"} <= {
+            record.payload.kind for record in outcome.records
         }
-        assert all(record.payload.value is None for record in outcome.records)
+        missing = [
+            record
+            for record in outcome.records
+            if record.payload.kind in ("temperature", "rainfall_15m")
+        ]
+        assert all(record.payload.value is None for record in missing)
         assert all(
             QualityFlag.PARTIAL_RESPONSE in record.quality_flags
-            for record in outcome.records
+            for record in missing
         )
 
     def test_comment_only_success_envelope_is_confirmed_empty(
@@ -237,3 +246,22 @@ class TestRegionNameIsRejectedNotIgnored:
     def test_station_number_is_accepted(self, settings) -> None:
         connector = AwsObservationConnector(settings=settings)
         assert connector.build_params(station_id="273")["stn"] == "273"
+
+
+class TestEveryFieldMissingIsAFailure:
+    """지점이 응답했지만 측정값이 하나도 없으면 관측에 성공한 것이 아니다.
+
+    실제 라이브 호출에서 전 항목 -99.9인 지점이 레코드 12건과 함께 `records`로
+    보고됐다. 값이 없는 것이지 기상이 평온한 것이 아니다.
+    """
+
+    def test_all_sentinel_row_is_rejected(self, apihub_settings: Settings) -> None:
+        body = """\
+#START7777
+# TM STN WD1 TA RN-15m
+202608221458,273,-99.9,-99.9,-99.9,=
+#7777END
+"""
+        connector = AwsObservationConnector(settings=apihub_settings)
+        with pytest.raises(ValueError, match="전부 결측"):
+            connector.parse(_text_response(body), station_id="273")

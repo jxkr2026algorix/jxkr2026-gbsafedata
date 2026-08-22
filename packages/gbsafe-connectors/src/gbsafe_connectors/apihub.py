@@ -195,6 +195,14 @@ class AwsObservationConnector(Connector[Observation]):
                 if malformed_rows
                 else ()
             )
+            # 항목은 다 왔는데 값이 전부 결측이면 관측에 성공한 것이 아니다.
+            # 지점이 죽어 있어도 레코드 12건이 돌아와 `records`로 보고됐다.
+            if records and all(record.payload.value is None for record in records):
+                raise ValueError(
+                    f"AWS 지점 {wanted_station}의 관측값이 전부 결측입니다 "
+                    f"({len(records)}개 항목) — 관측소가 응답했지만 측정값이 "
+                    "없습니다. 값이 없는 것이지 기상이 평온한 것이 아닙니다."
+                )
             return FetchOutcome(records=tuple(records), caveats=caveats)
         if malformed_rows:
             raise ValueError(f"해석 가능한 관측 행이 없습니다 (손상 행 {malformed_rows}건)")

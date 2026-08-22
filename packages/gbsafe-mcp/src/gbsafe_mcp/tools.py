@@ -21,6 +21,7 @@ import mcp.types as types
 from gbsafe_api.envelope import envelope
 from gbsafe_api.service import SafeDataService
 from gbsafe_core.models import Answer
+from gbsafe_core.regions import HazardDomain
 from gbsafe_core.safety import assert_read_only
 
 #: 모든 응답에 붙는 인용 지침. AI가 답변에 출처를 남기게 만든다.
@@ -85,10 +86,15 @@ _REGION_PROP = {
     "type": "string",
     "description": "경북 시군 (예: 문경시, 안동시). 시군구 코드(47280)도 가능",
 }
+#: 재난 유형. 열거값을 손으로 적지 않고 열거형에서 만든다.
+#:
+#: 손으로 적어 두었더니 재난이 7종에서 13종으로 늘었을 때 6종에 멈춰 있었고,
+#: 스키마가 태풍·지진해일·한파를 **거부**했다. 도구가 지원한다고 말하는 것과
+#: 실제로 받는 것이 어긋나면 호출하는 쪽은 그 재난이 없다고 읽는다.
 _HAZARD_PROP = {
     "type": "string",
     "description": "재난 유형",
-    "enum": ["heavy_rain", "landslide", "wildfire", "flood", "earthquake", "heatwave"],
+    "enum": [item.value for item in HazardDomain if item is not HazardDomain.OTHER],
 }
 
 
@@ -203,6 +209,12 @@ async def _fetch_source(service: SafeDataService, args: dict[str, Any]) -> dict[
 
 async def _data_health(service: SafeDataService, args: dict[str, Any]) -> dict[str, Any]:
     return service.data_health()
+
+
+async def _hazard_capabilities(
+    service: SafeDataService, args: dict[str, Any]
+) -> dict[str, Any]:
+    return service.hazard_capabilities()
 
 
 async def _quality_report(service: SafeDataService, args: dict[str, Any]) -> dict[str, Any]:
@@ -376,6 +388,22 @@ TOOLS: tuple[ToolDef, ...] = (
         ),
         schema=_object({}),
         handler=_data_health,
+    ),
+    ToolDef(
+        name="gbsafe_hazard_capabilities",
+        title="재난별 대응 가능 범위",
+        description=(
+            "재난 13종 각각에 대해 지금 어디까지 답할 수 있는지 알려줍니다. "
+            "탐지(지금 났는가)·위험도(어디가 위험한가)·대피소(어디로 가는가) "
+            "세 축의 자료 보유 상태를 줍니다.\n\n"
+            "**readiness가 ready가 아니면 답이 불완전합니다.** partial은 발생은 "
+            "알 수 있으나 위험도나 대피소 자료가 없다는 뜻이고, blocked는 발생 "
+            "여부조차 확인할 수 없다는 뜻입니다. 지진은 발생을 알려주지만 어느 "
+            "대피소로 보낼지 모릅니다 — 그 한계를 밝히지 않고 답하면 갈 곳 없는 "
+            "안내가 됩니다. 특정 재난을 묻기 전에 이 도구로 범위를 확인하세요."
+        ),
+        schema=_object({}),
+        handler=_hazard_capabilities,
     ),
     ToolDef(
         name="gbsafe_quality_report",

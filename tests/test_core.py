@@ -510,7 +510,7 @@ class TestSafety:
         """실제 등록된 도구가 전부 통과해야 한다."""
         from gbsafe_mcp.tools import validated_tools
 
-        assert len(validated_tools()) == 11
+        assert len(validated_tools()) == 12
 
     @pytest.mark.parametrize(
         "purpose",
@@ -1300,12 +1300,19 @@ class TestAbsenceInvariantSurvivesMutation:
         assert not answer.is_complete
         assert not answer.absence_is_confirmed
 
-    def test_all_successful_sources_leave_the_answer_complete(self) -> None:
-        """성공한 원천이 불완전으로 분류되면 멀쩡한 답이 계속 보류된다."""
+    def test_all_successful_sources_leave_the_answer_complete(
+        self, record_factory
+    ) -> None:
+        """성공한 원천이 불완전으로 분류되면 멀쩡한 답이 계속 보류된다.
+
+        영수증이 말한 건수만큼 실제 레코드를 담는다. 영수증은 3건이라는데
+        답변이 비어 있으면 그것은 성공이 아니라 모순이며, 별도로 거부된다.
+        """
         from gbsafe_core.models import SourceOutcome
 
         answer: Answer[dict[str, int]] = Answer(
             query="t",
+            records=tuple(record_factory({"value": index}) for index in range(3)),
             receipts=(
                 self._receipt("weather_now", SourceOutcome.RECORDS, 3),
                 self._receipt("weather_warning", SourceOutcome.CONFIRMED_EMPTY, 0),

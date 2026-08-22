@@ -32,14 +32,29 @@ SIDO_NAME_SHORT = "경북"
 
 
 class HazardDomain(StrEnum):
-    """재난 유형. 데이터셋 적합성 판단에 쓴다."""
+    """재난 유형. 데이터셋 적합성 판단에 쓴다.
+
+    경북에서 발생 가능한 13종이다. 목록은 ../jxkr2026-datasets 조사에서 왔고,
+    같은 이름이 `capabilities.json`의 가용성 매트릭스와 대응한다.
+
+    유형이 있다고 대응할 수 있다는 뜻은 아니다. 지진은 발생을 알 수 있지만
+    어느 대피소로 보낼지 모르고, 원전은 탐지 수단 자체가 없다. 그 차이는
+    `gbsafe_core.capability`가 축별로 밝힌다.
+    """
 
     HEAVY_RAIN = "heavy_rain"
-    LANDSLIDE = "landslide"
     FLOOD = "flood"
+    LANDSLIDE = "landslide"
     WILDFIRE = "wildfire"
+    TYPHOON = "typhoon"
     EARTHQUAKE = "earthquake"
+    TSUNAMI = "tsunami"
     HEATWAVE = "heatwave"
+    COLD_WAVE = "cold_wave"
+    HEAVY_SNOW = "heavy_snow"
+    DROUGHT = "drought"
+    CHEMICAL_ACCIDENT = "chemical_accident"
+    NUCLEAR = "nuclear"
     OTHER = "other"
 
 
