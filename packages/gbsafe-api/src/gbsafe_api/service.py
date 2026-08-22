@@ -58,7 +58,12 @@ from gbsafe_core.safety import (
 #: 재난 유형별로 먼저 확인해야 할 커넥터 순서.
 #: 근거: 메인 시나리오(극한호우 + 산사태 + 도로통제)에서 강우가 선행 조건이다.
 HAZARD_PLAYBOOK: dict[HazardDomain, tuple[str, ...]] = {
-    HazardDomain.HEAVY_RAIN: ("weather_warning", "weather_now", "weather_forecast"),
+    HazardDomain.HEAVY_RAIN: (
+        "weather_warning",
+        "weather_now",
+        "weather_forecast",
+        "river_level",
+    ),
     HazardDomain.LANDSLIDE: (
         "landslide_forecast",
         "weather_warning",
@@ -66,7 +71,13 @@ HAZARD_PLAYBOOK: dict[HazardDomain, tuple[str, ...]] = {
         "landslide_roadside",
     ),
     HazardDomain.WILDFIRE: ("wildfire_risk", "weather_now", "air_quality"),
-    HazardDomain.FLOOD: ("weather_warning", "weather_now", "weather_forecast"),
+    HazardDomain.FLOOD: (
+        "flood_forecast",
+        "river_level",
+        "weather_warning",
+        "weather_now",
+        "weather_forecast",
+    ),
     HazardDomain.EARTHQUAKE: ("weather_warning",),
     HazardDomain.HEATWAVE: ("weather_warning", "weather_now"),
     HazardDomain.OTHER: ("weather_warning", "weather_now"),

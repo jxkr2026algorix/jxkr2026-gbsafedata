@@ -295,3 +295,26 @@ class TestLiveShapeIsStillWhatWeParse:
         )
         outcome = river.parse(make_response(raw))
         assert outcome.records[0].payload.value == 1.65
+
+
+class TestOperationalConstraintsAreDisclosed:
+    """원천이 명시한 제약이 결과에 실려야 한다.
+
+    근거: ../jxkr2026-datasets/docs/external-portals.md
+    """
+
+    def test_raw_uncorrected_nature_is_disclosed(self, river: RiverLevelConnector) -> None:
+        """보정 전 원시자료를 확정자료처럼 제시하면 안 된다."""
+        station_id = _station_id(lambda s: s.has_thresholds)
+        outcome = river.parse(
+            make_response(_body([{"wlobscd": station_id, "ymdhm": "202608221510", "wl": "1.0"}]))
+        )
+        assert any("보정 전" in caveat for caveat in outcome.caveats), outcome.caveats
+
+    def test_collection_lag_is_disclosed(self, river: RiverLevelConnector) -> None:
+        """경북은 낙동강 권역이라 수집 지연이 11분 이상이다."""
+        station_id = _station_id(lambda s: s.has_thresholds)
+        outcome = river.parse(
+            make_response(_body([{"wlobscd": station_id, "ymdhm": "202608221510", "wl": "1.0"}]))
+        )
+        assert any("지연" in caveat for caveat in outcome.caveats), outcome.caveats

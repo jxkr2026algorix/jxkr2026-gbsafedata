@@ -271,6 +271,9 @@ class RiverLevelConnector(Connector[Observation]):
         caveats = [
             "수위는 관측소 지점값입니다 — 같은 하천이라도 지점마다 다릅니다",
             "임계수위는 기관 고시값이며 실제 침수 여부는 현장 확인이 필요합니다",
+            "T/M 관측소 원시자료로 **보정 전 값**입니다 — 최종 확정자료와 다를 수 있습니다",
+            "경북은 낙동강 권역이라 수집 지연이 11분 이상입니다 — "
+            "관측시각과 현재 시각의 차이를 그대로 읽으면 안 됩니다",
         ]
         if without_thresholds:
             caveats.append(
