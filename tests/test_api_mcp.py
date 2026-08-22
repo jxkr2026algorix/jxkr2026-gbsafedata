@@ -688,3 +688,79 @@ class TestFileDataSourcesDiagnoseCorrectly:
         monkeypatch.setattr(httpx.AsyncClient, "request", explode)
         answer = await service.fetch_connector(name)
         assert not answer.is_complete
+
+
+class TestGatewayIsOffByDefaultAndRealWhenOn:
+    """인증과 CORS는 기본이 꺼져 있고, 켜면 실제로 막아야 한다.
+
+    기본을 열어두는 것은 로컬·CI가 설정 없이 돌기 위해서다. 다만 이 API는
+    정부 인증키로 원천을 부르므로, 켰는데 실제로 막히지 않으면 우리 호출
+    한도를 남이 소진한다.
+    """
+
+    def _client(self, **overrides: object) -> TestClient:
+        from gbsafe_api.app import create_app
+        from gbsafe_core.config import Settings
+        from pydantic_settings import SettingsConfigDict
+
+        class _NoDotenv(Settings):
+            model_config = SettingsConfigDict(
+                env_prefix="GBSAFE_", env_file=None, extra="ignore", frozen=True
+            )
+
+        return TestClient(create_app(settings=_NoDotenv(**overrides)))  # type: ignore[arg-type]
+
+    def test_open_when_no_keys_configured(self) -> None:
+        assert self._client().get("/v1/regions").status_code == 200
+
+    def test_rejects_a_request_without_a_key(self) -> None:
+        assert self._client(api_keys="k1").get("/v1/regions").status_code == 401
+
+    def test_rejects_a_wrong_key(self) -> None:
+        client = self._client(api_keys="k1")
+        assert client.get("/v1/regions", headers={"x-api-key": "nope"}).status_code == 401
+
+    @pytest.mark.parametrize(
+        "headers",
+        [{"x-api-key": "k1"}, {"Authorization": "Bearer k2"}],
+    )
+    def test_accepts_either_header_style(self, headers: dict[str, str]) -> None:
+        client = self._client(api_keys="k1,k2")
+        assert client.get("/v1/regions", headers=headers).status_code == 200
+
+    def test_health_stays_open_so_probes_still_work(self) -> None:
+        """헬스체크가 막히면 로드밸런서가 정상 인스턴스를 죽인다."""
+        client = self._client(api_keys="k1")
+        assert client.get("/v1/health").status_code == 200
+        assert client.get("/openapi.json").status_code == 200
+
+    def test_mcp_transport_is_gated_too(self) -> None:
+        """도구 경로만 열려 있으면 인증이 의미가 없다."""
+        client = self._client(api_keys="k1")
+        response = client.post("/mcp/", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+        assert response.status_code == 401
+
+    def test_no_cors_headers_without_configuration(self) -> None:
+        """기본이 `*`이면 배포하는 순간 아무 사이트나 우리 키를 쓴다."""
+        response = self._client().get(
+            "/v1/regions", headers={"Origin": "https://evil.example"}
+        )
+        assert "access-control-allow-origin" not in {
+            key.lower() for key in response.headers
+        }
+
+    def test_declared_origin_is_allowed(self) -> None:
+        client = self._client(cors_allow_origins="https://dashboard.example")
+        response = client.get(
+            "/v1/regions", headers={"Origin": "https://dashboard.example"}
+        )
+        assert response.headers.get("access-control-allow-origin") == (
+            "https://dashboard.example"
+        )
+
+    def test_undeclared_origin_is_not_allowed(self) -> None:
+        client = self._client(cors_allow_origins="https://dashboard.example")
+        response = client.get("/v1/regions", headers={"Origin": "https://evil.example"})
+        assert response.headers.get("access-control-allow-origin") != (
+            "https://evil.example"
+        )
