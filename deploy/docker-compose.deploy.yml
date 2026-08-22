@@ -13,8 +13,10 @@ services:
     # 외부 노출은 Caddy가 담당한다.
     ports:
       - "127.0.0.1:8000:8000"
+    # 배포 루트 기준이다. compose 파일이 deploy/ 안에 있어 상대 경로는
+    # deploy/.env로 풀리므로, --project-directory로 기준을 올려서 부른다.
     env_file:
-      - .env
+      - ../.env
     environment:
       GBSAFE_CORS_ALLOW_ORIGINS: ${GBSAFE_CORS_ALLOW_ORIGINS:-}
       GBSAFE_API_KEYS: ${GBSAFE_API_KEYS:-}

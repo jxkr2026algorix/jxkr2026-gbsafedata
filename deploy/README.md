@@ -15,8 +15,11 @@ rsync -az --delete \
 ssh ubuntu@salgil-aws
 cd /opt/gbsafedata
 docker build -t gbsafedata:local .
-docker compose -f deploy/docker-compose.deploy.yml up -d --force-recreate api
+docker compose --project-directory . -f deploy/docker-compose.deploy.yml \
+  up -d --force-recreate api
 ```
+
+**`--project-directory .` 를 빼면 안 된다.** compose는 상대 경로를 compose 파일이 있는 곳 기준으로 푸는데, `.env`는 배포 루트에만 있고 `deploy/` 안에는 없다. 기준을 올려 주지 않으면 `deploy/.env`를 찾다가 실패한다.
 
 **compose 파일은 `deploy/` 경로로 부른다.** 예전에는 서버 루트(`/opt/gbsafedata/docker-compose.deploy.yml`)에 복사본을 두고 그걸 썼는데, 그 파일은 레포에 그 위치로 존재하지 않는다. 그래서 `--delete`가 붙은 rsync가 "레포에 없는 파일"로 판단해 지워버리고, 다음 `docker compose` 호출이 통째로 실패한다. 레포 안의 경로를 그대로 쓰면 rsync가 알아서 최신으로 유지하므로 이 문제가 생기지 않는다.
 
