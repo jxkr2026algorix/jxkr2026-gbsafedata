@@ -71,6 +71,15 @@ class Settings(BaseSettings):
     sgis_consumer_secret: SecretStr | None = None
 
     store_dir: Path = Field(default=Path("var/gbsafe"))
+
+    #: 포털 파일데이터(대피소 CSV 등)를 둔 디렉터리.
+    #:
+    #: 이 원천들은 세션 의존 다운로드라 자동 취득이 안 된다. 조사 저장소가 받아
+    #: UTF-8로 변환해 둔 것을 함께 담아 배포한다 — 그쪽에서도 gitignore라
+    #: 클론만으로는 얻을 수 없고, 없으면 대피소 축이 통째로 비기 때문이다.
+    #: 다른 위치를 쓰려면 이 값을 바꾼다.
+    data_dir: Path = Field(default=Path("data"))
+
     cache_ttl_factor: float = Field(default=1.0, gt=0)
     offline: bool = False
     http_timeout_seconds: float = Field(default=20.0, gt=0)

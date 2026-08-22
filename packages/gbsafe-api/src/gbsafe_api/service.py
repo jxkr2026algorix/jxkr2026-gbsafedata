@@ -65,13 +65,6 @@ HAZARD_PLAYBOOK: dict[HazardDomain, tuple[str, ...]] = {
         "weather_forecast",
         "river_level",
     ),
-    HazardDomain.LANDSLIDE: (
-        "landslide_forecast",
-        "weather_warning",
-        "weather_now",
-        "landslide_roadside",
-    ),
-    HazardDomain.WILDFIRE: ("wildfire_risk", "weather_now", "air_quality"),
     HazardDomain.FLOOD: (
         "flood_forecast",
         "river_level",
@@ -79,8 +72,29 @@ HAZARD_PLAYBOOK: dict[HazardDomain, tuple[str, ...]] = {
         "weather_now",
         "weather_forecast",
     ),
-    HazardDomain.EARTHQUAKE: ("weather_warning",),
+    HazardDomain.LANDSLIDE: (
+        "landslide_forecast",
+        "weather_warning",
+        "weather_now",
+        "landslide_roadside",
+    ),
+    HazardDomain.WILDFIRE: ("wildfire_risk", "weather_now", "air_quality"),
+    HazardDomain.TYPHOON: (
+        "typhoon",
+        "weather_warning",
+        "weather_forecast",
+        "river_level",
+    ),
+    HazardDomain.EARTHQUAKE: ("earthquake", "weather_warning"),
+    HazardDomain.TSUNAMI: ("tsunami", "earthquake", "weather_warning"),
     HazardDomain.HEATWAVE: ("weather_warning", "weather_now"),
+    HazardDomain.COLD_WAVE: ("weather_warning", "weather_now"),
+    HazardDomain.HEAVY_SNOW: ("weather_warning", "weather_now", "weather_forecast"),
+    HazardDomain.DROUGHT: ("weather_warning",),
+    # 화학사고는 실시간 탐지 원천이 없다. 대피장소만 답하고, 발생 여부를 알 수
+    # 없다는 사실은 capability caveat이 함께 내보낸다.
+    HazardDomain.CHEMICAL_ACCIDENT: ("chemical_shelters",),
+    HazardDomain.NUCLEAR: (),
     HazardDomain.OTHER: ("weather_warning", "weather_now"),
 }
 
@@ -554,9 +568,30 @@ class SafeDataService:
         # 이 재난을 애초에 어디까지 답할 수 있는지 밝힌다. 원천이 전부 성공해도
         # 지진처럼 대피소 자료가 없는 재난은 완전한 답이 아니며, 그것을 말하지
         # 않으면 읽는 쪽은 완전한 답으로 받아들인다.
-        limitation = capability_for(hazard_domain).caveat()
+        capability = capability_for(hazard_domain)
+        limitation = capability.caveat()
         if limitation:
             caveats.insert(0, limitation)
+
+        # 탐지 축이 없는 재난은 결과를 완전하다고 말할 수 없다.
+        #
+        # 조회할 원천이 없으면 실패한 영수증도 없어서 `complete`가 true가 되고,
+        # 빈 결과가 '확인된 부재'로 읽힌다. 원전은 발생 여부를 알 방법이 아예
+        # 없는데 "완전 · 해당 없음"으로 나오는 것이 그 결과였다. 확인할 수단이
+        # 없다는 것은 확인했다는 것의 반대다.
+        if not capability.readiness.can_detect:
+            degradations.append(
+                Degradation(
+                    dataset_id=f"hazard:{hazard_domain.value}",
+                    status=UpstreamStatus.UNAVAILABLE,
+                    detail=(
+                        f"{capability.korean_name}은 실시간 탐지 원천이 없습니다 — "
+                        "발생 여부를 확인할 수 없으므로 이 결과를 '해당 없음'으로 "
+                        "읽으면 안 됩니다."
+                    ),
+                    occurred_at=datetime.now(UTC),
+                )
+            )
 
         return Answer(
             query=f"{sigungu.full_name} {hazard_domain.value}",

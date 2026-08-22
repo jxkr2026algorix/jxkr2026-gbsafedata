@@ -841,3 +841,51 @@ class TestPartialHazardsCannotLookReady:
         mcp = json.loads(await execute(service, "gbsafe_hazard_capabilities", {}))
         assert api["summary"] == mcp["summary"]
         assert len(api["hazards"]) == len(mcp["hazards"])
+
+
+class TestUndetectableHazardsAreNeverComplete:
+    """탐지 수단이 없는 재난은 '확인 완료'가 될 수 없다.
+
+    조회할 원천이 없으면 실패한 영수증도 없어서 `complete`가 true가 되고, 빈
+    결과가 확인된 부재로 읽힌다. 원전이 실제로 "완전 · 해당 없음"으로 나왔고,
+    그것은 확인할 수단이 없다는 사실의 정반대다.
+    """
+
+    async def test_hazard_without_detection_is_incomplete(
+        self, service: SafeDataService
+    ) -> None:
+        answer = await service.hazard_context("문경시", hazard="nuclear")
+        assert not answer.is_complete
+        assert not answer.absence_is_confirmed
+
+    async def test_it_says_why_rather_than_failing_silently(
+        self, service: SafeDataService
+    ) -> None:
+        answer = await service.hazard_context("문경시", hazard="nuclear")
+        detail = " ".join(item.detail for item in answer.degradations)
+        assert "탐지 원천이 없습니다" in detail, detail
+
+    async def test_records_do_not_make_it_complete(
+        self, service: SafeDataService
+    ) -> None:
+        """화학사고는 대피장소는 있지만 발생 여부를 모른다.
+
+        대피장소가 돌아왔다고 사고가 없다고 말할 수 있는 것은 아니다.
+        """
+        answer = await service.hazard_context("문경시", hazard="chemical_accident")
+        assert answer.records, "대피장소가 비어 있으면 이 테스트가 무의미하다"
+        assert not answer.is_complete
+        assert not answer.absence_is_confirmed
+
+    async def test_detectable_hazard_is_not_flagged_undetectable(
+        self, service: SafeDataService
+    ) -> None:
+        """탐지가 되는 재난에까지 이 사유가 붙으면 경고가 의미를 잃는다.
+
+        픽스처는 더미 인증키라 상류 조회 자체는 실패한다. 여기서 보는 것은
+        `complete`가 아니라 '탐지 수단 없음'이 잘못 붙지 않는지다.
+        """
+        answer = await service.hazard_context("문경시", hazard="heavy_rain")
+        assert not any(
+            "탐지 원천이 없습니다" in item.detail for item in answer.degradations
+        )

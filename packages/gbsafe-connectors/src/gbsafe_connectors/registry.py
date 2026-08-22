@@ -22,6 +22,7 @@ from gbsafe_core.snapshot import SnapshotStore
 
 from .apihub import AwsObservationConnector
 from .base import Connector
+from .bundled import ChemicalShelterConnector
 from .filedata import LandslideRiskZoneCsvConnector, ShelterCsvConnector
 from .forest import (
     LandslidePredictionConnector,
@@ -36,6 +37,8 @@ from .kma import (
     WeatherWarningConnector,
 )
 from .medical import AirQualityConnector, EmergencyBedsConnector
+from .seismic import EarthquakeConnector, TsunamiConnector
+from .typhoon import TyphoonConnector
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,6 +129,30 @@ SPECS: tuple[ConnectorSpec, ...] = (
         factory=FloodForecastConnector,
         summary="홍수특보 발령 현황 (한강홍수통제소)",
         hazards=(HazardDomain.FLOOD, HazardDomain.HEAVY_RAIN),
+    ),
+    ConnectorSpec(
+        name="earthquake",
+        factory=EarthquakeConnector,
+        summary="지진 통보문 — 국내 규모 2.0 이상 지진의 규모·진앙·진도 (기상청)",
+        hazards=(HazardDomain.EARTHQUAKE,),
+    ),
+    ConnectorSpec(
+        name="tsunami",
+        factory=TsunamiConnector,
+        summary="지진해일 통보문 — 발효 정보와 영향 지역 (기상청)",
+        hazards=(HazardDomain.TSUNAMI,),
+    ),
+    ConnectorSpec(
+        name="typhoon",
+        factory=TyphoonConnector,
+        summary="태풍정보 — 중심위치와 방향별 비대칭 강풍·폭풍반경 (기상청)",
+        hazards=(HazardDomain.TYPHOON, HazardDomain.HEAVY_RAIN, HazardDomain.FLOOD),
+    ),
+    ConnectorSpec(
+        name="chemical_shelters",
+        factory=ChemicalShelterConnector,
+        summary="화학사고 법정 지정 대피장소 (환경부 화학물질안전원, 동봉 파일)",
+        hazards=(HazardDomain.CHEMICAL_ACCIDENT,),
     ),
     ConnectorSpec(
         name="shelters",

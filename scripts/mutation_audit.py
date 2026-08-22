@@ -605,6 +605,20 @@ MUTATIONS: tuple[Mutation, ...] = (
         "실데이터에 모드 표시를 붙여 훈련 데이터와 구별을 흐린다",
     ),
     Mutation(
+        "undetectable-hazard-reported-complete",
+        API / "service.py",
+        "        if not capability.readiness.can_detect:",
+        "        if False:",
+        "탐지 수단이 없는 재난을 '완전 · 해당 없음'으로 보고한다",
+    ),
+    Mutation(
+        "hazard-limit-caveat-dropped",
+        API / "service.py",
+        "        if limitation:\n            caveats.insert(0, limitation)",
+        "        if not limitation:\n            caveats.insert(0, str(limitation))",
+        "partial 재난의 한계를 지워 불완전한 답을 완전한 것처럼 보이게 한다",
+    ),
+    Mutation(
         "cache-drops-the-absence-verdict",
         CONNECTORS / "base.py",
         "                confirmed_absence=outcome.confirmed_absence,\n",

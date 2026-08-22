@@ -1,0 +1,1426 @@
+{
+ "meta": {
+  "generated_at": "2026-08-22T06:05:16.148742+00:00",
+  "site": "경상북도 문경시",
+  "mode": "정적 + 실시간 수위",
+  "artifact_kind": "검토용 인벤토리 — 대피 계획이 아니다",
+  "provenance": {
+   "terrain_source": "mungyeong_landslide_terrain.json",
+   "terrain_built_at": "2026-08-22T05:59:06.798497+00:00",
+   "terrain_coverage": "450/450",
+   "schema_version": 2,
+   "slope_algorithm": "Horn 3x3",
+   "dem_source": "SRTM GL1 30m (EPSG:4326)",
+   "dem_tiles": [
+    "N35E128.tif",
+    "N35E129.tif",
+    "N36E127.tif",
+    "N36E128.tif",
+    "N36E129.tif"
+   ],
+   "source_csv_sha256": "48749f104c7904db",
+   "steep_threshold_deg": 25.0
+  },
+  "disclaimer": "경로는 산출하지 않는다. 순서는 현장조사 시작 순서이며 대피 순서가 아니다. 실시간 강우·인구·도로 통제가 연결되지 않았다.",
+  "closure_source": "미연동 — ITS 인증키 없음"
+ },
+ "counts": {
+  "landslide_sites": 450,
+  "landslide_sites_with_terrain": 450,
+  "shelters": 16,
+  "bridges": 99,
+  "closures": 0
+ },
+ "known_gaps": [
+  "대피소 수용능력·개방여부 미확인 (연간 갱신 파일)",
+  "대피소 좌표 없음 — 주소 지오코딩 필요",
+  "실시간 도로 통제 미연동 (ITS 인증키 필요)",
+  "산사태 예보 미연동 (개발단계 심의 대기)",
+  "실시간 강우 미결합 (AWS·레이더는 확보, 시나리오 결합 전)"
+ ],
+ "river_levels": [
+  {
+   "station": "문경시(김용리)",
+   "distance_km": 2.7,
+   "level_m": 2.87,
+   "warning_m": 6.0,
+   "alarm_m": 6.5,
+   "margin_to_warning_m": 3.13,
+   "state": "정상",
+   "observed_at": "202608221500"
+  },
+  {
+   "station": "상주시(이안교)",
+   "distance_km": 5.4,
+   "level_m": 1.71,
+   "warning_m": 3.4,
+   "alarm_m": 3.9,
+   "margin_to_warning_m": 1.69,
+   "state": "정상",
+   "observed_at": "202608221500"
+  },
+  {
+   "station": "예천군(산양교)",
+   "distance_km": 7.2,
+   "level_m": 1.93,
+   "warning_m": 3.5,
+   "alarm_m": 4.0,
+   "margin_to_warning_m": 1.57,
+   "state": "정상",
+   "observed_at": "202608221500"
+  },
+  {
+   "station": "문경시(불정교)",
+   "distance_km": 7.4,
+   "level_m": 1.69,
+   "warning_m": 5.0,
+   "alarm_m": 5.5,
+   "margin_to_warning_m": 3.31,
+   "state": "정상",
+   "observed_at": "202608221500"
+  },
+  {
+   "station": "문경시(말응리)",
+   "distance_km": 8.3,
+   "level_m": 0.88,
+   "warning_m": 6.2,
+   "alarm_m": 8.0,
+   "margin_to_warning_m": 5.32,
+   "state": "정상",
+   "observed_at": "202608221500"
+  },
+  {
+   "station": "상주시(연목교)",
+   "distance_km": 9.4,
+   "level_m": 2.34,
+   "warning_m": 3.5,
+   "alarm_m": 3.9,
+   "margin_to_warning_m": 1.16,
+   "state": "정상",
+   "observed_at": "202608221500"
+  }
+ ],
+ "town_survey_order": [
+  {
+   "town": "문경읍",
+   "landslide_sites": 98,
+   "steep_sites": 0,
+   "max_slope_deg": 24.9,
+   "shelters_within_1_5km": null,
+   "high_grade_sites": 18,
+   "shelter_proximity_note": "대피소 16건 전부 좌표 없음 — 주소 지오코딩 필요",
+   "survey_rank": 1,
+   "basis": "지정 취약지역 수와 급경사 수 기준 — 실시간 강우·도로 접근성 미반영",
+   "population": 6517,
+   "households": 3109,
+   "avg_age": "57",
+   "ageing_index": "769.5"
+  },
+  {
+   "town": "산북면",
+   "landslide_sites": 78,
+   "steep_sites": 4,
+   "max_slope_deg": 48.3,
+   "shelters_within_1_5km": null,
+   "high_grade_sites": 10,
+   "shelter_proximity_note": "대피소 16건 전부 좌표 없음 — 주소 지오코딩 필요",
+   "survey_rank": 2,
+   "basis": "지정 취약지역 수와 급경사 수 기준 — 실시간 강우·도로 접근성 미반영",
+   "population": 2465,
+   "households": 1284,
+   "avg_age": "61.4",
+   "ageing_index": "1422.1"
+  },
+  {
+   "town": "동로면",
+   "landslide_sites": 73,
+   "steep_sites": 1,
+   "max_slope_deg": 28.8,
+   "shelters_within_1_5km": null,
+   "high_grade_sites": 8,
+   "shelter_proximity_note": "대피소 16건 전부 좌표 없음 — 주소 지오코딩 필요",
+   "survey_rank": 3,
+   "basis": "지정 취약지역 수와 급경사 수 기준 — 실시간 강우·도로 접근성 미반영",
+   "population": 1935,
+   "households": 966,
+   "avg_age": "57.8",
+   "ageing_index": "731.6"
+  },
+  {
+   "town": "가은읍",
+   "landslide_sites": 65,
+   "steep_sites": 2,
+   "max_slope_deg": 26.7,
+   "shelters_within_1_5km": null,
+   "high_grade_sites": 4,
+   "shelter_proximity_note": "대피소 16건 전부 좌표 없음 — 주소 지오코딩 필요",
+   "survey_rank": 4,
+   "basis": "지정 취약지역 수와 급경사 수 기준 — 실시간 강우·도로 접근성 미반영",
+   "population": 3723,
+   "households": 1901,
+   "avg_age": "59.8",
+   "ageing_index": "1008"
+  },
+  {
+   "town": "마성면",
+   "landslide_sites": 38,
+   "steep_sites": 2,
+   "max_slope_deg": 31.9,
+   "shelters_within_1_5km": null,
+   "high_grade_sites": 6,
+   "shelter_proximity_note": "대피소 16건 전부 좌표 없음 — 주소 지오코딩 필요",
+   "survey_rank": 5,
+   "basis": "지정 취약지역 수와 급경사 수 기준 — 실시간 강우·도로 접근성 미반영",
+   "population": 3312,
+   "households": 1623,
+   "avg_age": "61.2",
+   "ageing_index": "1536.4"
+  },
+  {
+   "town": "농암면",
+   "landslide_sites": 35,
+   "steep_sites": 0,
+   "max_slope_deg": 24.1,
+   "shelters_within_1_5km": null,
+   "high_grade_sites": 5,
+   "shelter_proximity_note": "대피소 16건 전부 좌표 없음 — 주소 지오코딩 필요",
+   "survey_rank": 6,
+   "basis": "지정 취약지역 수와 급경사 수 기준 — 실시간 강우·도로 접근성 미반영",
+   "population": 2353,
+   "households": 1207,
+   "avg_age": "61.1",
+   "ageing_index": "1380.7"
+  },
+  {
+   "town": "호계면",
+   "landslide_sites": 24,
+   "steep_sites": 0,
+   "max_slope_deg": 24.6,
+   "shelters_within_1_5km": null,
+   "high_grade_sites": 4,
+   "shelter_proximity_note": "대피소 16건 전부 좌표 없음 — 주소 지오코딩 필요",
+   "survey_rank": 7,
+   "basis": "지정 취약지역 수와 급경사 수 기준 — 실시간 강우·도로 접근성 미반영",
+   "population": 2334,
+   "households": 1017,
+   "avg_age": "54",
+   "ageing_index": "1308.5"
+  },
+  {
+   "town": "영순면",
+   "landslide_sites": 17,
+   "steep_sites": 0,
+   "max_slope_deg": 20.7,
+   "shelters_within_1_5km": null,
+   "high_grade_sites": 5,
+   "shelter_proximity_note": "대피소 16건 전부 좌표 없음 — 주소 지오코딩 필요",
+   "survey_rank": 8,
+   "basis": "지정 취약지역 수와 급경사 수 기준 — 실시간 강우·도로 접근성 미반영",
+   "population": 2270,
+   "households": 1058,
+   "avg_age": "56.2",
+   "ageing_index": "928.2"
+  },
+  {
+   "town": "산양면",
+   "landslide_sites": 8,
+   "steep_sites": 0,
+   "max_slope_deg": 19.5,
+   "shelters_within_1_5km": null,
+   "high_grade_sites": 2,
+   "shelter_proximity_note": "대피소 16건 전부 좌표 없음 — 주소 지오코딩 필요",
+   "survey_rank": 9,
+   "basis": "지정 취약지역 수와 급경사 수 기준 — 실시간 강우·도로 접근성 미반영",
+   "population": 2790,
+   "households": 1418,
+   "avg_age": "59.5",
+   "ageing_index": "988.9"
+  },
+  {
+   "town": "공평동",
+   "landslide_sites": 4,
+   "steep_sites": 0,
+   "max_slope_deg": 18.0,
+   "shelters_within_1_5km": null,
+   "high_grade_sites": 3,
+   "shelter_proximity_note": "대피소 16건 전부 좌표 없음 — 주소 지오코딩 필요",
+   "survey_rank": 10,
+   "basis": "지정 취약지역 수와 급경사 수 기준 — 실시간 강우·도로 접근성 미반영"
+  },
+  {
+   "town": "불정동",
+   "landslide_sites": 4,
+   "steep_sites": 0,
+   "max_slope_deg": 16.8,
+   "shelters_within_1_5km": null,
+   "high_grade_sites": 2,
+   "shelter_proximity_note": "대피소 16건 전부 좌표 없음 — 주소 지오코딩 필요",
+   "survey_rank": 11,
+   "basis": "지정 취약지역 수와 급경사 수 기준 — 실시간 강우·도로 접근성 미반영"
+  },
+  {
+   "town": "점촌동",
+   "landslide_sites": 2,
+   "steep_sites": 0,
+   "max_slope_deg": 15.6,
+   "shelters_within_1_5km": null,
+   "high_grade_sites": 0,
+   "shelter_proximity_note": "대피소 16건 전부 좌표 없음 — 주소 지오코딩 필요",
+   "survey_rank": 12,
+   "basis": "지정 취약지역 수와 급경사 수 기준 — 실시간 강우·도로 접근성 미반영"
+  },
+  {
+   "town": "흥덕동",
+   "landslide_sites": 2,
+   "steep_sites": 0,
+   "max_slope_deg": 24.6,
+   "shelters_within_1_5km": null,
+   "high_grade_sites": 1,
+   "shelter_proximity_note": "대피소 16건 전부 좌표 없음 — 주소 지오코딩 필요",
+   "survey_rank": 13,
+   "basis": "지정 취약지역 수와 급경사 수 기준 — 실시간 강우·도로 접근성 미반영"
+  },
+  {
+   "town": "모전동",
+   "landslide_sites": 1,
+   "steep_sites": 0,
+   "max_slope_deg": 15.7,
+   "shelters_within_1_5km": null,
+   "high_grade_sites": 0,
+   "shelter_proximity_note": "대피소 16건 전부 좌표 없음 — 주소 지오코딩 필요",
+   "survey_rank": 14,
+   "basis": "지정 취약지역 수와 급경사 수 기준 — 실시간 강우·도로 접근성 미반영"
+  },
+  {
+   "town": "우지동",
+   "landslide_sites": 1,
+   "steep_sites": 0,
+   "max_slope_deg": 17.4,
+   "shelters_within_1_5km": null,
+   "high_grade_sites": 0,
+   "shelter_proximity_note": "대피소 16건 전부 좌표 없음 — 주소 지오코딩 필요",
+   "survey_rank": 15,
+   "basis": "지정 취약지역 수와 급경사 수 기준 — 실시간 강우·도로 접근성 미반영"
+  }
+ ],
+ "shelters": [
+  {
+   "name": "문경시립요양병원 지하1층",
+   "town": "문경읍",
+   "address": "경북 문경시 문경읍 여우목로 31",
+   "kind": "공공용",
+   "area_m2": 235.0,
+   "reported_capacity": 235.0,
+   "lat": null,
+   "lon": null,
+   "geocoded": false,
+   "open_state": "unknown",
+   "capacity_verified": false,
+   "suitable_for": "미확인 — 재난유형별 적합성 별도 판단 필요"
+  },
+  {
+   "name": "문경석탄박물관 갱도체험장 지하1층",
+   "town": "가은읍",
+   "address": "경북 문경시 가은읍 왕능길 112",
+   "kind": "공공용",
+   "area_m2": 1805.0,
+   "reported_capacity": 1805.0,
+   "lat": null,
+   "lon": null,
+   "geocoded": false,
+   "open_state": "unknown",
+   "capacity_verified": false,
+   "suitable_for": "미확인 — 재난유형별 적합성 별도 판단 필요"
+  },
+  {
+   "name": "에이스아파트 지하주차장 1층",
+   "town": "점촌1동",
+   "address": "경북 문경시 돈달산길 13",
+   "kind": "공공용",
+   "area_m2": 1533.0,
+   "reported_capacity": 1533.0,
+   "lat": null,
+   "lon": null,
+   "geocoded": false,
+   "open_state": "unknown",
+   "capacity_verified": false,
+   "suitable_for": "미확인 — 재난유형별 적합성 별도 판단 필요"
+  },
+  {
+   "name": "문경시 노인복지관 지하주차장 1층",
+   "town": "점촌1동",
+   "address": "경북 문경시 점촌5길 20",
+   "kind": "공공용",
+   "area_m2": 2513.0,
+   "reported_capacity": 2513.0,
+   "lat": null,
+   "lon": null,
+   "geocoded": false,
+   "open_state": "unknown",
+   "capacity_verified": false,
+   "suitable_for": "미확인 — 재난유형별 적합성 별도 판단 필요"
+  },
+  {
+   "name": "중앙시장상가 지하주차장 1층",
+   "town": "점촌2동",
+   "address": "경북 문경시 중앙로 87",
+   "kind": "공공용",
+   "area_m2": 1253.0,
+   "reported_capacity": 1253.0,
+   "lat": null,
+   "lon": null,
+   "geocoded": false,
+   "open_state": "unknown",
+   "capacity_verified": false,
+   "suitable_for": "미확인 — 재난유형별 적합성 별도 판단 필요"
+  },
+  {
+   "name": "푸른숲아파트 지하주차장 1층",
+   "town": "점촌3동",
+   "address": "경북 문경시 돈달로 199",
+   "kind": "공공용",
+   "area_m2": 6063.0,
+   "reported_capacity": 6063.0,
+   "lat": null,
+   "lon": null,
+   "geocoded": false,
+   "open_state": "unknown",
+   "capacity_verified": false,
+   "suitable_for": "미확인 — 재난유형별 적합성 별도 판단 필요"
+  },
+  {
+   "name": "e-편한세상 상무아파트 지하주차장 1층",
+   "town": "점촌3동",
+   "address": "경북 문경시 호서로 177",
+   "kind": "공공용",
+   "area_m2": 4303.0,
+   "reported_capacity": 4303.0,
+   "lat": null,
+   "lon": null,
+   "geocoded": false,
+   "open_state": "unknown",
+   "capacity_verified": false,
+   "suitable_for": "미확인 — 재난유형별 적합성 별도 판단 필요"
+  },
+  {
+   "name": "신평마을아파트 지하1층",
+   "town": "점촌4동",
+   "address": "경북 문경시 공평로 58-9",
+   "kind": "공공용",
+   "area_m2": 113.65,
+   "reported_capacity": 113.0,
+   "lat": null,
+   "lon": null,
+   "geocoded": false,
+   "open_state": "unknown",
+   "capacity_verified": false,
+   "suitable_for": "미확인 — 재난유형별 적합성 별도 판단 필요"
+  },
+  {
+   "name": "현대아파트 지하주차장 1층",
+   "town": "점촌5동",
+   "address": "경북 문경시 시청3길 10",
+   "kind": "공공용",
+   "area_m2": 1147.0,
+   "reported_capacity": 1147.0,
+   "lat": null,
+   "lon": null,
+   "geocoded": false,
+   "open_state": "unknown",
+   "capacity_verified": false,
+   "suitable_for": "미확인 — 재난유형별 적합성 별도 판단 필요"
+  },
+  {
+   "name": "대동아파트 지하주차장 1층",
+   "town": "점촌5동",
+   "address": "경북 문경시 매봉4길 15",
+   "kind": "공공용",
+   "area_m2": 5920.0,
+   "reported_capacity": 5920.0,
+   "lat": null,
+   "lon": null,
+   "geocoded": false,
+   "open_state": "unknown",
+   "capacity_verified": false,
+   "suitable_for": "미확인 — 재난유형별 적합성 별도 판단 필요"
+  },
+  {
+   "name": "남도맨션 지하주차장 1층",
+   "town": "점촌5동",
+   "address": "경북 문경시 모전로 94",
+   "kind": "공공용",
+   "area_m2": 3262.0,
+   "reported_capacity": 3262.0,
+   "lat": null,
+   "lon": null,
+   "geocoded": false,
+   "open_state": "unknown",
+   "capacity_verified": false,
+   "suitable_for": "미확인 — 재난유형별 적합성 별도 판단 필요"
+  },
+  {
+   "name": "문경시청 지하 1층",
+   "town": "점촌5동",
+   "address": "경북 문경시 당교로 225",
+   "kind": "공공용",
+   "area_m2": 661.0,
+   "reported_capacity": 661.0,
+   "lat": null,
+   "lon": null,
+   "geocoded": false,
+   "open_state": "unknown",
+   "capacity_verified": false,
+   "suitable_for": "미확인 — 재난유형별 적합성 별도 판단 필요"
+  },
+  {
+   "name": "브리티시 지하주차장 1층",
+   "town": "점촌5동",
+   "address": "경북 문경시 당교로 231",
+   "kind": "공공용",
+   "area_m2": 1156.0,
+   "reported_capacity": 1156.0,
+   "lat": null,
+   "lon": null,
+   "geocoded": false,
+   "open_state": "unknown",
+   "capacity_verified": false,
+   "suitable_for": "미확인 — 재난유형별 적합성 별도 판단 필요"
+  },
+  {
+   "name": "신원아침도시아파트 지하주차장 1층",
+   "town": "점촌5동",
+   "address": "경북 문경시 여중1길 30",
+   "kind": "공공용",
+   "area_m2": 7586.0,
+   "reported_capacity": 7586.0,
+   "lat": null,
+   "lon": null,
+   "geocoded": false,
+   "open_state": "unknown",
+   "capacity_verified": false,
+   "suitable_for": "미확인 — 재난유형별 적합성 별도 판단 필요"
+  },
+  {
+   "name": "문경코아루아파트 지하주차장 1층",
+   "town": "점촌5동",
+   "address": "경북 문경시 당교6길 25",
+   "kind": "공공용",
+   "area_m2": 15317.0,
+   "reported_capacity": 15317.0,
+   "lat": null,
+   "lon": null,
+   "geocoded": false,
+   "open_state": "unknown",
+   "capacity_verified": false,
+   "suitable_for": "미확인 — 재난유형별 적합성 별도 판단 필요"
+  },
+  {
+   "name": "점촌코아루아파트 지하주차장 1층",
+   "town": "점촌1동",
+   "address": "경북 문경시 상신로 115",
+   "kind": "공공용",
+   "area_m2": 2865.0,
+   "reported_capacity": 2865.0,
+   "lat": null,
+   "lon": null,
+   "geocoded": false,
+   "open_state": "unknown",
+   "capacity_verified": false,
+   "suitable_for": "미확인 — 재난유형별 적합성 별도 판단 필요"
+  }
+ ],
+ "bridges": [
+  {
+   "name": "내서1교",
+   "route": "국지도32호",
+   "location": "문경 농암 내서",
+   "length_m": 70.0,
+   "width_m": 6.5,
+   "built": "1989",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "내서2교",
+   "route": "국지도32호",
+   "location": "문경 농암 내서",
+   "length_m": 65.0,
+   "width_m": 7.0,
+   "built": "1991",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "내서3교",
+   "route": "국지도32호",
+   "location": "문경 농암 내서",
+   "length_m": 45.0,
+   "width_m": 6.0,
+   "built": "1986",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "내서4교",
+   "route": "국지도32호",
+   "location": "문경 농암 내서",
+   "length_m": 45.0,
+   "width_m": 6.0,
+   "built": "1988",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "농암교",
+   "route": "국지도32호",
+   "location": "문경 농암 갈동",
+   "length_m": 80.0,
+   "width_m": 6.5,
+   "built": "1981",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "화산교",
+   "route": "국지도32호",
+   "location": "문경 농암 화산",
+   "length_m": 45.0,
+   "width_m": 7.0,
+   "built": "1990",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "갈밭교",
+   "route": "지방도901호",
+   "location": "문경 동로 생달",
+   "length_m": 10.5,
+   "width_m": 7.5,
+   "built": "1991",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "갈전교",
+   "route": "지방도901호",
+   "location": "문경 가은 갈전",
+   "length_m": 197.7,
+   "width_m": 9.5,
+   "built": "2009",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "갈평2교",
+   "route": "지방도901호",
+   "location": "문경 문경 갈평",
+   "length_m": 30.0,
+   "width_m": 8.0,
+   "built": "1993",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "갈평교",
+   "route": "지방도901호",
+   "location": "문경 문경 갈평",
+   "length_m": 78.0,
+   "width_m": 8.0,
+   "built": "1998",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "고요1교",
+   "route": "지방도901호",
+   "location": "문경 문경 고요",
+   "length_m": 90.0,
+   "width_m": 10.5,
+   "built": "1998",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "농암2교",
+   "route": "지방도901호",
+   "location": "문경 농암 농암",
+   "length_m": 38.0,
+   "width_m": 8.0,
+   "built": "1997",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "문경교",
+   "route": "지방도901호",
+   "location": "문경 문경 마원",
+   "length_m": 60.0,
+   "width_m": 9.0,
+   "built": "1979",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "생달교",
+   "route": "지방도901호",
+   "location": "문경 동로 생달",
+   "length_m": 18.0,
+   "width_m": 9.0,
+   "built": "1998",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "석항1교",
+   "route": "지방도901호",
+   "location": "문경 동로 석항",
+   "length_m": 23.6,
+   "width_m": 8.0,
+   "built": "1997",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "석항2교",
+   "route": "지방도901호",
+   "location": "문경 동로 석항",
+   "length_m": 18.0,
+   "width_m": 8.0,
+   "built": "1997",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "성유교",
+   "route": "지방도901호",
+   "location": "문경 가은 성유",
+   "length_m": 9.6,
+   "width_m": 7.5,
+   "built": "1985",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "아호교",
+   "route": "지방도901호",
+   "location": "문경 가은 작천",
+   "length_m": 211.1,
+   "width_m": 9.5,
+   "built": "2009",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "용연교",
+   "route": "지방도901호",
+   "location": "문경 문경 용연",
+   "length_m": 14.0,
+   "width_m": 8.65,
+   "built": "2016",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "왕릉교",
+   "route": "지방도901호",
+   "location": "문경 가은 왕능",
+   "length_m": 30.0,
+   "width_m": 8.5,
+   "built": "2009",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "요성1교",
+   "route": "지방도901호",
+   "location": "문경 문경 요성",
+   "length_m": 13.0,
+   "width_m": 11.0,
+   "built": "1998",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "하내1교",
+   "route": "지방도901호",
+   "location": "문경 마성 하내",
+   "length_m": 163.0,
+   "width_m": 9.5,
+   "built": "2005",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "하내2교",
+   "route": "지방도901호",
+   "location": "문경 마성 하내",
+   "length_m": 120.0,
+   "width_m": 9.5,
+   "built": "2005",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "허궁다리",
+   "route": "지방도901호",
+   "location": "문경 동로 간송",
+   "length_m": 40.0,
+   "width_m": 8.0,
+   "built": "1999",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "당포교",
+   "route": "지방도901호",
+   "location": "문경 문경 당포",
+   "length_m": 62.5,
+   "width_m": 7.0,
+   "built": "1992",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "(신)완장1교",
+   "route": "지방도922호",
+   "location": "문경 가은",
+   "length_m": 48.6,
+   "width_m": 9.5,
+   "built": "2018",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "(신)완장2교",
+   "route": "지방도922호",
+   "location": "문경 가은",
+   "length_m": 80.0,
+   "width_m": 9.5,
+   "built": "2018",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "상괴교",
+   "route": "지방도922호",
+   "location": "문경 가은 상괴",
+   "length_m": 35.0,
+   "width_m": 7.2,
+   "built": "1989",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "완장1교",
+   "route": "지방도922호",
+   "location": "문경 가은 완장",
+   "length_m": 9.6,
+   "width_m": 6.0,
+   "built": "1981",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "완장2교",
+   "route": "지방도922호",
+   "location": "문경 가은 완장",
+   "length_m": 9.6,
+   "width_m": 6.0,
+   "built": "1984",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "완장3교",
+   "route": "지방도922호",
+   "location": "문경 가은 완장",
+   "length_m": 18.0,
+   "width_m": 6.0,
+   "built": "1983",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "완장4교",
+   "route": "지방도922호",
+   "location": "문경 가은 완장",
+   "length_m": 18.0,
+   "width_m": 6.0,
+   "built": "1988",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "하괴1교",
+   "route": "지방도922호",
+   "location": "문경 가은 하괴",
+   "length_m": 15.0,
+   "width_m": 9.5,
+   "built": "2006",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "하괴교",
+   "route": "지방도922호",
+   "location": "문경 가은 하괴",
+   "length_m": 52.0,
+   "width_m": 9.5,
+   "built": "2006",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "갈산교",
+   "route": "지방도923호",
+   "location": "문경 문경 갈평",
+   "length_m": 26.0,
+   "width_m": 8.3,
+   "built": "1994",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "봉정교",
+   "route": "지방도923호",
+   "location": "문경 산양 봉정",
+   "length_m": 13.0,
+   "width_m": 7.5,
+   "built": "1991",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "아천교",
+   "route": "지방도923호",
+   "location": "문경 산북 대하",
+   "length_m": 40.0,
+   "width_m": 6.5,
+   "built": "1989",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "영풍교",
+   "route": "지방도923호",
+   "location": "문경 영순 말응",
+   "length_m": 300.0,
+   "width_m": 6.0,
+   "built": "1987",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "이곡1교",
+   "route": "지방도923호",
+   "location": "문경 산북 이곡",
+   "length_m": 11.0,
+   "width_m": 7.0,
+   "built": "1987",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "금천1교",
+   "route": "지방도924호",
+   "location": "문경 영순 오룡",
+   "length_m": 242.0,
+   "width_m": 9.5,
+   "built": "2014",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "영순교",
+   "route": "지방도924호",
+   "location": "문경 영순 김용",
+   "length_m": 249.0,
+   "width_m": 8.7,
+   "built": "2002",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "오룡교",
+   "route": "지방도924호",
+   "location": "문경 영순 오룡",
+   "length_m": 33.2,
+   "width_m": 9.5,
+   "built": "2014",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "금천교",
+   "route": "지방도928호",
+   "location": "문경 동로 수평",
+   "length_m": 60.0,
+   "width_m": 6.0,
+   "built": "1984",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "하율교",
+   "route": "지방도935호",
+   "location": "문경 농암 율수",
+   "length_m": 67.5,
+   "width_m": 4.0,
+   "built": "1999",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "(신)수평교",
+   "route": "국도59호",
+   "location": "문경 동로 수평",
+   "length_m": 30.0,
+   "width_m": null,
+   "built": "2017",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "동로교",
+   "route": "국도59호",
+   "location": "문경 동로 노은",
+   "length_m": 60.7,
+   "width_m": 8.0,
+   "built": "2007",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "영각교",
+   "route": "국도59호",
+   "location": "문경 산북 대하",
+   "length_m": 40.4,
+   "width_m": 9.5,
+   "built": "2007",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "왕태교",
+   "route": "국도59호",
+   "location": "문경 영순 왕태",
+   "length_m": 25.0,
+   "width_m": 8.1,
+   "built": "1993",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "적성교",
+   "route": "국도59호",
+   "location": "문경 동로 적성",
+   "length_m": 14.0,
+   "width_m": 9.5,
+   "built": "2004",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "황사교",
+   "route": "국도59호",
+   "location": "문경 산양 불암",
+   "length_m": 25.8,
+   "width_m": 9.5,
+   "built": "2008",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "내서1교",
+   "route": "국지도32호",
+   "location": "문경 농암 내서",
+   "length_m": 70.0,
+   "width_m": 6.5,
+   "built": "1989",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "내서2교",
+   "route": "국지도32호",
+   "location": "문경 농암 내서",
+   "length_m": 65.0,
+   "width_m": 7.0,
+   "built": "1991",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "내서3교",
+   "route": "국지도32호",
+   "location": "문경 농암 내서",
+   "length_m": 45.0,
+   "width_m": 6.0,
+   "built": "1986",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "내서4교",
+   "route": "국지도32호",
+   "location": "문경 농암 내서",
+   "length_m": 45.0,
+   "width_m": 6.0,
+   "built": "1988",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "농암교",
+   "route": "국지도32호",
+   "location": "문경 농암 갈동",
+   "length_m": 80.0,
+   "width_m": 6.5,
+   "built": "1981",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "화산교",
+   "route": "국지도32호",
+   "location": "문경 농암 화산",
+   "length_m": 45.0,
+   "width_m": 7.0,
+   "built": "1990",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "갈밭교",
+   "route": "지방도901호",
+   "location": "문경 동로 생달",
+   "length_m": 10.5,
+   "width_m": 7.5,
+   "built": "1991",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "갈전교",
+   "route": "지방도901호",
+   "location": "문경 가은 갈전",
+   "length_m": 197.7,
+   "width_m": 9.5,
+   "built": "2009",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "갈평2교",
+   "route": "지방도901호",
+   "location": "문경 문경 갈평",
+   "length_m": 30.0,
+   "width_m": 8.0,
+   "built": "1993",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "갈평교",
+   "route": "지방도901호",
+   "location": "문경 문경 갈평",
+   "length_m": 78.0,
+   "width_m": 8.0,
+   "built": "1998",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "고요1교",
+   "route": "지방도901호",
+   "location": "문경 문경 고요",
+   "length_m": 90.0,
+   "width_m": 10.5,
+   "built": "1998",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "농암2교",
+   "route": "지방도901호",
+   "location": "문경 농암 농암",
+   "length_m": 38.0,
+   "width_m": 8.0,
+   "built": "1997",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "문경교",
+   "route": "지방도901호",
+   "location": "문경 문경 마원",
+   "length_m": 60.0,
+   "width_m": 9.0,
+   "built": "1979",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "생달교",
+   "route": "지방도901호",
+   "location": "문경 동로 생달",
+   "length_m": 18.0,
+   "width_m": 9.0,
+   "built": "1998",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "석항1교",
+   "route": "지방도901호",
+   "location": "문경 동로 석항",
+   "length_m": 23.6,
+   "width_m": 8.0,
+   "built": "1997",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "석항2교",
+   "route": "지방도901호",
+   "location": "문경 동로 석항",
+   "length_m": 18.0,
+   "width_m": 8.0,
+   "built": "1997",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "성유교",
+   "route": "지방도901호",
+   "location": "문경 가은 성유",
+   "length_m": 9.6,
+   "width_m": 7.5,
+   "built": "1985",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "아호교",
+   "route": "지방도901호",
+   "location": "문경 가은 작천",
+   "length_m": 211.1,
+   "width_m": 9.5,
+   "built": "2009",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "용연교",
+   "route": "지방도901호",
+   "location": "문경 문경 용연",
+   "length_m": 14.0,
+   "width_m": 8.65,
+   "built": "2016",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "왕릉교",
+   "route": "지방도901호",
+   "location": "문경 가은 왕능",
+   "length_m": 30.0,
+   "width_m": 8.5,
+   "built": "2009",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "요성1교",
+   "route": "지방도901호",
+   "location": "문경 문경 요성",
+   "length_m": 13.0,
+   "width_m": 11.0,
+   "built": "1998",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "하내1교",
+   "route": "지방도901호",
+   "location": "문경 마성 하내",
+   "length_m": 163.0,
+   "width_m": 9.5,
+   "built": "2005",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "하내2교",
+   "route": "지방도901호",
+   "location": "문경 마성 하내",
+   "length_m": 120.0,
+   "width_m": 9.5,
+   "built": "2005",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "허궁다리",
+   "route": "지방도901호",
+   "location": "문경 동로 간송",
+   "length_m": 40.0,
+   "width_m": 8.0,
+   "built": "1999",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "(신)완장1교",
+   "route": "지방도922호",
+   "location": "문경 가은",
+   "length_m": 48.6,
+   "width_m": 9.5,
+   "built": "2018",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "(신)완장2교",
+   "route": "지방도922호",
+   "location": "문경 가은",
+   "length_m": 80.0,
+   "width_m": 9.5,
+   "built": "2018",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "상괴교",
+   "route": "지방도922호",
+   "location": "문경 가은 상괴",
+   "length_m": 35.0,
+   "width_m": 7.2,
+   "built": "1989",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "완장1교",
+   "route": "지방도922호",
+   "location": "문경 가은 완장",
+   "length_m": 9.6,
+   "width_m": 6.0,
+   "built": "1981",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "완장2교",
+   "route": "지방도922호",
+   "location": "문경 가은 완장",
+   "length_m": 9.6,
+   "width_m": 6.0,
+   "built": "1984",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "완장3교",
+   "route": "지방도922호",
+   "location": "문경 가은 완장",
+   "length_m": 18.0,
+   "width_m": 6.0,
+   "built": "1983",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "완장4교",
+   "route": "지방도922호",
+   "location": "문경 가은 완장",
+   "length_m": 18.0,
+   "width_m": 6.0,
+   "built": "1988",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "하괴1교",
+   "route": "지방도922호",
+   "location": "문경 가은 하괴",
+   "length_m": 15.0,
+   "width_m": 9.5,
+   "built": "2006",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "하괴교",
+   "route": "지방도922호",
+   "location": "문경 가은 하괴",
+   "length_m": 52.0,
+   "width_m": 9.5,
+   "built": "2006",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "갈산교",
+   "route": "지방도923호",
+   "location": "문경 문경 갈평",
+   "length_m": 26.0,
+   "width_m": 8.3,
+   "built": "1994",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "봉정교",
+   "route": "지방도923호",
+   "location": "문경 산양 봉정",
+   "length_m": 13.0,
+   "width_m": 7.5,
+   "built": "1991",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "아천교",
+   "route": "지방도923호",
+   "location": "문경 산북 대하",
+   "length_m": 40.0,
+   "width_m": 6.5,
+   "built": "1989",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "영풍교",
+   "route": "지방도923호",
+   "location": "문경 영순 말응",
+   "length_m": 300.0,
+   "width_m": 6.0,
+   "built": "1987",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "이곡1교",
+   "route": "지방도923호",
+   "location": "문경 산북 이곡",
+   "length_m": 11.0,
+   "width_m": 7.0,
+   "built": "1987",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "금천1교",
+   "route": "지방도924호",
+   "location": "문경 영순 오룡",
+   "length_m": 242.0,
+   "width_m": 9.5,
+   "built": "2014",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "영순교",
+   "route": "지방도924호",
+   "location": "문경 영순 김용",
+   "length_m": 249.0,
+   "width_m": 8.7,
+   "built": "2002",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "오룡교",
+   "route": "지방도924호",
+   "location": "문경 영순 오룡",
+   "length_m": 33.2,
+   "width_m": 9.5,
+   "built": "2014",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "금천교",
+   "route": "지방도928호",
+   "location": "문경 동로 수평",
+   "length_m": 60.0,
+   "width_m": 6.0,
+   "built": "1984",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "하율교",
+   "route": "지방도935호",
+   "location": "문경 농암 율수",
+   "length_m": 67.5,
+   "width_m": 4.0,
+   "built": "1999",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "(신)수평교",
+   "route": "국도59호",
+   "location": "문경 동로 수평",
+   "length_m": 30.0,
+   "width_m": 9.0,
+   "built": "2017",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "동로교",
+   "route": "국도59호",
+   "location": "문경 동로 노은",
+   "length_m": 60.7,
+   "width_m": 8.0,
+   "built": "2007",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "영각교",
+   "route": "국도59호",
+   "location": "문경 산북 대하",
+   "length_m": 40.4,
+   "width_m": 9.5,
+   "built": "2007",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "왕태교",
+   "route": "국도59호",
+   "location": "문경 영순 왕태",
+   "length_m": 25.0,
+   "width_m": 8.1,
+   "built": "1993",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "적성교",
+   "route": "국도59호",
+   "location": "문경 동로 적성",
+   "length_m": 14.0,
+   "width_m": 9.5,
+   "built": "2004",
+   "manager": "경상북도 북부건설사업소"
+  },
+  {
+   "name": "황사교",
+   "route": "국도59호",
+   "location": "문경 산양 불암",
+   "length_m": 25.8,
+   "width_m": 9.5,
+   "built": "2008",
+   "manager": "경상북도 북부건설사업소"
+  }
+ ],
+ "closures": []
+}
