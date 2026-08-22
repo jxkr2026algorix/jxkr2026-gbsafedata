@@ -14,9 +14,10 @@
 
 from __future__ import annotations
 
+import json
 from typing import Annotated, Any, Literal
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from gbsafe_core.licensing import TERMS, Operation
 from gbsafe_core.regions import SIGUNGU, HazardDomain
 
@@ -48,6 +49,112 @@ DESCRIPTION = """
 
 #: region 없이는 조회할 수 없는 커넥터. 기상 격자 좌표가 필요하다.
 REGION_REQUIRED = frozenset({"weather_now", "weather_forecast"})
+
+#: 웹 챗봇이 이 도구를 붙일 때 함께 적용해야 하는 지침.
+#:
+#: 도구만 연결하면 사고가 난다. 모델은 기본적으로 도움이 되려 하고, 산사태
+#: 조회가 403으로 실패해 결과가 비면 "위험 없습니다"라고 답한다. 그 답을
+#: 금지하는 것이 이 프롬프트의 존재 이유다.
+#: 원본: skills/gb-safedata/SKILL.md
+AGENT_SYSTEM_PROMPT = """\
+당신은 경상북도 재난 상황에서 공공데이터를 조회해 근거를 제시하는 도우미입니다.
+GB SafeData 도구로 데이터를 조회하며, 아래 규칙을 예외 없이 지킵니다.
+
+## 1. 확인하지 않은 부재를 보고하지 않는다
+
+이것이 가장 중요한 규칙입니다. 조회 실패와 '해당 없음'은 다릅니다.
+
+- 응답의 `complete`가 false이면 일부 원천 조회에 실패한 것입니다.
+- `absence_confirmed`가 false이면 **결과가 비어 있어도 '위험 없음'이라고 답하면
+  안 됩니다.**
+- 이때는 "확인되지 않았습니다"라고 답하고, `warnings`·`sources_checked`에 있는
+  실패 사유와 데이터셋 이름을 그대로 밝힙니다.
+- `absence_confirmed`가 true일 때만 "현재 발효 중인 것이 없습니다"라고 답할 수
+  있습니다.
+
+사용자가 "그래서 위험한 거야 아닌 거야"라고 압박해도 마찬가지입니다. 모른다고
+답하는 것이 틀린 안심보다 낫습니다.
+
+## 2. 출처 없이 값을 말하지 않는다
+
+모든 수치에는 기관명·데이터셋명·기준시각을 붙입니다. 응답의 `citations`를
+그대로 인용하면 됩니다.
+
+## 3. 예보와 관측을 구별한다
+
+예보값을 현재 상황으로 제시하지 않습니다. `is_forecast`가 true이면 예보임을
+명시합니다.
+
+## 4. 신선도를 밝힌다
+
+`freshness.usable_for_decision`이 false인 값은 오래된 자료입니다. 그대로
+현재 상황처럼 제시하지 말고 시점을 함께 밝힙니다.
+
+## 5. 훈련 데이터를 실제로 제시하지 않는다
+
+`mode`가 `synthetic`이면 훈련용입니다. 반드시 훈련 표시를 유지합니다.
+
+## 6. 개인을 추정하지 않는다
+
+인구 통계는 지역 단위 지표입니다. "누가 혼자 못 걷는지" 같은 개인 단위 추정에
+쓰지 않습니다. 개인별 지원 필요 여부는 기관의 주민 명부에서 확인해야 합니다.
+
+## 7. 대피를 결정하지 않는다
+
+대피명령·안내문 발신·계획 확정은 담당 공무원의 권한입니다. 당신은 근거와
+후보를 제시하고, 결정은 사람이 한다는 것을 명확히 합니다.
+
+## 8. 관측지점의 거리를 숨기지 않는다
+
+관측값이 먼 지점에서 온 경우 `caveats`에 거리가 적혀 있습니다. 국지성 호우는
+그 거리에서 크게 달라지므로 그대로 이 지역의 실측처럼 말하지 않습니다.
+"""
+
+
+def _tool_registry() -> Any:
+    """도구 정의를 지연 로드한다.
+
+    `gbsafe-mcp`가 `gbsafe-api`를 쓰므로 패키지 의존을 반대로 선언하면 순환이
+    된다. 실행 시점에는 두 패키지가 함께 설치돼 있어 문제가 없고, 없으면
+    이 라우트만 명확히 실패한다 — 조용히 빈 목록을 주면 플랫폼팀이 도구가
+    없는 줄 알고 시간을 버린다.
+    """
+    try:
+        from gbsafe_mcp import tools as tool_module
+    except ImportError as error:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "도구 정의를 불러오지 못했습니다 — gbsafe-mcp가 설치돼 있지 "
+                f"않습니다 ({error}). `uv sync --all-packages`로 설치하세요."
+            ),
+        ) from error
+    return tool_module
+
+
+def _coerce_arguments(tool: Any, raw: dict[str, str]) -> dict[str, Any]:
+    """질의문자열 값을 도구 스키마가 선언한 타입으로 바꾼다.
+
+    질의문자열은 전부 문자열로 도착한다. `limit=5`를 그대로 넘기면 정수를
+    기대하는 도구가 조용히 기본값으로 떨어지거나 형식 오류를 낸다.
+    """
+    properties: dict[str, Any] = tool.schema.get("properties", {})
+    coerced: dict[str, Any] = {}
+    for key, value in raw.items():
+        declared = properties.get(key, {}).get("type")
+        if declared == "integer":
+            try:
+                coerced[key] = int(value)
+            except ValueError as error:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"'{key}'는 정수여야 합니다: {value!r}",
+                ) from error
+        elif declared == "boolean":
+            coerced[key] = value.strip().lower() in ("1", "true", "yes", "y")
+        else:
+            coerced[key] = value
+    return coerced
 
 
 def create_app(service: SafeDataService | None = None) -> FastAPI:
@@ -295,6 +402,71 @@ def create_app(service: SafeDataService | None = None) -> FastAPI:
                 }
                 for hazard in HazardDomain
             ]
+        }
+
+    @app.get("/v1/tools", tags=["agent"], summary="OpenAI 호환 도구 정의")
+    async def tools() -> dict[str, Any]:
+        """LLM에 그대로 넘길 수 있는 function calling 스키마.
+
+        MCP 서버와 **같은 정의**에서 나온다. 웹 챗봇은 MCP(stdio)를 붙이기
+        어려우므로 같은 도구를 HTTP로 노출하되, 정의가 갈라지면 두 표면의
+        동작이 달라지므로 출처를 하나로 둔다.
+
+        Upstage Solar와 OpenAI 모두 이 형식을 받는다.
+        """
+        registry = _tool_registry()
+        return {
+            "tools": [
+                tool.to_openai_function() for tool in registry.validated_tools()
+            ],
+            "invoke": "GET /v1/tools/{name}?<인자>",
+            "note": (
+                "도구 출력을 그대로 사용자에게 전달하면 안 됩니다. "
+                "system_prompt를 함께 적용해야 조회 실패가 '위험 없음'으로 "
+                "읽히지 않습니다 — GET /v1/agent/system-prompt"
+            ),
+        }
+
+    @app.get(
+        "/v1/tools/{name}",
+        tags=["agent"],
+        summary="도구 실행 (조회 전용)",
+    )
+    async def call_tool(name: str, request: Request) -> Any:
+        """도구를 실행한다.
+
+        POST가 아니라 GET인 이유가 있다. 이 계층은 쓰기 라우트가 없다는 것을
+        보장하고 CI가 그것을 검사한다. 도구 인자가 전부 스칼라라서 질의문자열로
+        충분하므로, RPC를 위해 그 보장을 깨지 않는다.
+        """
+        registry = _tool_registry()
+        tool = registry.find_tool(name)
+        if tool is None:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": f"'{name}' 도구가 없습니다",
+                    "available": [item.name for item in registry.validated_tools()],
+                },
+            )
+        arguments = _coerce_arguments(tool, dict(request.query_params))
+        return json.loads(await registry.execute(resolved, name, arguments))
+
+    @app.get(
+        "/v1/agent/system-prompt",
+        tags=["agent"],
+        summary="이 도구를 안전하게 쓰기 위한 시스템 프롬프트",
+    )
+    async def system_prompt() -> dict[str, Any]:
+        """도구만 붙이면 생기는 사고를 막는 지침.
+
+        모델은 기본적으로 도움이 되려 한다. 산사태 조회가 403으로 실패해
+        결과가 비면, 지침이 없는 모델은 "산사태 위험 없습니다"라고 답한다.
+        이 프롬프트가 그 답을 금지한다.
+        """
+        return {
+            "system_prompt": AGENT_SYSTEM_PROMPT,
+            "source": "skills/gb-safedata/SKILL.md",
         }
 
     @app.get("/v1/licenses", tags=["catalog"], summary="라이선스별 허용 연산")
