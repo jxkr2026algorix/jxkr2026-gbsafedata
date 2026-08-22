@@ -1105,3 +1105,37 @@ class TestOpenApiSchemaIsUsable:
         for field in ("complete", "absence_confirmed"):
             description = envelope["properties"][field].get("description", "")
             assert description, f"{field}에 설명이 없습니다"
+
+
+class TestClaudeInstallRedirect:
+    """`/add-claude`는 사람이 옮겨 적을 수 있는 주소여야 하고, 실제 링크는
+    claude.ai가 이해하는 형태로 나가야 한다."""
+
+    def test_redirects_to_claude_with_name_and_url_prefilled(
+        self, client: TestClient
+    ) -> None:
+        from urllib.parse import parse_qs, urlparse
+
+        from gbsafe_api.app import CONNECTOR_NAME, PUBLIC_MCP_URL
+
+        response = client.get("/add-claude", follow_redirects=False)
+
+        assert response.status_code == 302
+        target = urlparse(response.headers["location"])
+        assert target.hostname == "claude.ai"
+
+        query = parse_qs(target.query)
+        assert query["modal"] == ["add-custom-connector"]
+        # 디코딩된 값이 원본과 같아야 한다. 인코딩이 틀리면 Claude가 이름을
+        # 깨진 문자열로 받거나 URL을 통째로 잘라 먹는다.
+        assert query["connectorName"] == [CONNECTOR_NAME]
+        assert query["connectorUrl"] == [PUBLIC_MCP_URL]
+
+    def test_target_url_is_the_deployed_instance_not_localhost(self) -> None:
+        from gbsafe_api.app import PUBLIC_MCP_URL
+
+        # 이 링크를 받는 사람은 우리 개발 머신에 접속할 수 없다.
+        assert PUBLIC_MCP_URL.startswith("https://")
+        assert "localhost" not in PUBLIC_MCP_URL
+        assert "127.0.0.1" not in PUBLIC_MCP_URL
+        assert PUBLIC_MCP_URL.endswith("/mcp/")
