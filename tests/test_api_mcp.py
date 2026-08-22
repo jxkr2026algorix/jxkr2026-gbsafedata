@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 from fastapi.testclient import TestClient
@@ -1022,3 +1022,86 @@ class TestToolSchemaCoversEveryHazard:
                 )
             )
             assert "error" not in payload, f"{hazard}: {payload.get('error')}"
+
+
+class TestOpenApiSchemaIsUsable:
+    """연동하는 쪽이 스키마만 보고 붙일 수 있어야 한다.
+
+    라우트가 `dict[str, Any]`를 돌려주면 OpenAPI에 `{}`만 남고, 상대 팀은
+    실제 응답을 눈으로 보고 추측해야 한다. 그러면 우리가 고쳐도 그쪽은
+    모른다.
+    """
+
+    #: 응답 형태가 본질적으로 고정되지 않는 경로.
+    #:
+    #: `/mcp`는 JSON-RPC를 통과시키고, `/v1/tools/{name}`은 도구마다 형태가
+    #: 다르다. 둘 다 `response_description`으로 읽는 법을 밝힌다.
+    POLYMORPHIC: ClassVar[set[str]] = {"/mcp", "/v1/tools/{name}"}
+
+    def _spec(self, client: TestClient) -> dict[str, Any]:
+        return client.get("/openapi.json").json()
+
+    def test_every_route_declares_a_response_model(self, client: TestClient) -> None:
+        spec = self._spec(client)
+        untyped = []
+        for path, operations in spec["paths"].items():
+            if path in self.POLYMORPHIC:
+                continue
+            for method, operation in operations.items():
+                schema = (
+                    operation.get("responses", {})
+                    .get("200", {})
+                    .get("content", {})
+                    .get("application/json", {})
+                    .get("schema", {})
+                )
+                if not (schema.get("$ref") or schema.get("items") or schema.get("properties")):
+                    untyped.append(f"{method.upper()} {path}")
+        assert not untyped, f"응답 모델이 없는 경로: {untyped}"
+
+    def test_polymorphic_routes_explain_themselves(self, client: TestClient) -> None:
+        spec = self._spec(client)
+        for path in self.POLYMORPHIC:
+            operations = spec["paths"].get(path, {})
+            assert operations, f"{path}가 스키마에 없습니다"
+            for operation in operations.values():
+                described = any(
+                    response.get("description")
+                    for response in operation.get("responses", {}).values()
+                )
+                assert described, f"{path}: 응답 설명이 없습니다"
+
+    def test_error_responses_are_documented(self, client: TestClient) -> None:
+        """404·422를 문서화하지 않으면 상대는 200만 처리하는 코드를 짠다."""
+        spec = self._spec(client)
+        for path in (
+            "/v1/datasets/{dataset_id}",
+            "/v1/datasets/{dataset_id}/verify",
+            "/v1/tools/{name}",
+        ):
+            codes = set(spec["paths"][path]["get"]["responses"])
+            assert "404" in codes, f"{path}: 404 미문서화 ({sorted(codes)})"
+
+    def test_every_tag_has_a_description(self, client: TestClient) -> None:
+        spec = self._spec(client)
+        described = {tag["name"] for tag in spec.get("tags", []) if tag.get("description")}
+        used = {
+            tag
+            for operations in spec["paths"].values()
+            for operation in operations.values()
+            for tag in operation.get("tags", [])
+        }
+        assert used <= described, f"설명 없는 태그: {sorted(used - described)}"
+
+    def test_safety_fields_are_documented_in_the_schema(self, client: TestClient) -> None:
+        """`complete`와 `absence_confirmed`는 설명 없이는 오독된다."""
+        spec = self._spec(client)
+        schemas = spec["components"]["schemas"]
+        envelope = next(
+            body
+            for name, body in schemas.items()
+            if "absence_confirmed" in body.get("properties", {})
+        )
+        for field in ("complete", "absence_confirmed"):
+            description = envelope["properties"][field].get("description", "")
+            assert description, f"{field}에 설명이 없습니다"
