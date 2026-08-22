@@ -574,3 +574,52 @@ class TestSearchDisclosesPendingReview:
         ).json()
         assert "callable_now" in payload
         assert payload["callable_now"] <= payload["count"]
+
+
+class TestReadmeToolNamesAreReal:
+    """README에 적힌 도구 이름을 그대로 불렀을 때 존재해야 한다.
+
+    등록되는 이름에는 `gbsafe_` 접두어가 붙는다. README가 접두어 없이 싣고
+    있어서, 문서를 보고 그대로 호출하면 "그런 도구 없음"이 돌아왔다. 실제로
+    이 저장소를 점검하다가 그 함정에 빠졌다.
+    """
+
+    @pytest.mark.parametrize("readme", ["README.md", "README.ko.md"])
+    def test_every_tool_name_in_the_readme_is_registered(self, readme: str) -> None:
+        import re
+        from pathlib import Path
+
+        registered = {tool.name for tool in validated_tools()}
+        text = Path(__file__).resolve().parents[1].joinpath(readme).read_text(
+            encoding="utf-8"
+        )
+        # 도구 목록 줄만 본다 — 산문에 나오는 백틱 표현까지 강제하지 않는다.
+        listed = {
+            name
+            for line in text.splitlines()
+            if line.count("` · `") >= 3
+            for name in re.findall(r"`([a-z_]+)`", line)
+        }
+        assert listed, f"{readme}에서 도구 목록 줄을 찾지 못했습니다"
+        unknown = sorted(listed - registered)
+        assert not unknown, (
+            f"{readme}가 등록되지 않은 도구 이름을 싣고 있습니다: {unknown}. "
+            f"등록된 이름: {sorted(registered)}"
+        )
+
+    def test_the_readme_lists_every_registered_tool(self) -> None:
+        import re
+        from pathlib import Path
+
+        registered = {tool.name for tool in validated_tools()}
+        text = Path(__file__).resolve().parents[1].joinpath("README.md").read_text(
+            encoding="utf-8"
+        )
+        listed = {
+            name
+            for line in text.splitlines()
+            if line.count("` · `") >= 3
+            for name in re.findall(r"`([a-z_]+)`", line)
+        }
+        missing = sorted(registered - listed)
+        assert not missing, f"README.md에 빠진 도구: {missing}"
