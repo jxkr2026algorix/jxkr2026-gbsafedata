@@ -133,6 +133,33 @@ Client configs are in [`plugins/`](plugins). All 11 tools are read-only:
 
 Install [`skills/gb-safedata`](skills/gb-safedata) alongside it. The MCP server gives an agent the tools; the skill gives it the rules for reading disaster data honestly — never report absence you did not verify, never present a forecast as an observation, never infer an individual from aggregate statistics, never decide an evacuation.
 
+### Attaching it to a web chatbot
+
+A browser backend cannot spawn a stdio MCP server, so the same eleven tools are
+served over HTTP. Which surface you want depends on your model client.
+
+```bash
+docker compose up            # http://localhost:8000
+```
+
+| Your client | Use | Why |
+| --- | --- | --- |
+| Upstage Solar, OpenAI chat completions | `GET /v1/tools` + `GET /v1/tools/{name}` | function-calling clients cannot speak MCP without writing an MCP client first |
+| OpenAI Responses API, MCP-native clients | `POST /mcp` | point it at the URL and it discovers and calls the tools itself |
+
+Tool routes are `GET`. Every argument is a scalar, so a query string is enough
+and this layer keeps its guarantee of having no write routes — `POST /mcp` is
+the one exception, and it exists because JSON-RPC requires it.
+
+**Fetch `GET /v1/agent/system-prompt` and apply it.** Wiring the tools without
+it is the failure this project exists to prevent: handed an empty result from a
+403, a model will report that there is no landslide risk, because being helpful
+is its default.
+
+Set `GBSAFE_API_KEYS` and `GBSAFE_CORS_ALLOW_ORIGINS` before exposing this to
+the internet. Both are off by default so local work needs no setup, and neither
+defaults to open — this service calls government APIs with our credentials.
+
 ## Connected sources
 
 One `data.go.kr` development key drives most of these. The two flood-control sources use a separate HRFCO key, and that key is bound to the URL you register it against — it returns code 940 anywhere else.
