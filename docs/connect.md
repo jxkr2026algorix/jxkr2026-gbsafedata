@@ -12,7 +12,7 @@ https://datainfra.salgil.gyeongbuk.kr/mcp/
 
 ## 가장 쉬운 길 — 링크 한 번 클릭
 
-**[▶ Claude에 「살길」 추가하기](https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=%EC%82%B4%EA%B8%B8%20%7C%20SALGIL%20%E2%80%93%20%EC%9E%AC%EB%82%9C%EB%8D%B0%EC%9D%B4%ED%84%B0&connectorUrl=https%3A%2F%2Fdatainfra.salgil.gyeongbuk.kr%2Fmcp%2F)**
+**[▶ Claude에 「살길」 추가하기](https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=SALGIL%20%7C%20%EC%82%B4%EA%B8%B8%20%E2%80%93%20%EC%9E%AC%EB%82%9C%EB%8D%B0%EC%9D%B4%ED%84%B0%EC%9D%B8%ED%94%84%EB%9D%BC&connectorUrl=https%3A%2F%2Fdatainfra.salgil.gyeongbuk.kr%2Fmcp%2F)**
 
 이름과 주소가 채워진 추가 창이 열립니다. 확인하고 **추가**를 누르면 끝입니다.
 터미널을 열 필요가 없고 **무료 플랜에서도 됩니다**(무료는 커스텀 커넥터 1개까지).
