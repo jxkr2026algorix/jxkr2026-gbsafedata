@@ -38,6 +38,22 @@ PENDING_REVIEW: frozenset[str] = frozenset(
     {"landslide_forecast", "landslide_roadside", "landslide_history"}
 )
 
+#: 네트워크에 닿지 못한 것을 나타내는 문구.
+#:
+#: `apis.data.go.kr`은 해외 IP를 차단한다. GitHub 러너는 미국에 있어 전부
+#: ConnectTimeout이 된다. 이것은 파서 결함이 아니라 실행 위치 제약이므로
+#: 코드 결함과 구별해야 한다 — 섞으면 CI가 늑대소년이 된다.
+_UNREACHABLE_MARKERS: tuple[str, ...] = (
+    "ConnectTimeout",
+    "ConnectError",
+    "ReadTimeout",
+    "원천에 연결할 수 없습니다",
+)
+
+
+def _is_unreachable(detail: str) -> bool:
+    return any(marker in detail for marker in _UNREACHABLE_MARKERS)
+
 
 async def main() -> int:
     if not get_settings().has(CredentialName.DATA_GO_KR):
@@ -46,6 +62,7 @@ async def main() -> int:
 
     registry = get_registry()
     failures: list[str] = []
+    unreachable: list[str] = []
     checked = 0
 
     for name, kwargs in PROBES:
@@ -64,7 +81,10 @@ async def main() -> int:
 
         # 레코드가 있거나, 원천이 '해당 없음'을 명시했으면 정상이다.
         if outcome.outcome is SourceOutcome.FAILED:
-            failures.append(f"{name}: {status} — {detail[:160]}")
+            if _is_unreachable(detail):
+                unreachable.append(name)
+            else:
+                failures.append(f"{name}: {status} — {detail[:160]}")
 
     print()
     for name in sorted(PENDING_REVIEW):
@@ -74,6 +94,10 @@ async def main() -> int:
             print(f"  {name}: 심의가 승인된 것 같습니다 — PENDING_REVIEW에서 제외하세요")
             continue
         degradation = outcome.degradations[0]
+        if _is_unreachable(degradation.detail):
+            unreachable.append(name)
+            print(f"  {name:18} 네트워크 도달 불가")
+            continue
         print(f"  {name:18} {degradation.status.value} (심의 대기, 정상)")
         # 심의 대기는 NOT_AUTHORIZED여야 한다. 다른 오류면 원천이 변한 것이다.
         if degradation.status is not UpstreamStatus.NOT_AUTHORIZED:
@@ -83,6 +107,19 @@ async def main() -> int:
             )
 
     print(f"\n원천 {checked}건 확인")
+
+    if unreachable and len(unreachable) == checked:
+        # 전부 도달 불가면 실행 위치 문제다. 파서가 깨진 것이 아니다.
+        print(
+            "\n원천 전체에 연결하지 못했습니다. `apis.data.go.kr`은 해외 IP를 "
+            "차단하므로, 한국 외부(예: GitHub 호스티드 러너)에서는 예상되는 "
+            "결과입니다. 파서 검증은 건너뜁니다 — 한국 IP에서 다시 실행하세요."
+        )
+        return 0
+
+    if unreachable:
+        print(f"\n일부 원천에 연결하지 못했습니다: {', '.join(unreachable)}")
+
     if failures:
         print("\n실패:", file=sys.stderr)
         for item in failures:

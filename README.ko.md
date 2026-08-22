@@ -4,7 +4,7 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/jxkr2026algorix/jxkr2026-gbsafedata/ci.yml?branch=main&label=CI&logo=githubactions&logoColor=white)](https://github.com/jxkr2026algorix/jxkr2026-gbsafedata/actions/workflows/ci.yml)
 [![tests](https://img.shields.io/badge/tests-501%20passing-brightgreen)](tests)
-[![live APIs](https://img.shields.io/badge/live%20APIs-6%20verified%20daily-0a7bbb)](scripts/smoke_live_apis.py)
+[![live APIs](https://img.shields.io/badge/live%20APIs-6%20connected-0a7bbb)](scripts/smoke_live_apis.py)
 [![python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue?logo=python&logoColor=white)](pyproject.toml)
 [![uv](https://img.shields.io/badge/uv-managed-261230?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
 [![ruff](https://img.shields.io/badge/ruff-checked-261230?logo=ruff&logoColor=white)](https://docs.astral.sh/ruff/)
@@ -56,6 +56,18 @@ MCP 서버, 표준 API, 정제·통합 계층, 데이터셋 검색·라이선스
 이것이 전부다. 에이전트가 장애를 좋은 소식으로 오해할 수 없게 만드는 것이 이 시스템의 목적이다.
 
 ## 시작하기
+
+AI 하네스에 한 줄로 붙인다. opencode·Claude Code·Claude Desktop·Cursor를 감지해 MCP 서버와 Skill을 함께 설치한다.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jxkr2026algorix/jxkr2026-gbsafedata/main/install.sh | bash
+```
+
+설치 후 "문경시 산사태 위험 상황을 확인해줘"를 물어본다. 제대로 붙었다면 조회하지 못한 원천을 밝히고, 확인하지 않은 위험을 '없음'으로 답하지 않는다.
+
+하네스별 설정·인증키·문제 해결은 **[docs/install.md](docs/install.md)**에 있다.
+
+코드를 직접 다루려면:
 
 ```bash
 git clone https://github.com/jxkr2026algorix/jxkr2026-gbsafedata
@@ -149,6 +161,7 @@ uv run gbsafe-mcp
 | [docs/api.md](docs/api.md) | 엔드포인트 명세 (OpenAPI 스펙에서 생성) |
 | [docs/mcp.md](docs/mcp.md) | 도구 명세 (도구 정의에서 생성) |
 | [docs/safety.md](docs/safety.md) | 각 안전 경계와 그것을 강제하는 방식 |
+| [docs/install.md](docs/install.md) | 하네스별 설정·인증키·문제 해결 |
 | [docs/data-sources.md](docs/data-sources.md) | 기관별 취득 방법·함정·확인된 결함 |
 
 ## 개발
@@ -194,7 +207,9 @@ uv run python scripts/check_readme_badges.py --write   # 뱃지 숫자 갱신
 - `docs/api.md`·`docs/mcp.md`가 **코드와 일치한다**
 - 위 **뱃지 숫자가 실제 값과 같다**
 
-`live-api`가 필요한 이유는 고정 응답 테스트가 원천의 스키마 변경을 통과시키기 때문이다. 그때 깨지는 것은 프로덕션이다. 한도를 지키려 원천별로 1회만 호출하고, 심의 대기 3종이 여전히 `not_authorized`인지도 확인해 승인이 떨어지면 알려준다. 원천 변경은 푸시 시점과 무관하므로 매일도 돈다.
+`live-api`가 필요한 이유는 고정 응답 테스트가 원천의 스키마 변경을 통과시키기 때문이다. 그때 깨지는 것은 프로덕션이다. 한도를 지키려 원천별로 1회만 호출하고, 심의 대기 3종이 여전히 `not_authorized`인지도 확인해 승인이 떨어지면 알려준다.
+
+**다만 GitHub에서는 온전히 돌지 않는다.** `apis.data.go.kr`이 해외 IP를 차단하고 호스티드 러너는 미국에 있어 전부 타임아웃된다. 스크립트가 이것을 코드 결함과 구별한다 — 원천 **전체**가 도달 불가면 지리적 제약임을 밝히고 0으로 종료해 늑대소년이 되지 않는다. 따라서 스키마 검증은 한국 IP에서 해야 한다. 로컬에서 `uv run python scripts/smoke_live_apis.py`를 돌리거나, 한국 리전의 self-hosted 러너를 붙인다.
 
 ## 라이선스
 

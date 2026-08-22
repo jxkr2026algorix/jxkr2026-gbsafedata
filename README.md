@@ -4,7 +4,7 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/jxkr2026algorix/jxkr2026-gbsafedata/ci.yml?branch=main&label=CI&logo=githubactions&logoColor=white)](https://github.com/jxkr2026algorix/jxkr2026-gbsafedata/actions/workflows/ci.yml)
 [![tests](https://img.shields.io/badge/tests-573%20passing-brightgreen)](tests)
-[![live APIs](https://img.shields.io/badge/live%20APIs-6%20verified%20daily-0a7bbb)](scripts/smoke_live_apis.py)
+[![live APIs](https://img.shields.io/badge/live%20APIs-6%20connected-0a7bbb)](scripts/smoke_live_apis.py)
 [![python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue?logo=python&logoColor=white)](pyproject.toml)
 [![uv](https://img.shields.io/badge/uv-managed-261230?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
 [![ruff](https://img.shields.io/badge/ruff-checked-261230?logo=ruff&logoColor=white)](https://docs.astral.sh/ruff/)
@@ -56,6 +56,18 @@ Asked pointedly whether Mungyeong has landslide risk, an AI client with this sta
 That is the entire point. The system is built so an agent cannot mistake an outage for good news.
 
 ## Quick start
+
+Attach it to your AI harness in one line — it detects opencode, Claude Code, Claude Desktop, or Cursor, and installs both the MCP server and the skill:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jxkr2026algorix/jxkr2026-gbsafedata/main/install.sh | bash
+```
+
+Then ask: *문경시 산사태 위험 상황을 확인해줘* (what is the landslide risk in Mungyeong). A correct setup names the sources it could not read and refuses to call unverified risk "none."
+
+Per-harness config, credential setup, and troubleshooting: **[docs/install.md](docs/install.md)**.
+
+Working on the code instead:
 
 ```bash
 git clone https://github.com/jxkr2026algorix/jxkr2026-gbsafedata
@@ -149,6 +161,7 @@ The three landslide APIs have it backwards from everything else: **development-s
 | [docs/api.md](docs/api.md) | Endpoint reference (generated from the OpenAPI spec) |
 | [docs/mcp.md](docs/mcp.md) | Tool reference (generated from the definitions) |
 | [docs/safety.md](docs/safety.md) | Each boundary and the mechanism enforcing it |
+| [docs/install.md](docs/install.md) | Per-harness setup, credentials, and troubleshooting |
 | [docs/data-sources.md](docs/data-sources.md) | Per-agency acquisition, quirks, and known defects |
 
 ## Development
@@ -194,7 +207,9 @@ A surviving mutation means no test catches that failure, so CI treats it as a bu
 - `docs/api.md` and `docs/mcp.md` are **current with the code**
 - the **badge numbers above match reality**
 
-`live-api` exists because recorded responses keep passing when an agency changes its schema — production is what breaks. It calls each source once to respect the quotas, and asserts the review-pending sources still return `not_authorized`, telling us when approval finally lands. It runs daily too, since upstream changes have nothing to do with when we push.
+`live-api` exists because recorded responses keep passing when an agency changes its schema — production is what breaks. It calls each source once to respect the quotas and asserts the review-pending sources still return `not_authorized`, so we learn when approval lands.
+
+**It cannot fully run on GitHub.** `apis.data.go.kr` blocks non-Korean IPs, and hosted runners are in the US, so every call times out. The script distinguishes that from a real defect: if *every* source is unreachable it reports the geographic restriction and exits zero rather than crying wolf. Schema verification therefore has to happen from a Korean IP — run `uv run python scripts/smoke_live_apis.py` locally, or point the job at a self-hosted runner in a Korean region.
 
 ## Licence
 
