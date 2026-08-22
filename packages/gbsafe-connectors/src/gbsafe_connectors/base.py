@@ -420,6 +420,10 @@ class Connector[PayloadT](ABC):
                 records=outcome.records,
                 degradations=outcome.degradations,
                 caveats=(*outcome.caveats, "캐시된 응답입니다 (호출 한도 보호)"),
+                # 캐시를 거쳤다고 '해당 없음' 판정이 사라지면 안 된다. 이 필드를
+                # 빠뜨렸을 때 원천이 확인해 준 부재가 조회 실패로 강등됐고,
+                # TTL이 10분이라 대부분의 요청이 그 잘못된 쪽을 받았다.
+                confirmed_absence=outcome.confirmed_absence,
             )
         return outcome
 

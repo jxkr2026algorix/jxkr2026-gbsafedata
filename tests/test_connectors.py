@@ -1234,3 +1234,51 @@ class TestForecastIsNotObservation:
             make_response(self.FORECAST_BODY), location="문경시"
         )
         assert any("예보값" in caveat for caveat in outcome.caveats)
+
+
+class TestCacheKeepsTheAbsenceVerdict:
+    """캐시를 거쳐도 '해당 없음' 판정이 유지돼야 한다.
+
+    캐시 히트 경로가 `FetchOutcome`을 재구성하면서 `confirmed_absence`를
+    빠뜨리면, 원천이 확인해 준 부재가 조회 실패로 강등된다. TTL이 10분이라
+    첫 요청만 옳고 나머지는 전부 "확인 불가"를 받는다 — 화면에서는 안전한
+    쪽으로 틀리지만, 증명한 사실을 스스로 버리는 것이다.
+    """
+
+    async def test_confirmed_absence_survives_a_cache_hit(
+        self, settings: Settings, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from gbsafe_connectors.base import Connector, FetchOutcome, clear_cache, confirmed_empty
+
+        await clear_cache()
+        calls = {"n": 0}
+
+        class _Absent(Connector[dict]):
+            dataset_id = "15084084"
+            credential = None
+
+            def base_url(self) -> str:
+                return "https://example.test/absent"
+
+            def build_params(self, **kwargs: object) -> dict[str, str]:
+                return {}
+
+            def parse(self, response: object, **kwargs: object) -> FetchOutcome[dict]:
+                return confirmed_empty("원천이 해당 없음을 명시했습니다")
+
+        async def fake_send(self, url: str, params: dict[str, str]):
+            calls["n"] += 1
+            return make_response({"ok": True})
+
+        monkeypatch.setattr(Connector, "_send", fake_send)
+
+        connector = _Absent(settings=settings)
+        first = await connector.fetch()
+        second = await connector.fetch()
+
+        assert calls["n"] == 1, "두 번째 호출이 캐시를 쓰지 않았습니다"
+        assert first.confirmed_absence
+        assert second.confirmed_absence, "캐시를 거치며 부재 판정이 사라졌습니다"
+        assert second.outcome is first.outcome
+        assert any("캐시" in caveat for caveat in second.caveats)
+        await clear_cache()
