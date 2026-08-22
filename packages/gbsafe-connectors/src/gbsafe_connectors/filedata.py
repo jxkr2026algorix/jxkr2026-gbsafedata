@@ -96,9 +96,20 @@ def pick(row: dict[str, str], field: str) -> str | None:
         value = normalized.get(alias.replace(" ", ""))
         if value:
             return value
+    # 부분 일치는 마지막 수단이며, **다른 필드의 별칭을 삼킨 열은 제외한다.**
+    # `명칭`이 `관리기관명칭` 안에서 잡혀 관리기관명이 시설명으로 들어갔다.
+    other_aliases = {
+        alias.replace(" ", "")
+        for field_name, names in COLUMN_ALIASES.items()
+        if field_name != field
+        for alias in names
+    }
     for alias in aliases:
         for key, value in row.items():
-            if value and alias.replace(" ", "") in key.replace(" ", ""):
+            flat = key.replace(" ", "")
+            if any(other in flat for other in other_aliases if len(other) > len(alias)):
+                continue
+            if value and alias.replace(" ", "") in flat:
                 return value
     return None
 
@@ -224,9 +235,13 @@ class ShelterCsvConnector(Connector[Shelter]):
                 )
             )
 
-        # 행은 읽혔는데 하나도 정규화되지 않았다면 컬럼 이름을 알아보지 못한 것이다.
-        # '대피소 없음'으로 보고하면 읽지 못한 파일이 '대피소 없음'이 된다.
-        if rows and not records and not region and not hazard_hint:
+        # 헤더를 알아보지 못한 것은 필터와 무관하다.
+        #
+        # 예전에는 region/hazard가 주어지면 이 검사를 건너뛰었는데, 그러면
+        # 읽지 못한 파일이 "'문경시'에 해당하는 항목이 없습니다"라는 **확인된
+        # 부재**로 나갔다. 필터 때문에 0건인 것과 파일을 못 읽어 0건인 것은
+        # 완전히 다른 상태다.
+        if rows and not any(pick(row, "name") for row in rows):
             raise ValueError(
                 f"{len(rows)}행을 읽었으나 시설명 컬럼을 찾지 못했습니다. "
                 f"확인된 컬럼: {', '.join(sorted(rows[0]))[:120]}"

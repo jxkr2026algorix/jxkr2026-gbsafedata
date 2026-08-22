@@ -605,6 +605,27 @@ MUTATIONS: tuple[Mutation, ...] = (
         "실데이터에 모드 표시를 붙여 훈련 데이터와 구별을 흐린다",
     ),
     Mutation(
+        "unreadable-csv-with-filter-reads-as-absence",
+        CONNECTORS / "filedata.py",
+        '        if rows and not any(pick(row, "name") for row in rows):',
+        "        if rows and not records and not region and not hazard_hint:",
+        "필터가 있으면 읽지 못한 CSV를 '해당 시군에 대피소 없음'으로 보고한다",
+    ),
+    Mutation(
+        "chemical-province-filter-accepts-outsiders",
+        CONNECTORS / "bundled.py",
+        "            if not address.startswith((SIDO_NAME_FULL, SIDO_NAME_SHORT)):",
+        "            if SIDO_NAME_FULL not in address and SIDO_NAME_SHORT not in address:",
+        "'서울특별시 경북대로'를 경북 대피소로 받아들인다",
+    ),
+    Mutation(
+        "aws-all-missing-reported-as-records",
+        CONNECTORS / "apihub.py",
+        "            if records and all(record.payload.value is None for record in records):",
+        "            if False:",
+        "관측값이 전부 결측인 지점을 관측 성공으로 보고한다",
+    ),
+    Mutation(
         "partial-selection-claims-completeness",
         API / "service.py",
         "        skipped = tuple(name for name in playbook if name not in names)",

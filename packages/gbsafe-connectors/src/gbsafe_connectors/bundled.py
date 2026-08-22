@@ -21,7 +21,13 @@ from typing import Any, ClassVar
 from gbsafe_core.config import CredentialName, Settings
 from gbsafe_core.domain import Shelter, ShelterKind
 from gbsafe_core.models import GeoPoint, QualityFlag, UpstreamStatus
-from gbsafe_core.regions import SIDO_NAME_FULL, SIDO_NAME_SHORT, HazardDomain, find_sigungu
+from gbsafe_core.regions import (
+    GYEONGBUK_BBOX,
+    SIDO_NAME_FULL,
+    SIDO_NAME_SHORT,
+    HazardDomain,
+    find_sigungu,
+)
 
 from .base import (
     Connector,
@@ -138,8 +144,10 @@ class ChemicalShelterConnector(Connector[Shelter]):
         records = []
         missing_coords = 0
         for index, row in enumerate(rows):
-            address = str(row.get("도로명주소") or "")
-            if SIDO_NAME_FULL not in address and SIDO_NAME_SHORT not in address:
+            address = str(row.get("도로명주소") or "").strip()
+            # 주소 **첫머리**가 경북이어야 한다. 부분일치로 보면
+            # "서울특별시 경북대로 1"이 경북 대피소로 들어온다.
+            if not address.startswith((SIDO_NAME_FULL, SIDO_NAME_SHORT)):
                 continue
             if sigungu is not None and sigungu.name.rstrip("시군") not in address:
                 continue
@@ -153,9 +161,16 @@ class ChemicalShelterConnector(Connector[Shelter]):
             flags: list[QualityFlag] = []
             if lat is not None and lon is not None:
                 try:
-                    point = GeoPoint(lat=lat, lon=lon)
+                    candidate = GeoPoint(lat=lat, lon=lon)
                 except ValueError:
                     flags.append(QualityFlag.COORDINATE_OUT_OF_RANGE)
+                else:
+                    # 한반도 범위만 통과시키면 서울 좌표가 경북 대피소로 남는다.
+                    # 좌표가 주소와 어긋나면 대피 안내가 다른 도로 보낸다.
+                    if GYEONGBUK_BBOX.contains(candidate):
+                        point = candidate
+                    else:
+                        flags.append(QualityFlag.COORDINATE_OUT_OF_RANGE)
             if point is None:
                 missing_coords += 1
                 flags.append(QualityFlag.MISSING_COORDINATES)

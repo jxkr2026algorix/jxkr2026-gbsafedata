@@ -277,6 +277,31 @@ class RiverLevelConnector(Connector[Observation]):
                 )
             raise ValueError("수위 관측값을 하나도 해석하지 못했습니다")
 
+        # 이 지역에 아는 관측소가 몇 곳인데 몇 곳이 왔는지 밝힌다. 전부
+        # 사라졌을 때만 실패로 보면, 12곳 중 3곳이 빠진 응답이 조용히 통과한다.
+        if sigungu is not None:
+            stem = sigungu.name.rstrip("시군")
+            known = {
+                item.station_id
+                for item in STATIONS.values()
+                if stem in item.address or stem in item.name
+            }
+            seen = {str(record.payload.raw_code) for record in records}
+            absent = known - seen
+            if absent:
+                names = ", ".join(
+                    sorted(STATIONS[item].name for item in absent if item in STATIONS)
+                )
+                caveats_missing = (
+                    f"{sigungu.name}의 수위관측소 {len(known)}곳 중 {len(absent)}곳"
+                    f"({names})의 관측값이 이번 응답에 없습니다 — 그 지점의 수위는 "
+                    "확인되지 않았습니다."
+                )
+            else:
+                caveats_missing = None
+        else:
+            caveats_missing = None
+
         caveats = [
             "수위는 관측소 지점값입니다 — 같은 하천이라도 지점마다 다릅니다",
             "임계수위는 기관 고시값이며 실제 침수 여부는 현장 확인이 필요합니다",
@@ -293,6 +318,8 @@ class RiverLevelConnector(Connector[Observation]):
             )
         if missing_level:
             caveats.append(f"수위가 결측인 관측소 {missing_level}곳이 있습니다")
+        if caveats_missing:
+            caveats.insert(0, caveats_missing)
         if alerts:
             caveats.append("임계수위 초과: " + ", ".join(alerts[:5]))
 

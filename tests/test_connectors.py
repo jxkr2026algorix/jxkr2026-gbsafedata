@@ -1570,3 +1570,79 @@ class TestCacheHitIsDisclosedInTheReceipt:
         )
         assert second.outcome is first.outcome
         await clear_cache()
+
+
+class TestUnreadableCsvIsNeverAnAbsence:
+    """헤더를 알아보지 못한 것은 필터와 무관하다.
+
+    예전에는 region이 주어지면 헤더 검사를 건너뛰어, 읽지 못한 파일이
+    "'문경시'에 해당하는 항목이 없습니다"라는 확인된 부재로 나갔다.
+    """
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {},
+            {"region": "문경시"},
+            {"hazard": "heavy_rain"},
+            {"region": "문경시", "hazard": "flood"},
+        ],
+    )
+    def test_unknown_headers_fail_regardless_of_filter(
+        self, settings: Settings, kwargs: dict[str, str]
+    ) -> None:
+        from gbsafe_connectors.filedata import ShelterCsvConnector
+
+        body = "컬럼A,컬럼B,컬럼C\n1,2,3\n4,5,6\n"
+        with pytest.raises(ValueError, match="시설명 컬럼"):
+            ShelterCsvConnector(settings=settings).parse(
+                make_response(body.encode("utf-8"), content_type="text/csv"), **kwargs
+            )
+
+    def test_a_readable_file_with_no_match_is_still_an_absence(
+        self, settings: Settings
+    ) -> None:
+        """헤더를 읽을 수 있는데 그 시군이 없는 것은 진짜 부재다."""
+        from gbsafe_connectors.filedata import ShelterCsvConnector
+
+        body = (
+            "시설명,소재지도로명주소,위도,경도\n"
+            "안동체육관,경상북도 안동시 어딘가,36.56,128.72\n"
+        )
+        outcome = ShelterCsvConnector(settings=settings).parse(
+            make_response(body.encode("utf-8"), content_type="text/csv"), region="문경시"
+        )
+        assert not outcome.records
+
+
+class TestChemicalShelterProvinceFilter:
+    """주소 첫머리로 걸러야 한다.
+
+    부분일치로 보면 "서울특별시 경북대로 1"이 경북 대피소로 들어온다.
+    """
+
+    def _parse(self, settings: Settings, csv: str):
+        from gbsafe_connectors.bundled import ChemicalShelterConnector
+
+        return ChemicalShelterConnector(settings=settings).parse(
+            make_response(csv.encode("utf-8"), content_type="text/csv")
+        )
+
+    def test_other_province_address_is_excluded(self, settings: Settings) -> None:
+        csv = (
+            "대피장소명,세부위치명,수용인원,도로명주소,위도,경도,관리기관명,관리기관전화번호\n"
+            "서울쉼터,본관,100,서울특별시 경북대로 1,37.5,127.0,서울시,02-000\n"
+            "문경쉼터,본관,100,경상북도 문경시 산북면,36.68,128.25,문경시,054-000\n"
+        )
+        names = {record.payload.name.split()[0] for record in self._parse(settings, csv).records}
+        assert names == {"문경쉼터"}, names
+
+    def test_coordinate_outside_gyeongbuk_is_not_kept(self, settings: Settings) -> None:
+        """좌표가 주소와 어긋나면 대피 안내가 다른 도로 보낸다."""
+        csv = (
+            "대피장소명,세부위치명,수용인원,도로명주소,위도,경도,관리기관명,관리기관전화번호\n"
+            "좌표틀림,본관,100,경상북도 문경시 어딘가,37.5,127.0,문경시,054-000\n"
+        )
+        record = self._parse(settings, csv).records[0]
+        assert record.payload.location is None
+        assert QualityFlag.COORDINATE_OUT_OF_RANGE in record.quality_flags
