@@ -1,0 +1,386 @@
+{
+ "_comment": "기상청 기상자료개방포털 관측지점 정보에서 생성. 지점번호는 국내 지점번호이며 WMO 번호와 다르다. scripts/sync_asos_stations.py로 재생성한다.",
+ "source": "https://data.kma.go.kr/tmeta/stn/selectStnDetail.do",
+ "generated_at": "2026-08-22T04:28:49+00:00",
+ "kept_within_km_of_gyeongbuk": 80.0,
+ "stations": [
+  {
+   "station_id": 106,
+   "name": "동해",
+   "name_en": "Donghae",
+   "lat": 37.50709,
+   "lon": 129.12433,
+   "observing_since": "1992-05-01",
+   "closed_on": ""
+  },
+  {
+   "station_id": 115,
+   "name": "울릉도",
+   "name_en": "Ulleungdo",
+   "lat": 37.48129,
+   "lon": 130.89863,
+   "observing_since": "1938-08-10",
+   "closed_on": ""
+  },
+  {
+   "station_id": 121,
+   "name": "영월",
+   "name_en": "Young Wol",
+   "lat": 37.18126,
+   "lon": 128.45743,
+   "observing_since": "1994-12-01",
+   "closed_on": ""
+  },
+  {
+   "station_id": 127,
+   "name": "충주",
+   "name_en": "CHUNGJU",
+   "lat": 36.97045,
+   "lon": 127.9525,
+   "observing_since": "1972-01-01",
+   "closed_on": ""
+  },
+  {
+   "station_id": 130,
+   "name": "울진",
+   "name_en": "Uljin",
+   "lat": 36.99176,
+   "lon": 129.41278,
+   "observing_since": "1971-01-12",
+   "closed_on": ""
+  },
+  {
+   "station_id": 131,
+   "name": "청주",
+   "name_en": "Cheongju",
+   "lat": 36.63935,
+   "lon": 127.44089,
+   "observing_since": "1967-01-01",
+   "closed_on": ""
+  },
+  {
+   "station_id": 133,
+   "name": "대전",
+   "name_en": "daejeon",
+   "lat": 36.37199,
+   "lon": 127.3721,
+   "observing_since": "1968-12-19",
+   "closed_on": ""
+  },
+  {
+   "station_id": 135,
+   "name": "추풍령",
+   "name_en": "chupungnyeong",
+   "lat": 36.22025,
+   "lon": 127.99458,
+   "observing_since": "1937-01-11",
+   "closed_on": ""
+  },
+  {
+   "station_id": 136,
+   "name": "안동",
+   "name_en": "Andong",
+   "lat": 36.57293,
+   "lon": 128.70733,
+   "observing_since": "1973-01-01",
+   "closed_on": ""
+  },
+  {
+   "station_id": 137,
+   "name": "상주",
+   "name_en": "Sangju",
+   "lat": 36.40837,
+   "lon": 128.15741,
+   "observing_since": "2002-01-01",
+   "closed_on": ""
+  },
+  {
+   "station_id": 138,
+   "name": "포항",
+   "name_en": "Pohang",
+   "lat": 36.03201,
+   "lon": 129.38002,
+   "observing_since": "1943-01-01",
+   "closed_on": ""
+  },
+  {
+   "station_id": 143,
+   "name": "대구",
+   "name_en": "Daegu",
+   "lat": 35.87797,
+   "lon": 128.65296,
+   "observing_since": "1907-01-31",
+   "closed_on": ""
+  },
+  {
+   "station_id": 152,
+   "name": "울산",
+   "name_en": "",
+   "lat": 35.58237,
+   "lon": 129.33469,
+   "observing_since": "1932-01-06",
+   "closed_on": ""
+  },
+  {
+   "station_id": 155,
+   "name": "창원",
+   "name_en": "Changwon",
+   "lat": 35.17019,
+   "lon": 128.57282,
+   "observing_since": "1985-07-01",
+   "closed_on": ""
+  },
+  {
+   "station_id": 159,
+   "name": "부산",
+   "name_en": "",
+   "lat": 35.10468,
+   "lon": 129.03203,
+   "observing_since": "1904-04-09",
+   "closed_on": ""
+  },
+  {
+   "station_id": 181,
+   "name": "서청주",
+   "name_en": "SeoCheongju",
+   "lat": 36.63994,
+   "lon": 127.38458,
+   "observing_since": "2023-05-01",
+   "closed_on": ""
+  },
+  {
+   "station_id": 192,
+   "name": "진주",
+   "name_en": "Jinju",
+   "lat": 35.16378,
+   "lon": 128.04004,
+   "observing_since": "1969-03-01",
+   "closed_on": ""
+  },
+  {
+   "station_id": 216,
+   "name": "태백",
+   "name_en": "Taebaek",
+   "lat": 37.17038,
+   "lon": 128.98929,
+   "observing_since": "1985-08-01",
+   "closed_on": ""
+  },
+  {
+   "station_id": 217,
+   "name": "정선군",
+   "name_en": "Jeongseon Gun",
+   "lat": 37.38071,
+   "lon": 128.67312,
+   "observing_since": "2010-08-06",
+   "closed_on": ""
+  },
+  {
+   "station_id": 221,
+   "name": "제천",
+   "name_en": "JECHEON",
+   "lat": 37.15927,
+   "lon": 128.19432,
+   "observing_since": "1972-01-12",
+   "closed_on": ""
+  },
+  {
+   "station_id": 226,
+   "name": "보은",
+   "name_en": "Boeun",
+   "lat": 36.48761,
+   "lon": 127.73415,
+   "observing_since": "1971-06-16",
+   "closed_on": ""
+  },
+  {
+   "station_id": 238,
+   "name": "금산",
+   "name_en": "geumsan",
+   "lat": 36.10565,
+   "lon": 127.48185,
+   "observing_since": "1972-01-09",
+   "closed_on": ""
+  },
+  {
+   "station_id": 248,
+   "name": "장수",
+   "name_en": "Jangsoo",
+   "lat": 35.65696,
+   "lon": 127.52031,
+   "observing_since": "1988-01-01",
+   "closed_on": ""
+  },
+  {
+   "station_id": 253,
+   "name": "김해시",
+   "name_en": "",
+   "lat": 35.22981,
+   "lon": 128.89075,
+   "observing_since": "2008-02-13",
+   "closed_on": ""
+  },
+  {
+   "station_id": 255,
+   "name": "북창원",
+   "name_en": "Changwon-si",
+   "lat": 35.22655,
+   "lon": 128.6726,
+   "observing_since": "2008-12-26",
+   "closed_on": ""
+  },
+  {
+   "station_id": 257,
+   "name": "양산시",
+   "name_en": "",
+   "lat": 35.30737,
+   "lon": 129.02009,
+   "observing_since": "2008-12-26",
+   "closed_on": ""
+  },
+  {
+   "station_id": 263,
+   "name": "의령군",
+   "name_en": "Uiryeong Gun",
+   "lat": 35.32258,
+   "lon": 128.28812,
+   "observing_since": "2010-06-21",
+   "closed_on": ""
+  },
+  {
+   "station_id": 264,
+   "name": "함양군",
+   "name_en": "",
+   "lat": 35.51138,
+   "lon": 127.74538,
+   "observing_since": "2010-06-21",
+   "closed_on": ""
+  },
+  {
+   "station_id": 271,
+   "name": "봉화",
+   "name_en": "Bonghwa",
+   "lat": 36.94361,
+   "lon": 128.91449,
+   "observing_since": "1988-01-01",
+   "closed_on": ""
+  },
+  {
+   "station_id": 272,
+   "name": "영주",
+   "name_en": "Yeongju",
+   "lat": 36.87183,
+   "lon": 128.51687,
+   "observing_since": "1972-11-28",
+   "closed_on": ""
+  },
+  {
+   "station_id": 273,
+   "name": "문경",
+   "name_en": "Mungyeong",
+   "lat": 36.62727,
+   "lon": 128.14879,
+   "observing_since": "1971-01-01",
+   "closed_on": ""
+  },
+  {
+   "station_id": 276,
+   "name": "청송군",
+   "name_en": "Cheongsonggun",
+   "lat": 36.4351,
+   "lon": 129.04005,
+   "observing_since": "2010-09-01",
+   "closed_on": ""
+  },
+  {
+   "station_id": 277,
+   "name": "영덕",
+   "name_en": "Yeongdeok",
+   "lat": 36.53336,
+   "lon": 129.40924,
+   "observing_since": "1972-01-03",
+   "closed_on": ""
+  },
+  {
+   "station_id": 278,
+   "name": "의성",
+   "name_en": "Uiseong",
+   "lat": 36.3561,
+   "lon": 128.68862,
+   "observing_since": "1973-01-01",
+   "closed_on": ""
+  },
+  {
+   "station_id": 279,
+   "name": "구미",
+   "name_en": "Gumi",
+   "lat": 36.13057,
+   "lon": 128.32059,
+   "observing_since": "1973-01-01",
+   "closed_on": ""
+  },
+  {
+   "station_id": 281,
+   "name": "영천",
+   "name_en": "Yeongcheon",
+   "lat": 35.97742,
+   "lon": 128.9514,
+   "observing_since": "1972-01-21",
+   "closed_on": ""
+  },
+  {
+   "station_id": 283,
+   "name": "경주시",
+   "name_en": "Gyeongjusi",
+   "lat": 35.81747,
+   "lon": 129.20123,
+   "observing_since": "2010-08-06",
+   "closed_on": ""
+  },
+  {
+   "station_id": 284,
+   "name": "거창",
+   "name_en": "GEOCHANG",
+   "lat": 35.66739,
+   "lon": 127.9099,
+   "observing_since": "1971-01-24",
+   "closed_on": ""
+  },
+  {
+   "station_id": 285,
+   "name": "합천",
+   "name_en": "Hapcheon",
+   "lat": 35.56505,
+   "lon": 128.16994,
+   "observing_since": "1973-01-01",
+   "closed_on": ""
+  },
+  {
+   "station_id": 288,
+   "name": "밀양",
+   "name_en": "",
+   "lat": 35.49147,
+   "lon": 128.74412,
+   "observing_since": "1973-01-01",
+   "closed_on": ""
+  },
+  {
+   "station_id": 289,
+   "name": "산청",
+   "name_en": "",
+   "lat": 35.413,
+   "lon": 127.8791,
+   "observing_since": "1972-03-30",
+   "closed_on": ""
+  },
+  {
+   "station_id": 296,
+   "name": "북부산",
+   "name_en": "",
+   "lat": 35.217781,
+   "lon": 128.960242,
+   "observing_since": "2020-11-06",
+   "closed_on": ""
+  }
+ ]
+}

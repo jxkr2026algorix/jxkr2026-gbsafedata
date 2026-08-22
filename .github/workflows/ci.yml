@@ -2,9 +2,12 @@ name: CI
 
 # 푸시와 PR마다 검증한다. 테스트는 네트워크·인증키·형제 저장소 없이 돌아가므로
 # 러너에서 별도 설정이 필요 없다.
+#
+# dev도 포함한다. 작업은 dev에 실시간으로 쌓이고 정리된 뒤 main에 머지되므로,
+# main만 검사하면 깨진 상태가 며칠씩 발견되지 않는다.
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
   workflow_dispatch:
   schedule:
@@ -171,6 +174,14 @@ jobs:
         env:
           GBSAFE_DATA_GO_KR_SERVICE_KEY: ${{ secrets.GBSAFE_DATA_GO_KR_SERVICE_KEY }}
         run: uv run python scripts/smoke_live_apis.py
+
+      - name: Check the ASOS station numbers resolve
+        # 지점번호가 최근접인지는 단위 테스트가 보지만, 그 번호로 실제 조회가
+        # 되는지는 실호출로만 알 수 있다. 기상청은 국내 지점번호와 WMO 번호를
+        # 따로 쓰고, 섞으면 조용히 다른 지점을 읽는다.
+        env:
+          GBSAFE_DATA_GO_KR_SERVICE_KEY: ${{ secrets.GBSAFE_DATA_GO_KR_SERVICE_KEY }}
+        run: uv run python scripts/check_asos_stations_live.py
 
   install:
     name: clean install

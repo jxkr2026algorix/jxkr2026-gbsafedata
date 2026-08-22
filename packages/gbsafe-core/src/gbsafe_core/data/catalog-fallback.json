@@ -1,7 +1,7 @@
 {
  "_comment": "jxkr2026-datasets/catalog에서 생성한 폴백 스냅샷. 데이터셋 저장소가 없을 때만 사용된다. scripts/sync_fallback_catalog.py로 재생성한다.",
- "generated_at": "2026-08-21T21:52:37+00:00",
- "source": "/Users/ryankwon/dev/jxkr2026-datasets/catalog",
+ "generated_at": "2026-08-22T04:15:00+00:00",
+ "source": "jxkr2026-datasets/catalog",
  "datasets": [
   {
    "pk": "15000415",
@@ -1207,7 +1207,7 @@
    "url": "https://www.data.go.kr/data/15096296/standard.do",
    "keywords": "사회복지시설명,사회복지시설유형,사회복지시설주소",
    "apply_status": "개발계정 신청완료",
-   "note": "표준데이터 그리드 없음 — columList.json이 404인 유일한 건. REST/XML 오픈API 활용신청만 가능. 제공기관 표기가 블록마다 사회보장정보원/한국사회보장정보원으로 불일치 / 개발계정 활용신청 완료 — 자동승인으로 즉시 발급, 승인일로부터 24개월 활용 가능",
+   "note": "표준데이터 그리드 없음 — columList.json이 404인 유일한 건. REST/XML 오픈API 활용신청만 가능. 제공기관 표기가 블록마다 사회보장정보원/한국사회보장정보원으로 불일치 / 개발계정 활용신청 완료 — 자동승인으로 즉시 발급, 승인일로부터 24개월 활용 가능 / 호출 검증 완료 — 다른 기관과 서비스 경로가 다르다(/B554287/)",
    "verified": true
   },
   {

@@ -16,8 +16,10 @@
 
 from __future__ import annotations
 
+import json
 import math
 from enum import StrEnum
+from pathlib import Path
 
 from .models import BBox, Frozen, GeoPoint
 
@@ -95,30 +97,35 @@ TRANSFERRED_OUT: dict[str, str] = {
     "군위": "군위군 — 2023-07-01 대구광역시로 편입. 경북 자료에 남아 있으면 시점을 확인해야 한다",
 }
 
-#: 시군별 대표 ASOS 지점번호. 문경(137)은 스모크 테스트로 검증됐다.
+#: 시군별 대표 ASOS 지점번호. 괄호 안은 시군 청사에서 지점까지의 거리다.
+#:
+#: **가장 가까운 운영중 지점**을 쓰며, 이 규칙은 `TestAsosStationMapping`이
+#: 동봉 지점표와 대조해 강제한다. 예전 표는 일곱 곳이 규칙을 어기고 있었다 —
+#: 영덕군은 13.7km 거리에 자기 지점이 있는데 42.6km 떨어진 포항을 읽었다.
+#: 지점번호가 틀려도 API는 200과 그럴듯한 강우량을 준다.
 ASOS_STATIONS: dict[str, int] = {
-    "47280": 137,  # 문경
-    "47170": 136,  # 안동
-    "47110": 138,  # 포항
-    "47250": 137,  # 상주 — 인접 문경 지점 대용
-    "47210": 272,  # 영주
-    "47190": 279,  # 구미
-    "47130": 283,  # 경주(구미·포항 사이)
-    "47930": 130,  # 울진
-    "47940": 115,  # 울릉도
-    "47920": 271,  # 봉화
-    "47760": 277,  # 영양
-    "47750": 276,  # 청송
-    "47230": 281,  # 영천
-    "47290": 143,  # 경산 — 대구 지점 대용
-    "47820": 143,  # 청도 — 대구 지점 대용
-    "47830": 279,  # 고령 — 구미 지점 대용
-    "47840": 279,  # 성주 — 구미 지점 대용
-    "47850": 279,  # 칠곡 — 구미 지점 대용
-    "47900": 137,  # 예천 — 문경 지점 대용
-    "47730": 278,  # 의성
-    "47770": 138,  # 영덕 — 포항 지점 대용
-    "47150": 279,  # 김천 — 구미 지점 대용
+    "47280": 273,  # 문경 (5.6km)
+    "47170": 136,  # 안동 (2.0km)
+    "47110": 138,  # 포항 (3.6km)
+    "47250": 137,  # 상주 (0.3km)
+    "47210": 272,  # 영주 (12.0km)
+    "47190": 279,  # 구미 (2.5km)
+    "47130": 283,  # 경주시 (4.8km)
+    "47930": 130,  # 울진 (1.1km)
+    "47940": 115,  # 울릉도 (0.7km)
+    "47920": 271,  # 봉화 (17.1km)
+    "47760": 276,  # 청송군 (26.6km) — 영양군에는 지상관측 지점이 없다
+    "47750": 276,  # 청송군 (1.5km)
+    "47230": 281,  # 영천 (1.2km)
+    "47290": 143,  # 대구 (9.9km) — 경산시에는 지상관측 지점이 없다
+    "47820": 288,  # 밀양 (17.3km) — 청도군에는 지상관측 지점이 없다
+    "47830": 285,  # 합천 (19.8km) — 고령군에는 지상관측 지점이 없다
+    "47840": 279,  # 구미 (23.7km) — 성주군에는 지상관측 지점이 없다
+    "47850": 279,  # 구미 (16.7km) — 칠곡군에는 지상관측 지점이 없다
+    "47900": 272,  # 영주 (24.5km) — 예천군에는 지상관측 지점이 없다
+    "47730": 278,  # 의성 (0.8km)
+    "47770": 277,  # 영덕 (13.7km)
+    "47150": 135,  # 추풍령 (13.9km) — 김천시에는 지상관측 지점이 없다
 }
 
 
@@ -164,6 +171,82 @@ def resolve_transferred(query: str) -> str | None:
 
 def asos_station_for(code: str) -> int | None:
     return ASOS_STATIONS.get(code.strip())
+
+
+class AsosStation(Frozen):
+    """기상청 지상관측 지점 하나."""
+
+    station_id: int
+    name: str
+    location: GeoPoint
+
+
+class AsosStationMatch(Frozen):
+    """시군에 배정된 관측지점과 그 지점이 얼마나 떨어져 있는지.
+
+    거리를 함께 내보내는 이유가 있다. 시군 22곳 중 9곳은 자기 지역에 지상관측
+    지점이 없어 이웃 지점을 대신 읽는다. 그 사실을 숨기면 26km 떨어진 곳의
+    강우량이 이 지역의 강우량으로 제시된다.
+    """
+
+    station: AsosStation
+    distance_km: float
+    is_local: bool
+
+    @property
+    def caveat(self) -> str | None:
+        if self.is_local:
+            return None
+        return (
+            f"가장 가까운 관측지점이 시군 청사에서 {self.distance_km:.0f}km 떨어진 "
+            f"「{self.station.name}」입니다 — 국지성 호우는 이 거리에서 크게 "
+            "달라지므로 이 지역의 실측으로 제시하면 안 됩니다."
+        )
+
+
+_STATION_FILE = Path(__file__).parent / "data" / "asos-stations.json"
+
+#: 이 거리 안이면 시군을 대표하는 관측으로 본다. 값의 근거는 기상청 격자
+#: 간격(5km)이 아니라 시군 반경으로, 자기 시군 안에 있는 지점과 이웃 시군에서
+#: 빌려온 지점을 가르는 선이다.
+LOCAL_STATION_KM = 15.0
+
+
+def _load_stations() -> dict[int, AsosStation]:
+    if not _STATION_FILE.is_file():
+        return {}
+    payload = json.loads(_STATION_FILE.read_text(encoding="utf-8"))
+    stations: dict[int, AsosStation] = {}
+    for row in payload.get("stations", ()):
+        if row.get("closed_on"):
+            continue
+        stations[int(row["station_id"])] = AsosStation(
+            station_id=int(row["station_id"]),
+            name=str(row["name"]),
+            location=GeoPoint(lat=float(row["lat"]), lon=float(row["lon"])),
+        )
+    return stations
+
+
+#: 경북 인근 운영중 지상관측 지점. scripts/sync_asos_stations.py로 재생성한다.
+ASOS_STATION_INFO: dict[int, AsosStation] = _load_stations()
+
+
+def asos_station_detail(code: str) -> AsosStationMatch | None:
+    """시군에 배정된 관측지점과 거리. 지점표가 없으면 None."""
+    station_id = asos_station_for(code)
+    sigungu = SIGUNGU.get(code.strip())
+    if station_id is None or sigungu is None:
+        return None
+    station = ASOS_STATION_INFO.get(station_id)
+    if station is None:
+        return None
+    distance = haversine_km(sigungu.center, station.location)
+    return AsosStationMatch(
+        station=station,
+        distance_km=round(distance, 1),
+        is_local=distance <= LOCAL_STATION_KM,
+    )
 
 
 # ── 기상청 격자(DFS) 변환 ────────────────────────────────────────────

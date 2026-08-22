@@ -41,8 +41,12 @@ from gbsafe_core.models import (
     UpstreamStatus,
 )
 from gbsafe_core.regions import (
+    ASOS_STATION_INFO,
+    ASOS_STATIONS,
+    SIGUNGU,
     HazardDomain,
     KmaGrid,
+    asos_station_detail,
     find_sigungu,
     from_kma_grid,
     haversine_km,
@@ -52,6 +56,7 @@ from gbsafe_core.regions import (
 )
 from gbsafe_core.safety import (
     SafetyViolation,
+    assert_citable,
     assert_mode_consistent,
     assert_not_individual_inference,
     assert_read_only,
@@ -61,6 +66,7 @@ from gbsafe_core.safety import (
     route_disclaimer,
 )
 from gbsafe_core.snapshot import SnapshotStore
+from pydantic import ValidationError
 
 
 class TestGeoPoint:
@@ -91,6 +97,32 @@ class TestBBox:
         box = BBox(min_lon=127.8, min_lat=35.57, max_lon=131.87, max_lat=37.55)
         assert box.contains(GeoPoint(lat=36.5866, lon=128.1867))
         assert not box.contains(GeoPoint(lat=37.5665, lon=126.978))
+
+    @pytest.mark.parametrize(
+        ("lat", "lon", "why"),
+        [
+            (36.5, 126.9, "서쪽 경계 밖 — 충남"),
+            (36.5, 131.95, "동쪽 경계 밖 — 독도 동편"),
+            (34.9, 128.5, "남쪽 경계 밖 — 경남"),
+            (38.2, 128.5, "북쪽 경계 밖 — 강원"),
+        ],
+    )
+    def test_each_edge_is_checked_independently(
+        self, lat: float, lon: float, why: str
+    ) -> None:
+        """네 변을 각각 벗어나는 점을 따로 본다.
+
+        위도만 어긋난 점으로 검사하면 경도 하한·상한 중 하나가 사라져도
+        결과가 같아 통과한다. 경계 판정이 조용히 반쪽이 되는 경로다.
+        """
+        box = BBox(min_lon=127.8, min_lat=35.57, max_lon=131.87, max_lat=37.55)
+        assert not box.contains(GeoPoint(lat=lat, lon=lon)), why
+
+    def test_boundary_points_are_inside(self) -> None:
+        """경계값은 포함이다. `<=`가 `<`로 바뀌면 여기서 걸린다."""
+        box = BBox(min_lon=127.8, min_lat=35.57, max_lon=131.87, max_lat=37.55)
+        assert box.contains(GeoPoint(lat=35.57, lon=127.8))
+        assert box.contains(GeoPoint(lat=37.55, lon=131.87))
 
 
 class TestKmaGrid:
@@ -998,3 +1030,376 @@ class TestTransferredRegionLookup:
     def test_transferred_region_is_not_resolvable(self) -> None:
         """편입된 지역을 경북 시군으로 해석하면 안 된다."""
         assert find_sigungu("군위군") is None
+
+
+class TestAsosStationMapping:
+    """시군에 배정한 관측지점이 실제로 가장 가까운 지점인지 기계로 확인한다.
+
+    지점번호가 틀려도 API는 200과 그럴듯한 강우량을 준다. 그래서 손으로 적은
+    번호는 틀린 채로 오래 남는다. 실제로 일곱 곳이 최근접 지점이 아니었고
+    영덕군은 13.7km 거리에 자기 지점을 두고 42.6km 떨어진 포항을 읽었다.
+    """
+
+    def test_every_sigungu_has_a_station(self) -> None:
+        missing = [item.name for code, item in SIGUNGU.items() if code not in ASOS_STATIONS]
+        assert not missing, f"관측지점이 배정되지 않은 시군: {missing}"
+
+    def test_every_station_exists_in_the_reference(self) -> None:
+        """표에 없는 번호를 쓰면 조회 자체가 조용히 실패한다."""
+        unknown = {
+            code: station
+            for code, station in ASOS_STATIONS.items()
+            if station not in ASOS_STATION_INFO
+        }
+        assert not unknown, f"지점표에 없는 번호: {unknown}"
+
+    def test_each_mapping_is_the_nearest_station(self) -> None:
+        """더 가까운 지점을 두고 먼 지점을 읽고 있으면 실패한다."""
+        wrong: list[str] = []
+        for code, station_id in ASOS_STATIONS.items():
+            sigungu = SIGUNGU[code]
+            nearest, nearest_km = min(
+                (
+                    (number, haversine_km(sigungu.center, station.location))
+                    for number, station in ASOS_STATION_INFO.items()
+                ),
+                key=lambda pair: pair[1],
+            )
+            if nearest != station_id:
+                current = ASOS_STATION_INFO[station_id]
+                wrong.append(
+                    f"{sigungu.name}: {station_id}({current.name}) "
+                    f"{haversine_km(sigungu.center, current.location):.1f}km 대신 "
+                    f"{nearest}({ASOS_STATION_INFO[nearest].name}) {nearest_km:.1f}km"
+                )
+        assert not wrong, "최근접 관측지점이 아닙니다:\n" + "\n".join(wrong)
+
+    def test_distant_station_carries_a_caveat(self) -> None:
+        """먼 지점을 대신 읽을 때는 그 사실이 드러나야 한다."""
+        match = asos_station_detail("47830")  # 고령군 — 합천 19.8km
+        assert match is not None
+        assert not match.is_local
+        assert match.caveat is not None
+        assert "합천" in match.caveat
+        assert "20km" in match.caveat or "19km" in match.caveat
+
+    def test_local_station_has_no_caveat(self) -> None:
+        match = asos_station_detail("47250")  # 상주시 — 상주 0.3km
+        assert match is not None
+        assert match.is_local
+        assert match.caveat is None
+
+    def test_mungyeong_uses_its_own_station(self) -> None:
+        """문경은 1971년부터 자기 관측지점(273)이 있다.
+
+        이전에는 20km 떨어진 상주(137)를 읽었다. 주 시나리오 지역이라
+        여기서 틀리면 전체 판단이 다른 지역의 비를 근거로 삼는다.
+        """
+        match = asos_station_detail("47280")
+        assert match is not None
+        assert match.station.station_id == 273
+        assert match.distance_km < 10.0
+
+    def test_reference_holds_only_operating_fixed_stations(self) -> None:
+        """이동관측차량과 레이더는 시간자료 조회 대상이 아니다.
+
+        대구_차량(193)은 경산시에서 대구(143)와 같은 9.9km라, 표에 남아 있으면
+        정렬 순서만 바뀌어도 경산시가 관측차량을 가리킬 수 있었다.
+        """
+        for station in ASOS_STATION_INFO.values():
+            assert "_차량" not in station.name, station
+            assert "(레)" not in station.name, station
+
+
+class TestCitationGate:
+    """`assert_citable`은 출처 없는 값과 오래된 값을 판단 근거에서 막는다."""
+
+    def test_complete_and_fresh_record_passes(self, record_factory) -> None:
+        assert_citable(record_factory({"rain_mm": 12.0}))
+
+    @pytest.mark.parametrize("blank", ["dataset_id", "provider"])
+    def test_missing_origin_is_rejected(self, blank: str, record_factory) -> None:
+        """데이터셋 id와 기관은 **각각** 필수다.
+
+        한쪽만 검사하면 나머지 한쪽이 비어도 인용문이 만들어진다.
+        """
+        record = record_factory({"rain_mm": 12.0})
+        provenance = record.provenance.model_copy(update={blank: ""})
+        stripped = record.model_copy(update={"provenance": provenance})
+        with pytest.raises(SafetyViolation, match="출처"):
+            assert_citable(stripped)
+
+    def test_stale_record_is_rejected(self, record_factory) -> None:
+        """갱신주기를 한참 넘긴 값을 현재 상황처럼 인용하면 안 된다."""
+        old = datetime.now(UTC) - timedelta(days=30)
+        record = record_factory({"rain_mm": 12.0}, observed_at=old, cycle=3600)
+        assert not record.freshness.is_usable_for_decision
+        with pytest.raises(SafetyViolation, match="신선도"):
+            assert_citable(record)
+
+
+class TestShelterCaveatsAreIndividuallyReported:
+    """주의사항은 각각 독립적으로 붙어야 한다.
+
+    한 항목이 사라져도 다른 항목이 남아 있으면 목록은 여전히 비어 있지 않다.
+    그래서 '비어 있지 않다'만 보는 검사로는 누락을 잡을 수 없다.
+    """
+
+    def _complete_shelter(self, **overrides: object) -> Shelter:
+        base: dict[str, object] = {
+            "shelter_id": "s-complete",
+            "name": "완비 대피소",
+            "designated": True,
+            "operating": True,
+            "capacity": 300,
+            "current_occupancy": 100,
+            "last_verified_at": datetime.now(UTC),
+            "location": GeoPoint(lat=36.5866, lon=128.1867),
+            "wheelchair_accessible": True,
+            "supported_hazards": (HazardDomain.HEAVY_RAIN,),
+        }
+        base.update(overrides)
+        return Shelter(**base)  # type: ignore[arg-type]
+
+    def test_complete_shelter_has_no_caveats(self) -> None:
+        assert describe_shelter_caveats(self._complete_shelter()) == ()
+
+    def test_untrustworthy_occupancy_is_called_out(self) -> None:
+        """확인되지 않은 수용인원을 실시간 값처럼 쓰면 만원인 곳으로 보낸다."""
+        shelter = self._complete_shelter(last_verified_at=None)
+        caveats = describe_shelter_caveats(shelter)
+        assert any("수용인원" in item for item in caveats), caveats
+
+    def test_unknown_hazard_type_is_called_out(self) -> None:
+        shelter = self._complete_shelter(supported_hazards=())
+        caveats = describe_shelter_caveats(shelter)
+        assert any("재난유형" in item for item in caveats), caveats
+
+    def test_missing_wheelchair_access_is_called_out(self) -> None:
+        shelter = self._complete_shelter(wheelchair_accessible=None)
+        caveats = describe_shelter_caveats(shelter)
+        assert any("장애인" in item for item in caveats), caveats
+
+
+class TestReadOnlyGuardResistsInvisibleCharacters:
+    """보이지 않는 문자를 끼워 변경 동사를 숨기는 우회를 막는다."""
+
+    @pytest.mark.parametrize(
+        ("filler", "label"),
+        [
+            ("\u00ad", "soft hyphen"),
+            ("\u200b", "zero width space"),
+            ("\u200c", "zero width non-joiner"),
+            ("\u200d", "zero width joiner"),
+            ("\u2060", "word joiner"),
+            ("\ufeff", "zero width no-break space"),
+            ("\u202e", "right-to-left override"),
+        ],
+    )
+    def test_hidden_character_does_not_smuggle_a_write_verb(
+        self, filler: str, label: str
+    ) -> None:
+        """제로폭 문자만 지우면 나머지 서식 문자로 같은 우회가 된다.
+
+        `get_ca<soft hyphen>ll_resident`는 서식 문자를 남겨두면 `ca`+`ll`로
+        쪼개져 `call`이 사라지고, 앞의 `get` 때문에 조회 도구로 통과한다.
+        """
+        with pytest.raises(SafetyViolation, match="변경 동작"):
+            assert_read_only(f"get_ca{filler}ll_resident")
+
+
+class TestRecordIsImmutable:
+    def test_provenance_cannot_be_swapped_after_creation(self, record_factory) -> None:
+        """출처가 붙은 뒤 값만 바꿔치기하는 경로가 없어야 한다."""
+        record = record_factory({"rain_mm": 12.0})
+        with pytest.raises(ValidationError):
+            record.payload = {"rain_mm": 0.0}  # type: ignore[misc]
+        with pytest.raises(ValidationError):
+            record.provenance = record.provenance  # type: ignore[misc]
+
+
+class TestFailedSourcesNamesOnlyFailures:
+    def test_successful_sources_are_not_reported_as_failed(self) -> None:
+        """성공한 원천이 실패 목록에 섞이면 실패의 의미가 사라진다."""
+        from gbsafe_core.models import SourceOutcome, SourceReceipt
+
+        def receipt(connector: str, outcome: SourceOutcome, count: int) -> SourceReceipt:
+            return SourceReceipt(
+                connector=connector,
+                dataset_id="15084084",
+                outcome=outcome,
+                record_count=count,
+                checked_at=datetime.now(UTC),
+                upstream_status=UpstreamStatus.OK,
+            )
+
+        answer: Answer[dict[str, int]] = Answer(
+            query="t",
+            receipts=(
+                receipt("weather_now", SourceOutcome.RECORDS, 3),
+                receipt("weather_warning", SourceOutcome.CONFIRMED_EMPTY, 0),
+                receipt("landslide_forecast", SourceOutcome.FAILED, 0),
+            ),
+        )
+        assert answer.failed_sources() == ("landslide_forecast",)
+
+
+class TestAbsenceInvariantSurvivesMutation:
+    """빈 결과를 '해당 없음'으로 읽어도 되는지 판단하는 경로 전체를 고정한다.
+
+    이 저장소의 중심 불변식이 여기 걸려 있다. 조회 실패가 '위험 없음'으로
+    읽히는 순간이 가장 위험한 실패이며, 그 판단은 아래 네 곳을 지난다:
+    `SourceOutcome.is_trustworthy_absence` → `Answer.is_complete` →
+    `Answer.absence_is_confirmed` → 호출자.
+    """
+
+    @staticmethod
+    def _receipt(connector: str, outcome, count: int):
+        from gbsafe_core.models import SourceReceipt
+
+        return SourceReceipt(
+            connector=connector,
+            dataset_id="15084084",
+            outcome=outcome,
+            record_count=count,
+            checked_at=datetime.now(UTC),
+            upstream_status=UpstreamStatus.OK,
+        )
+
+    def test_only_confirmed_empty_is_a_trustworthy_absence(self) -> None:
+        """`FAILED`가 신뢰할 수 있는 부재로 분류되면 장애가 '위험 없음'이 된다."""
+        from gbsafe_core.models import SourceOutcome
+
+        assert SourceOutcome.CONFIRMED_EMPTY.is_trustworthy_absence
+        assert not SourceOutcome.FAILED.is_trustworthy_absence
+        assert not SourceOutcome.RECORDS.is_trustworthy_absence
+
+    def test_trustworthy_absence_is_a_value_not_a_method(self) -> None:
+        """`@property`가 사라지면 메서드 객체가 항상 참이 되어 전부 통과한다."""
+        from gbsafe_core.models import SourceOutcome
+
+        assert SourceOutcome.FAILED.is_trustworthy_absence is False
+
+    def test_freshness_usability_is_a_value_not_a_method(self, record_factory) -> None:
+        """같은 이유로 신선도 판정도 bool이어야 한다."""
+        old = datetime.now(UTC) - timedelta(days=30)
+        record = record_factory({"v": 1}, observed_at=old, cycle=3600)
+        assert record.freshness.is_usable_for_decision is False
+        assert record.freshness.needs_timestamp_disclosure is True
+
+    def test_a_failed_source_makes_the_answer_incomplete(self) -> None:
+        from gbsafe_core.models import SourceOutcome
+
+        answer: Answer[dict[str, int]] = Answer(
+            query="t",
+            receipts=(
+                self._receipt("weather_now", SourceOutcome.RECORDS, 3),
+                self._receipt("landslide_forecast", SourceOutcome.FAILED, 0),
+            ),
+        )
+        assert not answer.is_complete
+        assert not answer.absence_is_confirmed
+
+    def test_all_successful_sources_leave_the_answer_complete(self) -> None:
+        """성공한 원천이 불완전으로 분류되면 멀쩡한 답이 계속 보류된다."""
+        from gbsafe_core.models import SourceOutcome
+
+        answer: Answer[dict[str, int]] = Answer(
+            query="t",
+            receipts=(
+                self._receipt("weather_now", SourceOutcome.RECORDS, 3),
+                self._receipt("weather_warning", SourceOutcome.CONFIRMED_EMPTY, 0),
+            ),
+        )
+        assert answer.is_complete
+        assert answer.absence_is_confirmed
+
+    def test_absence_needs_both_completeness_and_trustworthy_receipts(self) -> None:
+        """두 조건은 **함께** 성립해야 한다. 하나만으로 부재를 인정하면 안 된다."""
+        from gbsafe_core.models import Degradation, SourceOutcome
+
+        blocked: Answer[dict[str, int]] = Answer(
+            query="t",
+            receipts=(self._receipt("weather_warning", SourceOutcome.CONFIRMED_EMPTY, 0),),
+            degradations=(
+                Degradation(
+                    dataset_id="15074800",
+                    status=UpstreamStatus.NOT_AUTHORIZED,
+                    detail="심의 대기",
+                    occurred_at=datetime.now(UTC),
+                ),
+            ),
+        )
+        assert not blocked.is_complete
+        assert not blocked.absence_is_confirmed
+
+
+class TestFreshnessDecisionBoundary:
+    def test_age_exactly_at_the_limit_is_still_usable(self) -> None:
+        """경계값은 사용 가능이다. `<=`가 `<`로 바뀌면 여기서 걸린다."""
+        from gbsafe_core.models import Freshness, FreshnessStatus
+
+        now = datetime.now(UTC)
+        at_limit = Freshness(
+            status=FreshnessStatus.FRESH,
+            age_seconds=3600,
+            expected_cycle_seconds=3600,
+            as_of=now,
+            evaluated_at=now,
+            reason="테스트",
+            max_decision_age_seconds=3600,
+        )
+        assert at_limit.is_usable_for_decision
+
+    def test_one_second_past_the_limit_is_not_usable(self) -> None:
+        from gbsafe_core.models import Freshness, FreshnessStatus
+
+        now = datetime.now(UTC)
+        past = Freshness(
+            status=FreshnessStatus.FRESH,
+            age_seconds=3601,
+            expected_cycle_seconds=3600,
+            as_of=now,
+            evaluated_at=now,
+            reason="테스트",
+            max_decision_age_seconds=3600,
+        )
+        assert not past.is_usable_for_decision
+
+
+class TestFrozenBaseIsImmutable:
+    def test_frozen_models_reject_assignment(self) -> None:
+        """`Frozen`을 상속한 모델 전체가 이 보장에 기대고 있다."""
+        box = BBox(min_lon=127.8, min_lat=35.57, max_lon=131.87, max_lat=37.55)
+        with pytest.raises(ValidationError):
+            box.min_lon = 120.0  # type: ignore[misc]
+
+
+class TestBBoxRejectsDegenerateBounds:
+    @pytest.mark.parametrize(
+        ("kwargs", "why"),
+        [
+            ({"min_lon": 128.0, "max_lon": 128.0}, "경도 폭이 0인 상자"),
+            ({"min_lat": 36.0, "max_lat": 36.0}, "위도 높이가 0인 상자"),
+        ],
+    )
+    def test_zero_area_box_is_rejected(self, kwargs: dict[str, float], why: str) -> None:
+        """넓이가 0인 상자는 어떤 점도 포함하지 못하면서 통과한다."""
+        base = {"min_lon": 127.8, "min_lat": 35.57, "max_lon": 131.87, "max_lat": 37.55}
+        with pytest.raises(ValueError, match="min 값은 max"):
+            BBox(**{**base, **kwargs})
+
+
+class TestCitationLabelsOnlyNonRealModes:
+    def test_real_data_carries_no_mode_tag(self, record_factory) -> None:
+        """실데이터에 `[REAL]`이 붙으면 훈련 표시와 구별이 흐려진다."""
+        text = record_factory({"v": 1}).citation.to_text()
+        assert "[REAL]" not in text
+
+    def test_synthetic_data_is_tagged(self, record_factory) -> None:
+        text = record_factory({"v": 1}, mode=DataMode.SYNTHETIC).citation.to_text()
+        assert "[SYNTHETIC]" in text
+
+    def test_source_url_is_included_when_present(self, record_factory) -> None:
+        text = record_factory({"v": 1}).citation.to_text()
+        assert "https://example.test/dataset" in text

@@ -43,6 +43,7 @@ from gbsafe_core.models import (
 from gbsafe_core.regions import (
     SIGUNGU,
     HazardDomain,
+    asos_station_detail,
     asos_station_for,
     find_sigungu,
     grid_for,
@@ -376,6 +377,13 @@ class SafeDataService:
             }
 
         grid = grid_for(sigungu.code)
+        station = asos_station_detail(sigungu.code)
+        caveats = [
+            "대표 좌표는 시군 청사 기준 근사값입니다 — 경계 판정이나 "
+            "거리 계산의 근거로 쓰면 안 됩니다"
+        ]
+        if station is not None and station.caveat:
+            caveats.append(station.caveat)
         return {
             "found": True,
             "code": sigungu.code,
@@ -384,10 +392,18 @@ class SafeDataService:
             "center": {"lat": sigungu.center.lat, "lon": sigungu.center.lon},
             "kma_grid": {"nx": grid.nx, "ny": grid.ny} if grid else None,
             "asos_station": asos_station_for(sigungu.code),
-            "caveat": (
-                "대표 좌표는 시군 청사 기준 근사값입니다 — 경계 판정이나 "
-                "거리 계산의 근거로 쓰면 안 됩니다"
+            "asos_station_detail": (
+                None
+                if station is None
+                else {
+                    "station_id": station.station.station_id,
+                    "name": station.station.name,
+                    "distance_km": station.distance_km,
+                    "is_local": station.is_local,
+                }
             ),
+            "caveat": caveats[0],
+            "caveats": tuple(caveats),
         }
 
     # ── 위험 상황 ───────────────────────────────────────────────
@@ -512,8 +528,31 @@ class SafeDataService:
                     ),
                 ),
             )
-        outcome = await connector.fetch(**kwargs)
         spec = self._registry.spec(name)
+        if spec is not None and spec.requires_local_file:
+            # 이 원천은 호출할 엔드포인트가 없다. 그대로 fetch를 태우면 포털
+            # 기본 주소로 요청이 나가 `not_authorized`가 돌아오고, 파일이
+            # 필요한 상황이 인증 문제로 보고된다. 진단이 틀리면 사용자는
+            # 인증키를 다시 발급받으러 가고 문제는 그대로 남는다.
+            return Answer(
+                query=f"{name} {kwargs}",
+                degradations=(
+                    Degradation(
+                        dataset_id=spec.dataset_id,
+                        status=UpstreamStatus.UNAVAILABLE,
+                        detail=(
+                            f"'{name}'은 파일데이터라 조회할 엔드포인트가 없습니다. "
+                            "포털에서 CSV를 내려받은 뒤 "
+                            f"`gbsafe normalize-csv {name} <경로>`로 정규화하세요 "
+                            "(자동 다운로드가 세션에 의존해 취득은 사용자가 합니다). "
+                            "인증키 문제가 아닙니다."
+                        ),
+                        occurred_at=datetime.now(UTC),
+                    ),
+                ),
+            )
+
+        outcome = await connector.fetch(**kwargs)
         return Answer(
             query=f"{name} {kwargs}",
             records=outcome.records,
