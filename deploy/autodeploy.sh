@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# salgil-aws 자동 재배포. systemd 타이머가 주기적으로 부른다.
+#
+# main 에 새 커밋이 있을 때만 움직인다. 없으면 아무것도 하지 않고 끝나므로
+# 타이머를 짧게 잡아도 부담이 없다.
+#
+# 두 저장소 모두 공개라 자격증명이 없다. GitHub 에 배포키를 넣지 않고, 서버에
+# 인바운드를 열지도 않는다 — 서버가 밖으로 나가서 가져오기만 한다.
+set -euo pipefail
+
+log() { echo "[$(date -Is)] $*"; }
+
+# 서비스 정의: 디렉터리|저장소|배포 명령
+SERVICES=(
+  "/opt/gbsafedata|https://github.com/jxkr2026algorix/jxkr2026-gbsafedata.git|deploy_gbsafedata"
+  "/opt/platform-backend|https://github.com/jxkr2026algorix/jxkr2026-platform-backend.git|deploy_platform"
+)
+
+deploy_gbsafedata() {
+  docker build -q -t gbsafedata:local . >/dev/null
+  docker compose --project-directory . -f deploy/docker-compose.deploy.yml \
+    up -d --force-recreate api
+}
+
+deploy_platform() {
+  docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d --build
+}
+
+# 컨테이너가 떴다고 배포가 된 것은 아니다. 빌드가 성공하고 recreate 가 실패하면
+# 옛 컨테이너가 그대로 살아 있고 헬스체크도 통과한다. 응답으로 확인한다.
+verify() {
+  local url="$1" tries=0
+  until curl -fsS --max-time 10 "$url" >/dev/null 2>&1; do
+    tries=$((tries + 1))
+    [ "$tries" -ge 15 ] && return 1
+    sleep 2
+  done
+}
+
+health_url() {
+  case "$1" in
+    /opt/gbsafedata) echo "http://127.0.0.1:8000/v1/health" ;;
+    /opt/platform-backend) echo "http://127.0.0.1:8001/healthz" ;;
+  esac
+}
+
+for entry in "${SERVICES[@]}"; do
+  IFS='|' read -r dir repo deploy_fn <<<"$entry"
+  [ -d "$dir/.git" ] || { log "$dir 이 git 저장소가 아닙니다 — 건너뜁니다"; continue; }
+
+  cd "$dir"
+  git fetch -q origin main 2>/dev/null || { log "$dir fetch 실패 — 건너뜁니다"; continue; }
+
+  local_sha=$(git rev-parse HEAD)
+  remote_sha=$(git rev-parse origin/main)
+  [ "$local_sha" = "$remote_sha" ] && continue
+
+  log "$dir: ${local_sha:0:7} → ${remote_sha:0:7} 배포 시작"
+
+  # .env 는 서버에만 있다. reset --hard 가 추적 대상만 건드리므로 안전하지만,
+  # 실수로 커밋된 적이 있으면 지워질 수 있어 명시적으로 지켜 둔다.
+  [ -f .env ] && cp .env /tmp/.env.keep.$$
+  git reset -q --hard origin/main
+  [ -f /tmp/.env.keep.$$ ] && mv /tmp/.env.keep.$$ .env
+
+  if ! "$deploy_fn" >/dev/null 2>&1; then
+    log "$dir: 배포 명령 실패 — 이전 컨테이너를 그대로 둡니다"
+    continue
+  fi
+
+  if verify "$(health_url "$dir")"; then
+    log "$dir: ${remote_sha:0:7} 배포 완료"
+  else
+    log "$dir: 기동했지만 헬스체크가 응답하지 않습니다 — 확인이 필요합니다"
+  fi
+done
