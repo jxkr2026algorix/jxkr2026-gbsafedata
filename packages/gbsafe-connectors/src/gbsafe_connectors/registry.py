@@ -20,6 +20,7 @@ from gbsafe_core.config import CREDENTIAL_SOURCES, CredentialName, Settings, get
 from gbsafe_core.regions import HazardDomain
 from gbsafe_core.snapshot import SnapshotStore
 
+from .apihub import AwsObservationConnector
 from .base import Connector
 from .filedata import LandslideRiskZoneCsvConnector, ShelterCsvConnector
 from .forest import (
@@ -54,6 +55,12 @@ class ConnectorSpec:
 
 #: 등록된 커넥터. 이름은 MCP 도구·API 파라미터에서 그대로 쓰인다.
 SPECS: tuple[ConnectorSpec, ...] = (
+    ConnectorSpec(
+        name="aws_observation",
+        factory=AwsObservationConnector,
+        summary="AWS 방재기상관측 — 지점별 1분 기온·강우·바람 (기상청 API허브)",
+        hazards=(HazardDomain.HEAVY_RAIN, HazardDomain.WILDFIRE),
+    ),
     ConnectorSpec(
         name="weather_now",
         factory=UltraShortNowcastConnector,
