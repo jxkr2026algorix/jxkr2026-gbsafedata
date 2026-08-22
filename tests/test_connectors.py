@@ -1524,3 +1524,49 @@ class TestRevivedSnapshotsAreNotSuccessfulChecks:
         outcomes = await asyncio.gather(*(connector.fetch() for _ in range(6)))
         assert all(item.ok for item in outcomes)
         await clear_cache()
+
+
+class TestCacheHitIsDisclosedInTheReceipt:
+    """캐시로 답했다는 사실이 영수증에 남아야 한다.
+
+    산문 caveat에만 적으면 기계가 읽는 경로에서는 방금 원천을 확인한 것과
+    구별되지 않는다. 영수증은 무엇을 실제로 읽었는지 말하는 자리다.
+    """
+
+    async def test_second_call_reports_cached_not_ok(
+        self, settings: Settings, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from gbsafe_connectors.base import Connector, FetchOutcome, clear_cache
+
+        class _Fresh(Connector[dict]):
+            dataset_id = "15084084"
+            credential = None
+
+            def base_url(self) -> str:
+                return "https://example.test/fresh"
+
+            def build_params(self, **kwargs: object) -> dict[str, str]:
+                return {}
+
+            def parse(self, response, **kwargs: object) -> FetchOutcome[dict]:
+                return FetchOutcome(records=(), confirmed_absence=True)
+
+        async def fake_send(self, url: str, params: dict[str, str]):
+            return make_response({"ok": True})
+
+        monkeypatch.setattr(Connector, "_send", fake_send)
+        await clear_cache()
+
+        connector = _Fresh(settings=settings)
+        first = await connector.fetch()
+        second = await connector.fetch()
+
+        first_receipt = first.receipt(connector="f", dataset_id="15084084")
+        second_receipt = second.receipt(connector="f", dataset_id="15084084")
+
+        assert first_receipt.upstream_status is UpstreamStatus.OK
+        assert second_receipt.upstream_status is UpstreamStatus.CACHED, (
+            "캐시로 답했는데 영수증이 방금 조회한 것처럼 ok를 보고합니다"
+        )
+        assert second.outcome is first.outcome
+        await clear_cache()

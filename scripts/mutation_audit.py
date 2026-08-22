@@ -607,8 +607,16 @@ MUTATIONS: tuple[Mutation, ...] = (
     Mutation(
         "receipt-hides-cached-upstream",
         CONNECTORS / "base.py",
-        "            else self.upstream_status",
-        "            else UpstreamStatus.OK",
+        (
+            "            self.degradations[0].status\n"
+            "            if self.degradations\n"
+            "            else self.upstream_status"
+        ),
+        (
+            "            self.degradations[0].status\n"
+            "            if self.degradations\n"
+            "            else UpstreamStatus.OK"
+        ),
         "보존자료로 답하고도 영수증에 upstream=ok로 보고한다",
     ),
     Mutation(
