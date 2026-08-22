@@ -203,3 +203,125 @@ class TestTyphoonConnector:
         )
         assert outcome.records[0].payload.latitude is None
         assert outcome.records[0].payload.longitude is None
+
+
+def _json_response(body: dict):
+    import json
+    from datetime import UTC, datetime
+
+    from gbsafe_connectors.base import RawResponse
+    from gbsafe_core.models import UpstreamStatus
+
+    return RawResponse(
+        body=json.dumps(body).encode(),
+        content_type="application/json",
+        endpoint="https://example.test",
+        status=UpstreamStatus.OK,
+        retrieved_at=datetime.now(UTC),
+    )
+
+
+class TestRoundTwoFindings:
+    """라운드 2 적대적 QA가 찾은 것들."""
+
+    def test_infinite_radius_is_rejected(self, settings: Settings) -> None:
+        """`1e309`는 inf가 된다. 무한대 반경은 전 지역을 영향권으로 만든다."""
+        body = {
+            "response": {
+                "header": {"resultCode": "00"},
+                "body": {
+                    "items": {
+                        "item": [
+                            {
+                                "typSeq": "huge",
+                                "typTm": "202608221200",
+                                "typ15ed": "E",
+                                "typ15er": "1e309",
+                            }
+                        ]
+                    }
+                },
+            }
+        }
+        outcome = TyphoonConnector(settings=settings).parse(_json_response(body))
+        assert outcome.records[0].payload.strong_wind_extended_radius_km is None
+
+    def test_broken_observation_time_is_marked_estimated(
+        self, settings: Settings
+    ) -> None:
+        """조용히 수집시각으로 대체하면 옛 위치가 방금 관측처럼 보인다."""
+        body = {
+            "response": {
+                "header": {"resultCode": "00"},
+                "body": {
+                    "items": {
+                        "item": [
+                            {"typSeq": "bad", "typTm": "99999999999999", "typ15": "10"}
+                        ]
+                    }
+                },
+            }
+        }
+        outcome = TyphoonConnector(settings=settings).parse(_json_response(body))
+        assert outcome.records[0].payload.time_is_estimated is True
+
+    def test_real_observation_time_is_not_marked_estimated(
+        self, settings: Settings
+    ) -> None:
+        body = {
+            "response": {
+                "header": {"resultCode": "00"},
+                "body": {
+                    "items": {
+                        "item": [
+                            {"typSeq": "ok", "typTm": "202608221200", "typ15": "10"}
+                        ]
+                    }
+                },
+            }
+        }
+        outcome = TyphoonConnector(settings=settings).parse(_json_response(body))
+        assert outcome.records[0].payload.time_is_estimated is False
+
+    def test_whitespace_only_difference_is_still_a_duplicate(
+        self, settings: Settings
+    ) -> None:
+        body = {
+            "response": {
+                "header": {"resultCode": "00"},
+                "body": {
+                    "items": {
+                        "item": [
+                            {"tmFc": "202608221200", "tmSeq": "1", "mt": "3.0", "loc": "A"},
+                            {"tmFc": "202608221200 ", "tmSeq": "1", "mt": "3.0", "loc": "A"},
+                        ]
+                    }
+                },
+            }
+        }
+        outcome = EarthquakeConnector(settings=settings).parse(_json_response(body))
+        assert len(outcome.records) == 1
+
+    def test_distinct_events_without_identity_are_not_merged(
+        self, settings: Settings
+    ) -> None:
+        """신원이 비면 모든 행이 같은 키가 되어 서로 다른 지진이 뭉개졌다.
+
+        사건을 지우는 쪽이 중복을 남기는 쪽보다 위험하다.
+        """
+        body = {
+            "response": {
+                "header": {"resultCode": "00"},
+                "body": {
+                    "items": {
+                        "item": [
+                            {"tmFc": "", "tmSeq": "", "mt": "2.5", "loc": "B"},
+                            {"tmFc": "", "tmSeq": "", "mt": "4.1", "loc": "C"},
+                        ]
+                    }
+                },
+            }
+        }
+        outcome = EarthquakeConnector(settings=settings).parse(_json_response(body))
+        assert len(outcome.records) == 2
+        assert {record.payload.value for record in outcome.records} == {2.5, 4.1}

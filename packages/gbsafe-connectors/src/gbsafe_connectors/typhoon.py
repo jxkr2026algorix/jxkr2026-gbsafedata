@@ -23,6 +23,11 @@ class TyphoonObservation(Frozen):
     sequence: str | None = None
     name: str | None = None
     target_time: datetime
+
+    #: 관측시각이 원본에 없거나 깨져서 수집시각으로 대체했는지.
+    #:
+    #: 조용히 대체하면 몇 시간 전 태풍 위치가 방금 관측한 것처럼 보인다.
+    time_is_estimated: bool = False
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
     strong_wind_radius_km: float | None = Field(default=None, ge=0)
@@ -118,6 +123,7 @@ class TyphoonConnector(_DatedKmaConnector[TyphoonObservation]):
                         sequence=_direction(item.get("typSeq")),
                         name=_direction(item.get("typName") or item.get("typEn")),
                         target_time=target_time or response.retrieved_at,
+                        time_is_estimated=target_time is None,
                         latitude=latitude,
                         longitude=longitude,
                         strong_wind_radius_km=_number(item.get("typ15")),

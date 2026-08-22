@@ -19,7 +19,14 @@ from gbsafe_core.domain import (
 from gbsafe_core.models import GeoPoint, QualityFlag, UpstreamStatus
 from gbsafe_core.regions import HazardDomain
 
-from .base import KST, Connector, FetchOutcome, RawResponse, confirmed_empty
+from .base import (
+    KST,
+    Connector,
+    FetchOutcome,
+    RawResponse,
+    confirmed_empty,
+    missing_sentinel,
+)
 from .kma import _items
 
 
@@ -41,9 +48,12 @@ def _number(raw: Any) -> float | None:
     if not text:
         return None
     try:
-        return float(text)
+        value = float(text)
     except ValueError:
         return None
+    # `1e309`는 float("inf")가 된다. 무한대 반경은 모든 지역을 태풍 영향권으로
+    # 만들고, 무한대 규모는 모든 임계값을 넘는다.
+    return None if missing_sentinel(value) else value
 
 
 def _korea_point(lat_raw: Any, lon_raw: Any) -> GeoPoint | None:
@@ -179,7 +189,7 @@ class EarthquakeConnector(_DatedKmaConnector[Observation]):
         records = []
         seen: set[tuple[str, str]] = set()
         skipped = 0
-        for item in items:
+        for index, item in enumerate(items):
             # 신원이 하나도 없는 행은 지진이 아니다. 빈 객체를 통과시키면
             # 규모·진앙·시각이 전부 None인 '지진 발생' 레코드가 만들어진다.
             if not _has_identity(item, "tmFc", "tmSeq", "mt", "loc", "lat", "lon"):
@@ -187,7 +197,14 @@ class EarthquakeConnector(_DatedKmaConnector[Observation]):
                 continue
             published = _stamp(item.get("tmFc"))
             sequence = str(item.get("tmSeq") or "").strip()
-            key = (str(item.get("tmFc") or ""), sequence)
+
+            # 중복 판정 키를 정규화한다. 공백만 다른 `"202608221200 "`가 다른
+            # 사건으로 남았고, 반대로 tmFc·tmSeq가 둘 다 비면 모든 행이 같은
+            # `("", "")` 키가 되어 **서로 다른 지진이 하나로 뭉개졌다.**
+            stamp = str(item.get("tmFc") or "").strip()
+            # 신원이 없으면 중복 판정을 할 수 없다. 뭉개는 대신 남긴다 —
+            # 사건을 지우는 쪽이 중복을 남기는 쪽보다 위험하다.
+            key = (stamp, sequence) if (stamp or sequence) else ("unidentified", str(index))
             if key in seen:
                 continue
             seen.add(key)
