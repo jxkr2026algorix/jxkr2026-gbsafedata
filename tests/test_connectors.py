@@ -1646,3 +1646,42 @@ class TestChemicalShelterProvinceFilter:
         record = self._parse(settings, csv).records[0]
         assert record.payload.location is None
         assert QualityFlag.COORDINATE_OUT_OF_RANGE in record.quality_flags
+
+
+class TestCredentialsNeverLeaveInAnEndpoint:
+    """인증정보가 provenance의 endpoint로 새어 나가면 안 된다.
+
+    홍수통제소는 인증키가 URL **경로**에 들어간다. 그 URL이 그대로 나가면
+    이 API를 부르는 누구나 우리 정부 인증키를 가져간다.
+    """
+
+    def test_key_in_the_path_is_redacted(self, settings: Settings) -> None:
+        from gbsafe_connectors.hrfco import RiverLevelConnector
+
+        connector = RiverLevelConnector(settings=settings)
+        cleaned = connector._redact_endpoint(
+            "https://api.hrfco.go.kr/test-key/waterlevel/list/10M.json"
+        )
+        assert "test-key" not in cleaned
+        assert "<redacted>" in cleaned
+
+    def test_key_in_the_query_is_redacted(self, settings: Settings) -> None:
+        from gbsafe_connectors.kma import UltraShortNowcastConnector
+
+        connector = UltraShortNowcastConnector(settings=settings)
+        cleaned = connector._redact_endpoint(
+            "https://apis.data.go.kr/x?serviceKey=test-key&nx=81"
+        )
+        assert "test-key" not in cleaned
+
+    def test_a_record_never_carries_the_key(self, settings: Settings) -> None:
+        from gbsafe_connectors.hrfco import STATIONS, RiverLevelConnector
+
+        station_id = next(iter(STATIONS))
+        response = make_response(
+            {"content": [{"wlobscd": station_id, "ymdhm": "202608221200", "wl": "1.2"}]},
+            endpoint="https://api.hrfco.go.kr/test-key/waterlevel/list/10M.json",
+        )
+        outcome = RiverLevelConnector(settings=settings).parse(response)
+        for record in outcome.records:
+            assert "test-key" not in (record.provenance.endpoint or "")

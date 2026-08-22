@@ -515,13 +515,18 @@ def _reconcile(
 def _hazard_from_title(title: str) -> HazardDomain:
     """특보 제목에서 재난 유형을 추정한다."""
     for needle, domain in (
+        # 지진해일을 지진보다 먼저 본다. "지진해일주의보"에 "지진"이 들어 있어
+        # 순서가 뒤바뀌면 해일 특보가 지진으로 분류된다.
+        ("지진해일", HazardDomain.TSUNAMI),
         ("호우", HazardDomain.HEAVY_RAIN),
-        ("대설", HazardDomain.HEAVY_RAIN),
-        ("태풍", HazardDomain.HEAVY_RAIN),
+        ("대설", HazardDomain.HEAVY_SNOW),
+        ("태풍", HazardDomain.TYPHOON),
         ("홍수", HazardDomain.FLOOD),
         ("건조", HazardDomain.WILDFIRE),
         ("폭염", HazardDomain.HEATWAVE),
-        ("한파", HazardDomain.HEATWAVE),
+        # 한파는 폭염의 정반대다. 같은 유형으로 묶으면 난방이 필요한 상황에
+        # 냉방 시설을 안내한다.
+        ("한파", HazardDomain.COLD_WAVE),
         ("지진", HazardDomain.EARTHQUAKE),
     ):
         if needle in title:

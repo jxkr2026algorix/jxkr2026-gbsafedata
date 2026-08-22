@@ -715,6 +715,20 @@ class Connector[PayloadT](ABC):
             )
         )
 
+    def _redact_endpoint(self, url: str) -> str:
+        """URL에서 인증정보를 지운다.
+
+        홍수통제소는 인증키가 **경로**에 들어간다. 그 URL이 그대로 provenance에
+        실려 모든 레코드의 endpoint로 나가면, 이 API를 부르는 누구나 우리
+        정부 인증키를 그대로 가져간다. 쿼리 파라미터로 붙는 원천도 마찬가지다.
+        """
+        cleaned = url
+        for name in CredentialName:
+            secret = self._settings.credential(name)
+            if secret and secret in cleaned:
+                cleaned = cleaned.replace(secret, "<redacted>")
+        return cleaned
+
     def provenance(
         self,
         response: RawResponse,
@@ -730,7 +744,7 @@ class Connector[PayloadT](ABC):
             dataset_name=self.dataset_name,
             provider=self.provider,
             source_url=entry.url if entry else None,
-            endpoint=response.endpoint,
+            endpoint=self._redact_endpoint(response.endpoint),
             license=entry.license if entry else LicenseCode.UNKNOWN,
             mode=DataMode.SNAPSHOT if response.status is UpstreamStatus.CACHED else mode,
             upstream_status=response.status,

@@ -18,7 +18,7 @@ must_allow='derive'를 주면 변경금지(KOGL 3·4) 데이터가 제외됩니�
 | 인자 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | `query` | string | 아니오 | 검색어 (예: 산사태 대피소 인구) |
-| `hazard` | string | 아니오 | 재난 유형 (`heavy_rain` / `landslide` / `wildfire` / `flood` / `earthquake` / `heatwave`) |
+| `hazard` | string | 아니오 | 재난 유형 (`heavy_rain` / `flood` / `landslide` / `wildfire` / `typhoon` / `earthquake` / `tsunami` / `heatwave` / `cold_wave` / `heavy_snow` / `drought` / `chemical_accident` / `nuclear`) |
 | `dev_ready_only` | boolean | 아니오 | 개발계정으로 지금 착수 가능한 것만 (심의 대기 제외) |
 | `usable_only` | boolean | 아니오 | 빈 등록물·기계판독 불가 제외 (기본 true) |
 | `must_allow` | string | 아니오 | 이 연산이 라이선스상 허용되는 데이터만 (`read` / `derive` / `redistribute` / `commercial`) |
@@ -82,7 +82,7 @@ operation='derive'는 재투영, 클리핑, 래스터화, 조인, 파생 라벨 
 | 인자 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | `region` | string | 예 | 경북 시군 (예: 문경시, 안동시). 시군구 코드(47280)도 가능 |
-| `hazard` | string | 아니오 | 재난 유형 (`heavy_rain` / `landslide` / `wildfire` / `flood` / `earthquake` / `heatwave`) |
+| `hazard` | string | 아니오 | 재난 유형 (`heavy_rain` / `flood` / `landslide` / `wildfire` / `typhoon` / `earthquake` / `tsunami` / `heatwave` / `cold_wave` / `heavy_snow` / `drought` / `chemical_accident` / `nuclear`) |
 
 ## `gbsafe_list_sources`
 

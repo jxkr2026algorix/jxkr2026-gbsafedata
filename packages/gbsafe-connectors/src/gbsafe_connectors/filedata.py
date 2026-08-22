@@ -58,9 +58,18 @@ _HAZARD_HINTS: tuple[tuple[str, HazardDomain], ...] = (
     ("산불", HazardDomain.WILDFIRE),
     ("호우", HazardDomain.HEAVY_RAIN),
     ("풍수해", HazardDomain.HEAVY_RAIN),
-    ("한파", HazardDomain.HEATWAVE),
+    # 한파 대피소를 폭염 대피소로 배정하면 정반대 시설로 보낸다.
+    # 무더위쉼터는 냉방, 한파쉼터는 난방이다.
+    ("한파", HazardDomain.COLD_WAVE),
+    ("혹한", HazardDomain.COLD_WAVE),
     ("무더위", HazardDomain.HEATWAVE),
     ("폭염", HazardDomain.HEATWAVE),
+    ("대설", HazardDomain.HEAVY_SNOW),
+    ("태풍", HazardDomain.TYPHOON),
+    ("지진해일", HazardDomain.TSUNAMI),
+    ("해일", HazardDomain.TSUNAMI),
+    ("지진", HazardDomain.EARTHQUAKE),
+    ("화학", HazardDomain.CHEMICAL_ACCIDENT),
 )
 
 

@@ -21,6 +21,7 @@ import mcp.types as types
 from gbsafe_api.envelope import envelope
 from gbsafe_api.service import SafeDataService
 from gbsafe_core.models import Answer
+from gbsafe_core.regions import HazardDomain
 from gbsafe_core.safety import assert_read_only
 
 #: 모든 응답에 붙는 인용 지침. AI가 답변에 출처를 남기게 만든다.
@@ -85,10 +86,15 @@ _REGION_PROP = {
     "type": "string",
     "description": "경북 시군 (예: 문경시, 안동시). 시군구 코드(47280)도 가능",
 }
+#: 재난 유형. 열거값을 손으로 적지 않고 열거형에서 만든다.
+#:
+#: 손으로 적어 두었더니 재난이 7종에서 13종으로 늘었을 때 6종에 멈춰 있었고,
+#: 스키마가 태풍·지진해일·한파를 **거부**했다. 도구가 지원한다고 말하는 것과
+#: 실제로 받는 것이 어긋나면 호출하는 쪽은 그 재난이 없다고 읽는다.
 _HAZARD_PROP = {
     "type": "string",
     "description": "재난 유형",
-    "enum": ["heavy_rain", "landslide", "wildfire", "flood", "earthquake", "heatwave"],
+    "enum": [item.value for item in HazardDomain if item is not HazardDomain.OTHER],
 }
 
 

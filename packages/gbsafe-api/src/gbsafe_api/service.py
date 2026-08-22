@@ -90,7 +90,9 @@ HAZARD_PLAYBOOK: dict[HazardDomain, tuple[str, ...]] = {
     HazardDomain.HEATWAVE: ("weather_warning", "weather_now"),
     HazardDomain.COLD_WAVE: ("weather_warning", "weather_now"),
     HazardDomain.HEAVY_SNOW: ("weather_warning", "weather_now", "weather_forecast"),
-    HazardDomain.DROUGHT: ("weather_warning",),
+    # 가뭄은 조사에서 탐지 원천 호출이 0건이었다. 기상특보만 보고 "가뭄 없음"을
+    # 확인했다고 답하면 안 된다 — 가뭄 특보라는 것은 없다.
+    HazardDomain.DROUGHT: (),
     # 화학사고는 실시간 탐지 원천이 없다. 대피장소만 답하고, 발생 여부를 알 수
     # 없다는 사실은 capability caveat이 함께 내보낸다.
     HazardDomain.CHEMICAL_ACCIDENT: ("chemical_shelters",),
@@ -594,6 +596,25 @@ class SafeDataService:
                         f"이 재난의 원천 중 {', '.join(skipped)}을(를) 조회하지 "
                         "않았습니다 — 호출자가 원천을 지정했습니다. 결과를 "
                         "완전한 확인으로 읽으면 안 됩니다."
+                    ),
+                    occurred_at=datetime.now(UTC),
+                )
+            )
+
+        # 조회한 원천이 하나도 없으면 확인한 것이 없다.
+        #
+        # 영수증이 비면 "실패한 영수증이 없다"가 되어 complete가 참이 된다.
+        # 가뭄처럼 탐지 원천이 선언돼 있지 않은 재난이 출처 0건으로 "확인 완료"가
+        # 됐다. 아무것도 묻지 않은 것은 답을 얻은 것이 아니다.
+        if not receipts and not records:
+            degradations.append(
+                Degradation(
+                    dataset_id=f"hazard:{hazard_domain.value}",
+                    status=UpstreamStatus.UNAVAILABLE,
+                    detail=(
+                        f"{capability.korean_name}에 대해 조회한 원천이 없습니다 — "
+                        "이 시스템에 연결된 탐지 수단이 없다는 뜻이며, 결과가 "
+                        "비어 있어도 '해당 없음'이 아닙니다."
                     ),
                     occurred_at=datetime.now(UTC),
                 )

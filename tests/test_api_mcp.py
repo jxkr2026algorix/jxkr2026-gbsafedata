@@ -934,3 +934,91 @@ class TestPartialSourceSelectionIsDisclosed:
             include=HAZARD_PLAYBOOK[HazardDomain.HEAVY_RAIN],
         )
         assert not any("조회하지" in item.detail for item in answer.degradations)
+
+
+class TestNoSourcesMeansNothingWasChecked:
+    """조회한 원천이 없으면 확인한 것이 없다.
+
+    영수증이 비면 "실패한 영수증이 없다"가 되어 complete가 참이 된다. 가뭄은
+    탐지 원천이 선언돼 있지 않은데 출처 0건으로 '확인 완료'가 나왔다.
+    """
+
+    @pytest.mark.parametrize("hazard", ["drought", "nuclear"])
+    async def test_a_hazard_with_no_sources_is_not_complete(
+        self, service: SafeDataService, hazard: str
+    ) -> None:
+        answer = await service.hazard_context("문경시", hazard=hazard)
+        assert not answer.receipts
+        assert not answer.is_complete
+        assert not answer.absence_is_confirmed
+
+    async def test_it_says_no_source_was_queried(
+        self, service: SafeDataService
+    ) -> None:
+        answer = await service.hazard_context("문경시", hazard="drought")
+        detail = " ".join(item.detail for item in answer.degradations)
+        assert "조회한 원천이 없습니다" in detail, detail
+
+
+class TestColdWaveIsNotHeatwave:
+    """한파를 폭염으로 분류하면 정반대 시설로 보낸다.
+
+    무더위쉼터는 냉방, 한파쉼터는 난방이다.
+    """
+
+    @pytest.mark.parametrize(
+        ("title", "expected"),
+        [
+            ("한파주의보", "cold_wave"),
+            ("폭염경보", "heatwave"),
+            ("지진해일주의보", "tsunami"),
+            ("대설경보", "heavy_snow"),
+            ("태풍경보", "typhoon"),
+        ],
+    )
+    def test_warning_titles_map_to_their_own_hazard(
+        self, title: str, expected: str
+    ) -> None:
+        from gbsafe_connectors.kma import _hazard_from_title
+
+        assert _hazard_from_title(title).value == expected
+
+    def test_shelter_kind_keywords_separate_hot_from_cold(self) -> None:
+        from gbsafe_connectors.filedata import _declared_hazards
+        from gbsafe_core.regions import HazardDomain
+
+        assert HazardDomain.COLD_WAVE in _declared_hazards("한파쉼터", "", "")
+        assert HazardDomain.HEATWAVE in _declared_hazards("무더위쉼터", "", "")
+        assert HazardDomain.HEATWAVE not in _declared_hazards("한파쉼터", "", "")
+
+
+class TestToolSchemaCoversEveryHazard:
+    """도구 스키마가 지원한다고 말하는 것과 실제로 받는 것이 같아야 한다.
+
+    열거값을 손으로 적어 두었더니 재난이 13종으로 늘었을 때 6종에 멈춰 있었고,
+    스키마가 태풍·지진해일·한파를 거부했다.
+    """
+
+    def test_every_hazard_domain_is_offered(self) -> None:
+        from gbsafe_core.regions import HazardDomain
+
+        tool = find_tool("gbsafe_hazard_context")
+        assert tool is not None
+        offered = set(tool.schema["properties"]["hazard"]["enum"])
+        expected = {
+            item.value for item in HazardDomain if item is not HazardDomain.OTHER
+        }
+        assert offered == expected, f"스키마에 빠진 재난: {expected - offered}"
+
+    async def test_every_offered_hazard_is_actually_accepted(
+        self, service: SafeDataService
+    ) -> None:
+        tool = find_tool("gbsafe_hazard_context")
+        assert tool is not None
+        for hazard in tool.schema["properties"]["hazard"]["enum"]:
+            payload = json.loads(
+                await execute(
+                    service, "gbsafe_hazard_context", {"region": "문경시", "hazard": hazard}
+                )
+            )
+            assert "error" not in payload, f"{hazard}: {payload.get('error')}"

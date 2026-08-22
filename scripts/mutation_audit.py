@@ -30,6 +30,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CONNECTORS = REPO_ROOT / "packages/gbsafe-connectors/src/gbsafe_connectors"
 CORE = REPO_ROOT / "packages/gbsafe-core/src/gbsafe_core"
 API = REPO_ROOT / "packages/gbsafe-api/src/gbsafe_api"
+MCP = REPO_ROOT / "packages/gbsafe-mcp/src/gbsafe_mcp"
 
 
 @dataclass(frozen=True, slots=True)
@@ -603,6 +604,34 @@ MUTATIONS: tuple[Mutation, ...] = (
         "if self.mode is not DataMode.REAL:",
         "if self.mode >= DataMode.REAL:",
         "실데이터에 모드 표시를 붙여 훈련 데이터와 구별을 흐린다",
+    ),
+    Mutation(
+        "credential-leaks-in-endpoint",
+        CONNECTORS / "base.py",
+        "            endpoint=self._redact_endpoint(response.endpoint),",
+        "            endpoint=response.endpoint,",
+        "URL 경로에 든 정부 인증키를 모든 레코드의 출처로 노출한다",
+    ),
+    Mutation(
+        "cold-wave-classified-as-heatwave",
+        CONNECTORS / "kma.py",
+        '        ("한파", HazardDomain.COLD_WAVE),',
+        '        ("한파", HazardDomain.HEATWAVE),',
+        "한파 특보를 폭염으로 분류해 난방이 필요한 상황에 냉방 시설을 안내한다",
+    ),
+    Mutation(
+        "no-sources-reported-complete",
+        API / "service.py",
+        "        if not receipts and not records:",
+        "        if False:",
+        "조회한 원천이 하나도 없는데 확인 완료로 보고한다",
+    ),
+    Mutation(
+        "tool-schema-freezes-hazard-list",
+        MCP / "tools.py",
+        '    "enum": [item.value for item in HazardDomain if item is not HazardDomain.OTHER],',
+        '    "enum": ["heavy_rain", "landslide", "wildfire", "flood", "earthquake", "heatwave"],',
+        "도구 스키마가 지원 재난의 절반을 거부해 없는 재난처럼 보이게 한다",
     ),
     Mutation(
         "unreadable-csv-with-filter-reads-as-absence",
