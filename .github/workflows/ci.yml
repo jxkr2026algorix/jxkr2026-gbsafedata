@@ -2,9 +2,12 @@ name: CI
 
 # 푸시와 PR마다 검증한다. 테스트는 네트워크·인증키·형제 저장소 없이 돌아가므로
 # 러너에서 별도 설정이 필요 없다.
+#
+# dev도 포함한다. 작업은 dev에 실시간으로 쌓이고 정리된 뒤 main에 머지되므로,
+# main만 검사하면 깨진 상태가 며칠씩 발견되지 않는다.
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
   workflow_dispatch:
   schedule:
