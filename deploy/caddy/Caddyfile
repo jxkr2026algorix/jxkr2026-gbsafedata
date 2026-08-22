@@ -5,17 +5,15 @@
 #
 # 구조: Cloudflare(orange cloud) → Caddy(443) → 각 서비스(127.0.0.1:포트)
 #
-# 이 서버는 공인 IPv4가 없고 IPv6로만 닿는다. Cloudflare가 AAAA로 붙는다.
+# 서버는 공인 IPv4(13.124.225.108)와 IPv6를 둘 다 갖고 있다. 보안그룹이
+# 22·80·443만 열어 두므로 서비스 포트는 전부 127.0.0.1에만 바인딩한다 —
+# 0.0.0.0에 걸면 Cloudflare를 우회해 오리진에 직접 닿는 경로가 생긴다.
 #
 # 인증서는 Caddy 내부 CA로 발급한다. 도메인이 Cloudflare를 가리켜 Let's Encrypt
 # HTTP-01 검증이 오리진까지 오지 않고, DNS-01은 Cloudflare API 토큰이 필요한데
 # 지금 없다. 따라서 **Cloudflare SSL/TLS 모드를 "Full"로** 둔다.
 # "Full (strict)"는 오리진 인증서를 CF가 검증하므로 자체서명으로는 실패한다.
 # Cloudflare Origin CA 인증서를 받으면 각 사이트의 `tls internal`만 바꾸면 된다.
-
-{
-	admin off
-}
 
 # 서비스별 설정은 /etc/caddy/sites/<서비스>.caddy 로 하나씩 떨어뜨린다.
 # 새 서비스를 붙일 때 이 파일은 건드리지 않는다.
