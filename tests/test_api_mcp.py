@@ -623,3 +623,42 @@ class TestReadmeToolNamesAreReal:
         }
         missing = sorted(registered - listed)
         assert not missing, f"README.md에 빠진 도구: {missing}"
+
+
+class TestFileDataSourcesDiagnoseCorrectly:
+    """파일데이터 원천은 '파일이 필요하다'고 말해야 한다.
+
+    `shelters`와 `landslide_zones`는 호출할 엔드포인트가 없다. 예전에는 fetch가
+    포털 기본 주소로 요청을 보내 `not_authorized`를 받았고, 파일이 필요한 상황이
+    인증 문제로 보고됐다. `doctor`는 올바르게 안내하는데 `fetch`만 어긋나서,
+    사용자는 인증키를 다시 발급받으러 가고 문제는 그대로 남는다.
+    """
+
+    @pytest.mark.parametrize("name", ["shelters", "landslide_zones"])
+    async def test_fetch_names_the_file_requirement(
+        self, service: SafeDataService, name: str
+    ) -> None:
+        answer = await service.fetch_connector(name)
+        assert not answer.is_complete
+        assert answer.degradations, "장애가 보고되지 않았습니다"
+        detail = " ".join(item.detail for item in answer.degradations)
+        assert "normalize-csv" in detail, detail
+        assert "인증키 문제가 아닙니다" in detail, detail
+        assert all(
+            item.status is not UpstreamStatus.NOT_AUTHORIZED
+            for item in answer.degradations
+        ), "파일이 필요한 상황을 인증 실패로 보고합니다"
+
+    @pytest.mark.parametrize("name", ["shelters", "landslide_zones"])
+    async def test_fetch_makes_no_network_call(
+        self, service: SafeDataService, name: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """엔드포인트가 없는 원천에 요청을 보내면 안 된다."""
+        import httpx
+
+        async def explode(*args: Any, **kwargs: Any) -> Any:
+            raise AssertionError("파일데이터 원천이 네트워크를 호출했습니다")
+
+        monkeypatch.setattr(httpx.AsyncClient, "request", explode)
+        answer = await service.fetch_connector(name)
+        assert not answer.is_complete

@@ -528,8 +528,31 @@ class SafeDataService:
                     ),
                 ),
             )
-        outcome = await connector.fetch(**kwargs)
         spec = self._registry.spec(name)
+        if spec is not None and spec.requires_local_file:
+            # 이 원천은 호출할 엔드포인트가 없다. 그대로 fetch를 태우면 포털
+            # 기본 주소로 요청이 나가 `not_authorized`가 돌아오고, 파일이
+            # 필요한 상황이 인증 문제로 보고된다. 진단이 틀리면 사용자는
+            # 인증키를 다시 발급받으러 가고 문제는 그대로 남는다.
+            return Answer(
+                query=f"{name} {kwargs}",
+                degradations=(
+                    Degradation(
+                        dataset_id=spec.dataset_id,
+                        status=UpstreamStatus.UNAVAILABLE,
+                        detail=(
+                            f"'{name}'은 파일데이터라 조회할 엔드포인트가 없습니다. "
+                            "포털에서 CSV를 내려받은 뒤 "
+                            f"`gbsafe normalize-csv {name} <경로>`로 정규화하세요 "
+                            "(자동 다운로드가 세션에 의존해 취득은 사용자가 합니다). "
+                            "인증키 문제가 아닙니다."
+                        ),
+                        occurred_at=datetime.now(UTC),
+                    ),
+                ),
+            )
+
+        outcome = await connector.fetch(**kwargs)
         return Answer(
             query=f"{name} {kwargs}",
             records=outcome.records,
