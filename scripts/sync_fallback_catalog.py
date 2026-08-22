@@ -59,6 +59,18 @@ KEEP_FIELDS = (
 )
 
 
+def _describe_source(source: Path) -> str:
+    """생성 위치를 기록하되 생성한 사람의 홈 경로는 남기지 않는다.
+
+    이 파일은 저장소에 커밋되므로 `/Users/<이름>/...` 같은 절대 경로가 들어가면
+    공개 저장소에 로컬 디렉터리 구조가 그대로 노출된다.
+    """
+    try:
+        return str(source.resolve().relative_to(REPO_ROOT.parent))
+    except ValueError:
+        return source.name
+
+
 def main() -> int:
     source = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_SOURCE
     main_file = source / "datago-datasets.json"
@@ -142,7 +154,7 @@ def main() -> int:
             "scripts/sync_fallback_catalog.py로 재생성한다."
         ),
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
-        "source": str(source),
+        "source": _describe_source(source),
         "datasets": datasets,
     }
 
