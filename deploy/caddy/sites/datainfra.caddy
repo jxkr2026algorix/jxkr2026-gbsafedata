@@ -1,0 +1,38 @@
+# GB SafeData — 경북 재난 공공데이터 인프라.
+#
+# 컨테이너는 127.0.0.1:8000에 포트를 열어 둔다. Caddy가 네이티브라 컨테이너
+# 이름으로는 못 찾으므로 published port로 붙는다.
+
+datainfra.salgil.gyeongbuk.kr {
+	tls internal
+
+	reverse_proxy 127.0.0.1:8000 {
+		# MCP 응답을 버퍼링하지 않는다. 지금은 json_response 모드라 스트리밍이
+		# 아니지만, SSE로 바꿔도 Caddy가 붙들고 있지 않도록 둔다.
+		flush_interval -1
+
+		# 실제 방문자 IP는 Cloudflare 헤더에 있다. 넘기지 않으면 로그가 전부
+		# Cloudflare 대역으로 찍힌다.
+		header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+
+		# 재난 조회는 여러 정부 API로 팬아웃해 수십 초가 걸린다.
+		transport http {
+			read_timeout 120s
+			write_timeout 120s
+		}
+	}
+
+	# journald로 보낸다. systemd 유닛이 쓰기 경로를 제한해 파일 로그는
+	# 권한 오류로 기동을 막는다.  journalctl -u caddy -f 로 본다.
+	log {
+		output stderr
+		format console
+	}
+}
+
+# tailnet에서 평문으로 직접 부르는 경로.
+:80 {
+	reverse_proxy 127.0.0.1:8000 {
+		flush_interval -1
+	}
+}

@@ -1,0 +1,22 @@
+# salgil-aws 공용 리버스 프록시.
+#
+# 이 서버에는 팀별 서비스가 여러 개 뜬다. Caddy는 그 앞단을 공유하므로 각 앱의
+# docker compose에 넣지 않고 시스템 서비스로 둔다.
+#
+# 구조: Cloudflare(orange cloud) → Caddy(443) → 각 서비스(127.0.0.1:포트)
+#
+# 이 서버는 공인 IPv4가 없고 IPv6로만 닿는다. Cloudflare가 AAAA로 붙는다.
+#
+# 인증서는 Caddy 내부 CA로 발급한다. 도메인이 Cloudflare를 가리켜 Let's Encrypt
+# HTTP-01 검증이 오리진까지 오지 않고, DNS-01은 Cloudflare API 토큰이 필요한데
+# 지금 없다. 따라서 **Cloudflare SSL/TLS 모드를 "Full"로** 둔다.
+# "Full (strict)"는 오리진 인증서를 CF가 검증하므로 자체서명으로는 실패한다.
+# Cloudflare Origin CA 인증서를 받으면 각 사이트의 `tls internal`만 바꾸면 된다.
+
+{
+	admin off
+}
+
+# 서비스별 설정은 /etc/caddy/sites/<서비스>.caddy 로 하나씩 떨어뜨린다.
+# 새 서비스를 붙일 때 이 파일은 건드리지 않는다.
+import /etc/caddy/sites/*.caddy
