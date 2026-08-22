@@ -10,15 +10,21 @@ https://datainfra.salgil.gyeongbuk.kr/mcp/
 
 ---
 
-## 가장 쉬운 길 — Claude에 붙여넣기
+## 가장 쉬운 길 — 링크 한 번 클릭
 
-터미널을 열 필요가 없고, **무료 플랜에서도 됩니다**(무료는 커스텀 커넥터 1개까지).
+**[▶ Claude에 살길 추가하기](https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=%EC%82%B4%EA%B8%B8%20%EC%9E%AC%EB%82%9C%EB%8D%B0%EC%9D%B4%ED%84%B0&connectorUrl=https%3A%2F%2Fdatainfra.salgil.gyeongbuk.kr%2Fmcp%2F)**
 
-1. Claude에서 **설정 → Connectors**를 엽니다
-2. **커스텀 커넥터 추가**를 누릅니다
-3. 위 주소를 붙여넣고 **추가**를 누릅니다
+이름과 주소가 채워진 추가 창이 열립니다. 확인하고 **추가**를 누르면 끝입니다.
+터미널을 열 필요가 없고 **무료 플랜에서도 됩니다**(무료는 커스텀 커넥터 1개까지).
 
-끝입니다. 로그인 화면은 나오지 않습니다 — 공개 데이터만 읽는 서버라 인증을 요구하지 않습니다.
+> 링크로 값이 채워지면 Claude가 **"외부 링크에서 온 주소이니 확인하라"는 안내**를 함께
+> 띄웁니다. 정상입니다 — 링크는 입력란을 미리 채워줄 뿐이고, 추가 여부는 항상 본인이
+> 확인해서 결정합니다. 주소가 `datainfra.salgil.gyeongbuk.kr`인지 보시면 됩니다.
+
+로그인 화면은 나오지 않습니다 — 공개 데이터만 읽는 서버라 인증을 요구하지 않습니다.
+
+직접 넣고 싶으면 **설정 → Connectors → 커스텀 커넥터 추가**에서 맨 위 주소를 붙여넣어도
+같습니다.
 
 한 번 추가하면 **claude.ai(웹), 데스크톱, 모바일 앱에서 전부** 쓸 수 있습니다. Anthropic 클라우드가 서버에 접속하는 구조라 어느 기기에서 켜든 동일하게 동작합니다.
 
@@ -26,15 +32,23 @@ https://datainfra.salgil.gyeongbuk.kr/mcp/
 
 ---
 
-## ChatGPT — 되지만 번거롭습니다
+## ChatGPT — 클릭 한 번으로는 안 됩니다
 
-**무료·Go 플랜은 커스텀 MCP를 지원하지 않습니다.** 유료 플랜에서 *개발자 모드*를 켜야 하고, **웹 전용**(모바일 불가)입니다.
+**무료·Go 플랜은 커스텀 MCP를 지원하지 않습니다.** 유료 플랜에서 *개발자 모드*를 켜야 하고,
+**웹 전용**(모바일 불가)입니다.
+
+Claude 같은 프리필 링크는 없습니다. 커넥터 생성 창까지 열어주는 링크는 있지만
+**주소는 직접 붙여넣어야** 하고, 개발자 모드가 이미 켜져 있어야 동작합니다.
 
 1. **설정 → 보안 및 로그인 → 개발자 모드**를 켭니다
-2. [chatgpt.com/plugins](https://chatgpt.com/plugins)에서 **+** 를 누릅니다
-3. 이름과 위 MCP 주소를 넣습니다
+2. **[커넥터 생성 창 열기](https://chatgpt.com/plugins#settings/Connectors?create-connector=true&redirectAfter=%2Fplugins)** 를 누릅니다
+3. 이름과 아래 주소를 넣습니다 — 인증(Authentication)은 **None**
 
-플랜에 따라 제약이 다르고 문서끼리도 서술이 엇갈립니다. **AI를 가볍게 쓰는 분께는 Claude 쪽을 권합니다.**
+```
+https://datainfra.salgil.gyeongbuk.kr/mcp/
+```
+
+플랜별 제약이 공식 문서끼리도 엇갈립니다. **AI를 가볍게 쓰는 분께는 Claude 쪽을 권합니다.**
 
 ---
 
