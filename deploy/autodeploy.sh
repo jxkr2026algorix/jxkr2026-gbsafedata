@@ -48,8 +48,9 @@ verify() {
   done
 }
 
-# 경로 그래프는 이동수단마다 따로 만들어지고, 경북 전역 도로망이면 한 번 만드는 데
-# 40~50초가 걸린다. 그 비용을 처음 요청한 사람이 물게 두면 배포 직후 화면이 멈춘 것처럼
+# 경로 그래프는 이동수단마다 따로 만들어진다. 경북 전역이면 처음 만드는 데 2분이
+# 넘어 Cloudflare 의 100초 한도에 걸리고, 사용자에게는 524 로 보인다. 디스크 캐시가
+# 있으면 30초쯤이라 한도 안에 들지만 그래도 느리다. 그 비용을 처음 요청한 사람이 물게 두면 배포 직후 화면이 멈춘 것처럼
 # 보이므로, 여기서 미리 한 번씩 불러 캐시에 올려 둔다. 실패해도 배포는 성공이다 —
 # 데우기는 최적화지 배포 조건이 아니다.
 warm_routes() {
@@ -57,13 +58,13 @@ warm_routes() {
   local key
   key=$(grep -oP '(?<=^SALGIL_API_KEYS=)[^:]+' /opt/platform-backend/.env 2>/dev/null) || return 0
   [ -n "$key" ] || return 0
-  for mode in foot car; do
+  for mode in foot car bicycle assisted; do
     curl -fsS --max-time 180 -X POST http://127.0.0.1:8001/api/v1/routing/evacuation \
       -H "x-api-key: $key" -H 'Content-Type: application/json' \
       -d "{\"lat\":36.4356,\"lon\":129.0572,\"hazard\":\"wildfire\",\"mode\":\"$mode\"}" \
       >/dev/null 2>&1 || true
   done
-  log "$1: 경로 그래프 데우기 완료 (foot, car)"
+  log "$1: 경로 그래프 데우기 완료 (4개 수단)"
 }
 
 health_url() {
