@@ -61,8 +61,6 @@ uv run python scripts/check_readme_badges.py --write   # 뱃지 숫자 갱신
 | `test` | Python 3.12·3.13 전체 테스트, 인증키 없이 |
 | `lint` | `ruff check` |
 | `guarantees` | 아래 안전 속성이 유지되는지 |
-| `mutation` | 위험 은폐 뮤테이션이 전부 검출되는지 |
-| `live-api` | 실제 정부 API 호출, 푸시마다 + 매일 |
 | `install` | Ubuntu·macOS lockfile 설치 후 CLI·MCP·API 실행 |
 
 `guarantees`는 이 문서가 주장하는 내용을 그대로 검사한다.
@@ -74,6 +72,13 @@ uv run python scripts/check_readme_badges.py --write   # 뱃지 숫자 갱신
 - `docs/api.md`·`docs/mcp.md`가 **코드와 일치한다**
 - 위 **뱃지 숫자가 실제 값과 같다**
 
-`live-api`가 필요한 이유는 고정 응답 테스트가 원천의 스키마 변경을 통과시키기 때문이다. 그때 깨지는 것은 프로덕션이다. 한도를 지키려 원천별로 1회만 호출하고, 심의 대기 3종이 여전히 `not_authorized`인지도 확인해 승인이 떨어지면 알려준다.
+뮤테이션 감사와 라이브 스모크는 **CI가 아니라 손으로 돌린다.** 감사는 푸시마다 걸기엔 너무 오래 걸리고, 라이브 호출은 인증키와 기관이 응답하는 출발지가 필요한데 GitHub 러너는 둘 다 아니다. 두 스크립트 모두 여전히 동작하고 여전히 중요하다.
+
+```bash
+uv run python scripts/mutation_audit.py     # 테스트가 실제로 무엇을 잡는지
+uv run python scripts/smoke_live_apis.py    # 원천이 아직 파싱되는지
+```
+
+배포 전에는 스모크를 돌린다. 고정 응답 테스트는 기관이 스키마를 바꿔도 계속 통과하고, 그때 깨지는 것은 프로덕션이다.
 
 실패를 세 가지로 구별한다. 뭉뚱그리면 job이 신호를 잃기 때문이다. 파서가 원천을 더 이상 읽지 못하는 것은 실제 결함이므로 빌드를 깬다. 원천 전체가 도달 불가면 네트워크·리전 문제이므로 사유를 밝히고 0으로 종료한다. AirKorea는 간헐적으로 504를 반환하는데 — 조사 기록에 4회 재시도로도 3회 중 1회는 실패하며 필수 의존으로 두지 말라고 명시되어 있다 — 이 원천의 실패는 보고하되 빌드를 깨지 않는다.

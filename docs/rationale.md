@@ -50,7 +50,7 @@ Coverage tells you a line executed. What matters is whether a test fails when th
 
 So [`scripts/mutation_audit.py`](../scripts/mutation_audit.py) deliberately breaks the code in the direction that hides danger, then checks whether the suite notices. Each mutation is a failure that could really happen: a missing temperature becoming 0°C, a cancelled advisory left active, an earthquake shelter assigned to a flood.
 
-A surviving mutation means no test catches that failure, so CI treats it as a build failure.
+A surviving mutation means no test catches that failure.
 
 ### What CI checks
 
@@ -61,8 +61,6 @@ A surviving mutation means no test catches that failure, so CI treats it as a bu
 | `test` | Full suite on Python 3.12 and 3.13, with no credential supplied |
 | `lint` | `ruff check` |
 | `guarantees` | That the safety properties below still hold |
-| `mutation` | That every danger-hiding mutation is caught |
-| `live-api` | Real government API calls, on push and daily |
 | `install` | Frozen install on Ubuntu and macOS, then CLI, MCP, and API exercised |
 
 `guarantees` asserts the claims this README makes:
@@ -74,6 +72,13 @@ A surviving mutation means no test catches that failure, so CI treats it as a bu
 - `docs/api.md` and `docs/mcp.md` are **current with the code**
 - the **badge numbers above match reality**
 
-`live-api` exists because recorded responses keep passing when an agency changes its schema — production is what breaks. It calls each source once to respect the quotas and asserts the review-pending sources still return `not_authorized`, so we learn when approval lands.
+The mutation audit and the live API smoke test are **run by hand, not by CI**. The audit takes long enough to stall every push, and the live calls need a credential plus an origin the agencies will answer — a GitHub runner is neither. Both scripts still work and both still matter:
+
+```bash
+uv run python scripts/mutation_audit.py     # what the suite actually catches
+uv run python scripts/smoke_live_apis.py    # whether the sources still parse
+```
+
+Run the smoke test before a release. Recorded responses keep passing after an agency changes its schema, and production is what breaks.
 
 It distinguishes three kinds of failure, because treating them alike makes the job useless. A parser that can no longer read a source is a real defect and fails the build. Every source being unreachable is a network or region problem, reported and exited zero. And AirKorea returns intermittent 504s — the source survey measured roughly one failure in three even after four retries and warns against making it a hard dependency — so its failure is reported without breaking the build.

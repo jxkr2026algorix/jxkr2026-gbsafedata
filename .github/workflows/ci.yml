@@ -10,9 +10,6 @@ on:
     branches: [main, dev]
   pull_request:
   workflow_dispatch:
-  schedule:
-    # 원천 API는 푸시와 무관하게 변한다. 매일 09:00 KST에 확인한다.
-    - cron: "0 0 * * *"
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -146,49 +143,6 @@ jobs:
       - name: README badges match reality
         # 테스트 수·도구 수를 README에 적어두면 낡는다. CI가 실제 값과 비교한다.
         run: uv run python scripts/check_readme_badges.py
-
-  mutation:
-    name: mutation audit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-      - run: uv sync --all-packages
-
-      - name: Tests must catch every danger-hiding mutation
-        # 커버리지는 "이 줄이 실행됐다"만 말한다. 여기서는 위험을 은폐하는
-        # 방향으로 코드를 망가뜨리고 테스트가 잡는지 확인한다. 생존한 뮤테이션은
-        # 그 실패를 아무 테스트도 잡지 못한다는 뜻이다.
-        run: uv run python scripts/mutation_audit.py
-
-  live-api:
-    name: live public APIs
-    runs-on: ubuntu-latest
-    # 포크 PR에는 시크릿이 전달되지 않는다. 건너뛰는 것이 정상이다.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    steps:
-      - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-      - run: uv sync --all-packages
-
-      - name: Call the real government APIs
-        # 고정 응답 테스트는 원천이 응답 형태를 바꿔도 계속 통과한다.
-        # 그때 깨지는 것은 프로덕션이므로 실제 호출로 확인한다.
-        env:
-          GBSAFE_DATA_GO_KR_SERVICE_KEY: ${{ secrets.GBSAFE_DATA_GO_KR_SERVICE_KEY }}
-        run: uv run python scripts/smoke_live_apis.py
-
-      - name: Check the ASOS station numbers resolve
-        # 지점번호가 최근접인지는 단위 테스트가 보지만, 그 번호로 실제 조회가
-        # 되는지는 실호출로만 알 수 있다. 기상청은 국내 지점번호와 WMO 번호를
-        # 따로 쓰고, 섞으면 조용히 다른 지점을 읽는다.
-        env:
-          GBSAFE_DATA_GO_KR_SERVICE_KEY: ${{ secrets.GBSAFE_DATA_GO_KR_SERVICE_KEY }}
-        run: uv run python scripts/check_asos_stations_live.py
 
   install:
     name: clean install
