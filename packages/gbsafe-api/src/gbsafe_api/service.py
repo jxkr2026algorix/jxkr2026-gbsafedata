@@ -43,6 +43,7 @@ from gbsafe_core.models import (
 from gbsafe_core.regions import (
     SIGUNGU,
     HazardDomain,
+    asos_station_detail,
     asos_station_for,
     find_sigungu,
     grid_for,
@@ -376,6 +377,13 @@ class SafeDataService:
             }
 
         grid = grid_for(sigungu.code)
+        station = asos_station_detail(sigungu.code)
+        caveats = [
+            "대표 좌표는 시군 청사 기준 근사값입니다 — 경계 판정이나 "
+            "거리 계산의 근거로 쓰면 안 됩니다"
+        ]
+        if station is not None and station.caveat:
+            caveats.append(station.caveat)
         return {
             "found": True,
             "code": sigungu.code,
@@ -384,10 +392,18 @@ class SafeDataService:
             "center": {"lat": sigungu.center.lat, "lon": sigungu.center.lon},
             "kma_grid": {"nx": grid.nx, "ny": grid.ny} if grid else None,
             "asos_station": asos_station_for(sigungu.code),
-            "caveat": (
-                "대표 좌표는 시군 청사 기준 근사값입니다 — 경계 판정이나 "
-                "거리 계산의 근거로 쓰면 안 됩니다"
+            "asos_station_detail": (
+                None
+                if station is None
+                else {
+                    "station_id": station.station.station_id,
+                    "name": station.station.name,
+                    "distance_km": station.distance_km,
+                    "is_local": station.is_local,
+                }
             ),
+            "caveat": caveats[0],
+            "caveats": tuple(caveats),
         }
 
     # ── 위험 상황 ───────────────────────────────────────────────

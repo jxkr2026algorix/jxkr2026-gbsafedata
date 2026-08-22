@@ -17,7 +17,10 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-README = REPO_ROOT / "README.md"
+
+#: 뱃지를 실은 문서 전부. 영문만 검사하다가 국문 README가 501에 멈춰 있었고,
+#: 두 문서가 서로 다른 테스트 수를 광고했다.
+READMES = (REPO_ROOT / "README.md", REPO_ROOT / "README.ko.md")
 
 TEST_BADGE = re.compile(r"(tests-)(\d+)(%20passing)")
 TOOL_BADGE = re.compile(r"(MCP-)(\d+)(%20read--only%20tools)")
@@ -58,23 +61,29 @@ def count_tools() -> int:
 
 def main() -> int:
     write = "--write" in sys.argv
-    content = README.read_text(encoding="utf-8")
     tests, tools = count_tests(), count_tools()
 
-    updated = TEST_BADGE.sub(rf"\g<1>{tests}\g<3>", content)
-    updated = TOOL_BADGE.sub(rf"\g<1>{tools}\g<3>", updated)
+    stale: list[str] = []
+    for readme in READMES:
+        content = readme.read_text(encoding="utf-8")
+        updated = TEST_BADGE.sub(rf"\g<1>{tests}\g<3>", content)
+        updated = TOOL_BADGE.sub(rf"\g<1>{tools}\g<3>", updated)
+        if updated == content:
+            continue
+        stale.append(readme.name)
+        if write:
+            readme.write_text(updated, encoding="utf-8")
 
     if write:
-        if updated != content:
-            README.write_text(updated, encoding="utf-8")
-            print(f"updated badges: tests={tests} tools={tools}")
+        if stale:
+            print(f"updated badges in {', '.join(stale)}: tests={tests} tools={tools}")
         else:
             print(f"badges already current: tests={tests} tools={tools}")
         return 0
 
-    if updated != content:
+    if stale:
         print(
-            f"README 뱃지가 실제 값과 다릅니다 (tests={tests}, tools={tools}).\n"
+            f"{', '.join(stale)} 뱃지가 실제 값과 다릅니다 (tests={tests}, tools={tools}).\n"
             "uv run python scripts/check_readme_badges.py --write 로 갱신하세요.",
             file=sys.stderr,
         )

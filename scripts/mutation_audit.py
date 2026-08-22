@@ -18,6 +18,8 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -422,16 +424,139 @@ MUTATIONS: tuple[Mutation, ...] = (
         "        blocked = []",
         "심의 대기 데이터셋을 지금 쓸 수 있는 것처럼 보고한다",
     ),
+    # ── 자동 뮤테이션 탐색(cosmic-ray)이 찾아낸 생존자 ──────────────
+    # 손으로 고른 뮤테이션은 내가 의심한 곳만 건드린다. 아래는 모든 식을
+    # 기계적으로 변형해 살아남은 것들이라, 내가 보지 않은 곳에서 나왔다.
+    Mutation(
+        "read-only-guard-keeps-format-chars",
+        CORE / "safety.py",
+        r'if unicodedata.category(ch) != "Cf" and ch not in "\u200b\u200c\u200d"',
+        r'if unicodedata.category(ch) != "Cf" or ch not in "\u200b\u200c\u200d"',
+        "제로폭 문자만 지워 soft hyphen으로 변경 동사를 숨긴 도구를 통과시킨다",
+    ),
+    Mutation(
+        "citation-drops-dataset-id-check",
+        CORE / "safety.py",
+        "if not provenance.dataset_id or not provenance.provider:",
+        "if not provenance.provider:",
+        "데이터셋 id 없는 값을 판단 근거로 인용하게 한다",
+    ),
+    Mutation(
+        "citation-drops-provider-check",
+        CORE / "safety.py",
+        "if not provenance.dataset_id or not provenance.provider:",
+        "if not provenance.dataset_id:",
+        "기관 없는 값을 판단 근거로 인용하게 한다",
+    ),
+    Mutation(
+        "citation-inverts-staleness-gate",
+        CORE / "safety.py",
+        "if not record.freshness.is_usable_for_decision:",
+        "if not not record.freshness.is_usable_for_decision:",
+        "오래된 값을 현재 상황처럼 인용하게 한다",
+    ),
+    Mutation(
+        "shelter-hides-untrusted-occupancy",
+        CORE / "safety.py",
+        "if not shelter.occupancy_is_trustworthy:",
+        "if not not shelter.occupancy_is_trustworthy:",
+        "확인되지 않은 수용인원을 실시간 값처럼 제시해 만원인 대피소로 보낸다",
+    ),
+    Mutation(
+        "shelter-hides-unknown-hazard",
+        CORE / "safety.py",
+        "if not shelter.supported_hazards:",
+        "if not not shelter.supported_hazards:",
+        "적용 재난이 확인되지 않은 대피소를 경고 없이 배정 대상으로 만든다",
+    ),
+    Mutation(
+        "shelter-hides-unknown-accessibility",
+        CORE / "safety.py",
+        "if shelter.wheelchair_accessible is None:",
+        "if shelter.wheelchair_accessible is not None:",
+        "장애인 접근 여부 미확인을 알리지 않아 이동약자를 못 가는 곳으로 보낸다",
+    ),
+    Mutation(
+        "record-becomes-mutable",
+        CORE / "models.py",
+        'model_config = ConfigDict(frozen=True, extra="forbid")',
+        'model_config = ConfigDict(frozen=False, extra="forbid")',
+        "출처가 붙은 뒤 값만 바꿔치기할 수 있게 해 인용을 신뢰할 수 없게 만든다",
+    ),
+    Mutation(
+        "failed-sources-includes-successes",
+        CORE / "models.py",
+        "if receipt.outcome is SourceOutcome.FAILED",
+        "if receipt.outcome >= SourceOutcome.FAILED",
+        "성공한 원천을 실패 목록에 섞어 실패의 의미를 지운다",
+    ),
+    Mutation(
+        "bbox-drops-western-edge",
+        CORE / "models.py",
+        "self.min_lon <= point.lon <= self.max_lon",
+        "self.min_lon is not point.lon <= self.max_lon",
+        "경북 서쪽 밖의 좌표를 경북으로 판정한다",
+    ),
+    Mutation(
+        "bbox-drops-southern-edge",
+        CORE / "models.py",
+        "self.min_lat <= point.lat <= self.max_lat",
+        "self.min_lat is not point.lat <= self.max_lat",
+        "경북 남쪽 밖의 좌표를 경북으로 판정한다",
+    ),
+    Mutation(
+        "mungyeong-reads-sangju-rainfall",
+        CORE / "regions.py",
+        '"47280": 273,',
+        '"47280": 137,',
+        "문경 강우를 20km 떨어진 상주 관측값으로 읽는다",
+    ),
+    Mutation(
+        "yeongdeok-reads-pohang-rainfall",
+        CORE / "regions.py",
+        '"47770": 277,',
+        '"47770": 138,',
+        "영덕 강우를 42km 떨어진 포항 관측값으로 읽는다",
+    ),
+    Mutation(
+        "station-number-off-by-one",
+        CORE / "regions.py",
+        '"47190": 279,',
+        '"47190": 278,',
+        "구미 대신 의성 관측값을 읽는다 — 번호가 실재해 조회는 성공한다",
+    ),
+    Mutation(
+        "distant-station-loses-its-caveat",
+        CORE / "regions.py",
+        "if self.is_local:\n            return None",
+        "if not self.is_local:\n            return None",
+        "26km 떨어진 관측값을 이 지역 실측처럼 제시한다",
+    ),
 )
+
+
+def _drop_bytecode_caches() -> None:
+    """뮤테이션 사이에 남은 .pyc를 지운다.
+
+    CPython은 소스의 (mtime, size)로 캐시 유효성을 판단한다. 두 뮤테이션이
+    바이트 수가 같고 같은 초에 쓰이면 앞 뮤테이션의 .pyc가 그대로 재사용되어,
+    **적용하지 않은 코드로 테스트가 돈다**. 그러면 이 스크립트가 "검출"이라고
+    보고한 것이 실제로는 검출이 아닐 수 있다. 감사 도구가 조용히 틀리는 것은
+    이 저장소가 막으려는 실패 그 자체다.
+    """
+    for cache in REPO_ROOT.glob("packages/*/src/*/__pycache__"):
+        shutil.rmtree(cache, ignore_errors=True)
 
 
 def run_suite() -> tuple[bool, str]:
     """테스트를 돌린다. (통과 여부, 마지막 줄)"""
+    _drop_bytecode_caches()
     result = subprocess.run(
         ["uv", "run", "pytest", "tests/", "-q", "-x", "--no-header"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
     )
     tail = [line for line in result.stdout.strip().splitlines() if line.strip()]
     return result.returncode == 0, tail[-1] if tail else ""
@@ -470,15 +595,25 @@ def main() -> int:
     print(f"검출 {killed} / 생존 {len(survived)} / 적용불가 {len(unapplied)}")
 
     if unapplied:
-        print("\n적용할 수 없는 뮤테이션 (대상 코드가 바뀌었으니 갱신 필요):")
+        print(
+            "\n적용할 수 없는 뮤테이션 — 대상 코드가 바뀌어 **검사되지 않았습니다**:"
+        )
         for mutation in unapplied:
             print(f"  - {mutation.name}")
+            print(f"      {mutation.harm}")
+        print(
+            "\n적용 실패를 통과로 두면 리팩터링 한 번에 뮤테이션이 조용히 "
+            "빠지고, 이 스크립트는 계속 '모두 검출'이라고 보고한다. "
+            "old 패턴을 현재 코드에 맞게 고치세요."
+        )
 
     if survived:
         print("\n생존한 뮤테이션 — 아무 테스트도 이 실패를 잡지 못합니다:")
         for mutation in survived:
             print(f"  - {mutation.name}")
             print(f"      {mutation.harm}")
+
+    if survived or unapplied:
         return 1
 
     print("\n모든 뮤테이션이 검출됐습니다.")
