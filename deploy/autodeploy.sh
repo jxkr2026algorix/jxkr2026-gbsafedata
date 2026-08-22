@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # salgil-aws 자동 재배포. systemd 타이머가 주기적으로 부른다.
 #
-# main 에 새 커밋이 있을 때만 움직인다. 없으면 아무것도 하지 않고 끝나므로
-# 타이머를 짧게 잡아도 부담이 없다.
+# main 에 새 커밋이 있을 때만 움직인다. 몇 초마다 도는 것을 감당하려고 평소에는
+# ls-remote 로 원격 SHA 한 줄만 물어본다 — 오브젝트 협상이 없어 fetch 보다 훨씬
+# 싸다. 실제로 다를 때만 fetch 한다.
 #
 # 두 저장소 모두 공개라 자격증명이 없다. GitHub 에 배포키를 넣지 않고, 서버에
 # 인바운드를 열지도 않는다 — 서버가 밖으로 나가서 가져오기만 한다.
@@ -49,11 +50,14 @@ for entry in "${SERVICES[@]}"; do
   [ -d "$dir/.git" ] || { log "$dir 이 git 저장소가 아닙니다 — 건너뜁니다"; continue; }
 
   cd "$dir"
-  git fetch -q origin main 2>/dev/null || { log "$dir fetch 실패 — 건너뜁니다"; continue; }
+
+  remote_sha=$(git ls-remote --quiet origin refs/heads/main 2>/dev/null | cut -f1)
+  [ -n "$remote_sha" ] || { log "$dir: 원격을 읽지 못했습니다 — 건너뜁니다"; continue; }
 
   local_sha=$(git rev-parse HEAD)
-  remote_sha=$(git rev-parse origin/main)
   [ "$local_sha" = "$remote_sha" ] && continue
+
+  git fetch -q origin main || { log "$dir: fetch 실패 — 건너뜁니다"; continue; }
 
   log "$dir: ${local_sha:0:7} → ${remote_sha:0:7} 배포 시작"
 
