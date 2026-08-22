@@ -17,31 +17,154 @@ One monorepo: an MCP server, a REST API, a normalisation layer, dataset search a
 
 ---
 
-## The problem this solves
+## How you can use it
 
-The data is already public. That is not the same as usable.
+It is deployed. Everything below is a live address or a command that works now.
 
-We queried 91 datasets on `data.go.kr` and called every API that would answer. What we found:
+```
+https://datainfra.salgil.gyeongbuk.kr
+```
 
-- **33 of 60 open APIs don't serve data.** The portal is a catalogue entry; the credential comes from a different agency's site entirely. Nothing on the dataset page says so except one field labelled `API 유형: LINK`.
-- **One dataset under-reports its row count by 4×.** The portal says 50,000 fire hydrants. There are 199,507 — the number shown is the grid download cap.
-- **Two earthquake shelter datasets are empty.** Registered as standard data, documented, downloadable. The CSV contains only a header row.
-- **The flood series forbids modification.** All 21 datasets are KOGL Type 4: attribution, non-commercial, and no derivative works. Reprojecting the coordinate system violates the terms — which is the first thing any evacuation analysis does.
-- **The weather grid formula isn't published.** The forecast API takes grid cells, not latitude and longitude, and the conversion ships inside an attachment ZIP.
+### 1. MCP server — no credential
 
-Disaster data carries one more hazard that ordinary data does not. **A failed lookup reads as safety.** When the landslide API returns 403 and the result set comes back empty, "no landslide advisories" is indistinguishable from "we could not check."
+Twelve tools an AI calls to look up disaster data, citing its sources in the answer.
 
-That last one shaped the whole design.
+```
+https://datainfra.salgil.gyeongbuk.kr/mcp/
+```
 
-## Design
+**No credential is needed.** The server holds the government keys and reads only
+published aggregate data. Every tool declares `readOnlyHint`, so an AI cannot
+change or delete anything through it.
 
-**A value cannot travel without its origin.** Every observation is wrapped in a `Record` carrying provenance, freshness, and quality flags. Extracting the bare value is possible — but you have to discard the citation deliberately, not by forgetting.
+All twelve tools are read-only.
 
-**Absence is proven, not assumed.** Every fetch returns a receipt stating `records`, `confirmed_empty`, or `failed`. A parser may only claim confirmed emptiness after validating a recognised success envelope and finding a documented no-data marker. An unrecognised response shape is a failure, and `absence_confirmed` tells a caller whether an empty result may be read as "nothing applies."
+`gbsafe_search_datasets` · `gbsafe_describe_dataset` · `gbsafe_verify_dataset` · `gbsafe_cite_dataset` · `gbsafe_resolve_region` · `gbsafe_hazard_context` · `gbsafe_hazard_capabilities` · `gbsafe_list_sources` · `gbsafe_fetch_source` · `gbsafe_data_health` · `gbsafe_quality_report` · `gbsafe_population_guidance`
 
-**Licence terms are enforced by code, not documented in prose.** KOGL Types 3 and 4 forbid modification, which covers reprojection, clipping, joins, and derived labels. `require()` raises on those paths instead of letting them through with a comment nobody reads.
+Keep the trailing slash. `/mcp` redirects with a 307, which not every client
+follows on a POST.
 
-**Nothing here has side effects.** Placing calls, issuing evacuation orders, and changing resident status belong to the operations platform. This layer has no POST, PUT, or DELETE route, and the MCP server refuses to register a tool whose name implies mutation.
+### 2. Plugin — one click
+
+**[▶ Add to Claude](https://datainfra.salgil.gyeongbuk.kr/add-claude)**
+
+Opens the dialog with the name and URL filled in. Confirm and you are done, and
+it works on the free plan — on claude.ai, desktop, and mobile alike.
+
+**ChatGPT** needs developer mode and a paid plan and is web only, so it has its
+own walkthrough → **[docs/chatgpt.md](docs/chatgpt.md)**
+
+Claude Code, Cursor, VS Code, and opencode are in
+[docs/connect.md](docs/connect.md).
+
+### 3. Open-source skill — one line
+
+MCP gives an agent *what it can do*. The skill gives it *how to do it safely* —
+never report an absence you did not verify, never present a forecast as an
+observation, never infer an individual from aggregate statistics, never decide
+an evacuation.
+
+```bash
+npx skills add jxkr2026algorix/jxkr2026-gbsafedata
+```
+
+It detects opencode, Claude Code, Codex, Cursor, and others. Source:
+[`skills/gb-safedata`](skills/gb-safedata).
+
+### 4. Standard API — for systems that never heard of MCP
+
+Plain HTTP. Every data response uses one envelope.
+
+```bash
+curl -G https://datainfra.salgil.gyeongbuk.kr/v1/hazards/context \
+     --data-urlencode "region=문경시" --data-urlencode "hazard=heavy_rain"
+```
+
+```json
+{
+  "records": [...],
+  "citations": [...],
+  "sources_checked": [
+    { "connector": "weather_warning",    "outcome": "records" },
+    { "connector": "landslide_forecast", "outcome": "failed",
+      "detail": "HTTP 403 — development-stage review pending" }
+  ],
+  "complete": false,
+  "absence_confirmed": false
+}
+```
+
+**Read `absence_confirmed` before drawing anything from an empty `records`.**
+Conflate the two and a failed lookup reads as safety.
+
+41 schemas and the full route list:
+[`/docs`](https://datainfra.salgil.gyeongbuk.kr/docs) · [docs/api.md](docs/api.md).
+The UI contract is in [docs/handoff.md](docs/handoff.md).
+
+### 5. Normalisation layer
+
+What each agency does differently, reconciled.
+
+| Scattered | Unified |
+| --- | --- |
+| Municipality spellings, former names, transferred districts | 5-digit administrative code + representative coordinate |
+| Lat/lon, KMA forecast grid, ASOS station id | one region, converted between all three (`gbsafe_resolve_region`) |
+| Per-agency timestamps, missing time zones | UTC, with a freshness verdict |
+| Missing-value markers (`-`, `-999`, empty string) | detected from real responses, never read as zero |
+| Per-agency licence wording | KOGL codes, then a ruling on what you may do |
+
+### 6. Search, verification, citation
+
+```bash
+uv run gbsafe search 산사태 --ready                # only what is callable now
+uv run gbsafe verify 15074800 --operation derive  # may I transform this?
+uv run gbsafe cite 15084084                       # attribution for a report
+uv run gbsafe doctor                              # per-source status and cause
+```
+
+`verify` enforces rather than documents. KOGL Types 3 and 4 forbid modification,
+which covers reprojection, clipping, joins, and derived labels.
+
+---
+
+## As a service, or self-hosted
+
+### As a service (recommended)
+
+Use the addresses above. Nothing to install, no credential, no signup — the
+server handles government API calls, key custody, caching, and quota protection.
+
+Calling it straight from a browser is discouraged: it queries sources with our
+government credentials, so proxy it through your own backend.
+
+### Self-hosted
+
+If you need data sovereignty or want to run it on your own credentials:
+
+```bash
+git clone https://github.com/jxkr2026algorix/jxkr2026-gbsafedata
+cd jxkr2026-gbsafedata
+uv sync --all-packages
+
+cp .env.example .env       # add GBSAFE_DATA_GO_KR_SERVICE_KEY
+uv run gbsafe doctor       # what works, and why the rest does not
+uv run gbsafe serve        # http://127.0.0.1:8000/docs
+```
+
+Or in a container:
+
+```bash
+docker compose up
+```
+
+**With no credential at all**, catalogue search, verification, citation, and
+region resolution still work.
+
+Server deployment (Caddy, Cloudflare, containers) is in
+[deploy/README.md](deploy/README.md); per-client setup is in
+[docs/install.md](docs/install.md).
+
+---
 
 ## What it looks like when it works
 
@@ -54,183 +177,6 @@ Asked pointedly whether Mungyeong has landslide risk, an AI client with this sta
 > **Could not check:** Korea Forest Service Landslide Prediction (15074800) — HTTP 403, development-stage review pending. Roadside Landslide Information (15074812) — same cause.
 
 That is the entire point. The system is built so an agent cannot mistake an outage for good news.
-
-## Quick start
-
-Attach it to your AI harness in one line — it detects opencode, Claude Code, Claude Desktop, or Cursor, and installs both the MCP server and the skill:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/jxkr2026algorix/jxkr2026-gbsafedata/main/install.sh | bash
-```
-
-Then ask: *문경시 산사태 위험 상황을 확인해줘* (what is the landslide risk in Mungyeong). A correct setup names the sources it could not read and refuses to call unverified risk "none."
-
-Per-harness config, credential setup, and troubleshooting: **[docs/install.md](docs/install.md)**.
-
-Working on the code instead:
-
-```bash
-git clone https://github.com/jxkr2026algorix/jxkr2026-gbsafedata
-cd jxkr2026-gbsafedata
-uv sync --all-packages
-
-cp .env.example .env       # add GBSAFE_DATA_GO_KR_SERVICE_KEY
-uv run gbsafe doctor
-```
-
-`doctor` reports which sources are usable and, for the rest, why. It separates **a missing credential** from **a pending review** from **a file you must download by hand**, because those need different responses and guessing wrong costs a trip to the portal.
-
-Without any credential the catalogue, search, verification, and citation tools still work.
-
-## Usage
-
-### CLI
-
-```bash
-uv run gbsafe doctor                              # source status
-uv run gbsafe search 산사태 --ready                # only what's callable now
-uv run gbsafe verify 15074800 --operation derive  # may I transform this?
-uv run gbsafe cite 15084084                       # attribution for a report
-uv run gbsafe region 문경시                        # code, coordinates, weather grid
-uv run gbsafe hazard 문경시 --type landslide       # current conditions
-uv run gbsafe quality                             # verified data defects
-uv run gbsafe serve                               # REST API
-uv run gbsafe mcp                                 # MCP server
-```
-
-### REST API
-
-```bash
-uv run gbsafe serve   # http://127.0.0.1:8000/docs
-```
-
-Every data response uses one envelope:
-
-```json
-{
-  "records": [{ "payload": {...}, "source": {...}, "freshness": {...} }],
-  "citations": [{ "text": "기상청 「기상청 기상특보」 · 기준 2026-08-21T17:00:00+09:00 · KOGL-1 · ..." }],
-  "receipts": [
-    { "connector": "weather_warning", "outcome": "records", "record_count": 9 },
-    { "connector": "landslide_forecast", "outcome": "failed", "detail": "HTTP 403 — development-stage review pending" }
-  ],
-  "complete": false,
-  "absence_confirmed": false
-}
-```
-
-Read `absence_confirmed` before concluding anything from an empty `records`. Full reference: [docs/api.md](docs/api.md).
-
-### MCP server
-
-```bash
-uv run gbsafe-mcp
-```
-
-Client configs are in [`plugins/`](plugins). All 11 tools are read-only:
-
-`gbsafe_search_datasets` · `gbsafe_describe_dataset` · `gbsafe_verify_dataset` · `gbsafe_cite_dataset` · `gbsafe_resolve_region` · `gbsafe_hazard_context` · `gbsafe_hazard_capabilities` · `gbsafe_list_sources` · `gbsafe_fetch_source` · `gbsafe_data_health` · `gbsafe_quality_report` · `gbsafe_population_guidance`
-
-Install [`skills/gb-safedata`](skills/gb-safedata) alongside it. The MCP server gives an agent the tools; the skill gives it the rules for reading disaster data honestly — never report absence you did not verify, never present a forecast as an observation, never infer an individual from aggregate statistics, never decide an evacuation.
-
-### Connect it to your AI (nothing to install)
-
-**[▶ Add to Claude](https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=SALGIL%20%7C%20%EC%82%B4%EA%B8%B8%20%E2%80%93%20%EC%9E%AC%EB%82%9C%EB%8D%B0%EC%9D%B4%ED%84%B0%EC%9D%B8%ED%94%84%EB%9D%BC&connectorUrl=https%3A%2F%2Fdatainfra.salgil.gyeongbuk.kr%2Fmcp%2F)** opens the dialog with the values filled in; confirm
-and you are done — no terminal, no credential, no signup, and it works on the
-free plan. Or paste the address below into Claude's Connectors settings.
-
-```
-https://datainfra.salgil.gyeongbuk.kr/mcp/
-```
-
-**[docs/connect.md](docs/connect.md)** covers Claude web/desktop/mobile, ChatGPT
-developer mode, Claude Code, Cursor, VS Code, and opencode.
-
-### Attaching it to your own AI harness
-
-The server is deployed, so you do not have to run anything. Point your harness at
-the hosted MCP endpoint and the tools appear.
-
-```
-https://datainfra.salgil.gyeongbuk.kr/mcp/
-```
-
-**Claude Code**
-
-```bash
-claude mcp add --transport http gbsafedata https://datainfra.salgil.gyeongbuk.kr/mcp/
-```
-
-**opencode** — `opencode.json`, or copy [`plugins/opencode-remote.json`](plugins/opencode-remote.json)
-
-```json
-{
-  "mcp": {
-    "gbsafedata": {
-      "type": "remote",
-      "url": "https://datainfra.salgil.gyeongbuk.kr/mcp/",
-      "enabled": true
-    }
-  }
-}
-```
-
-**Cursor** — `.cursor/mcp.json`, or [`plugins/cursor-remote.json`](plugins/cursor-remote.json)
-
-```json
-{ "mcpServers": { "gbsafedata": { "url": "https://datainfra.salgil.gyeongbuk.kr/mcp/" } } }
-```
-
-**Claude Desktop** — it speaks stdio only, so bridge it. See [`plugins/claude-desktop-remote.json`](plugins/claude-desktop-remote.json)
-
-```json
-{
-  "mcpServers": {
-    "gbsafedata": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "https://datainfra.salgil.gyeongbuk.kr/mcp/"]
-    }
-  }
-}
-```
-
-Keep the trailing slash. `/mcp` redirects to `/mcp/` with a 307, which most clients
-follow, but not all of them do it on a POST.
-
-No credential is needed — the server holds the government keys. Then ask it
-something like *문경시 산사태 위험 확인해줘*. A correct setup names the sources it
-could not read rather than reporting the absence of a reading as the absence of
-risk.
-
-Prefer running it yourself? The stdio configs in [`plugins/`](plugins) still work,
-and `install.sh` sets them up.
-
-### Attaching it to a web chatbot
-
-A browser backend cannot spawn a stdio MCP server, so the same eleven tools are
-served over HTTP. Which surface you want depends on your model client.
-
-```bash
-docker compose up            # http://localhost:8000
-```
-
-| Your client | Use | Why |
-| --- | --- | --- |
-| Upstage Solar, OpenAI chat completions | `GET /v1/tools` + `GET /v1/tools/{name}` | function-calling clients cannot speak MCP without writing an MCP client first |
-| OpenAI Responses API, MCP-native clients | `POST /mcp` | point it at the URL and it discovers and calls the tools itself |
-
-Tool routes are `GET`. Every argument is a scalar, so a query string is enough
-and this layer keeps its guarantee of having no write routes — `POST /mcp` is
-the one exception, and it exists because JSON-RPC requires it.
-
-**Fetch `GET /v1/agent/system-prompt` and apply it.** Wiring the tools without
-it is the failure this project exists to prevent: handed an empty result from a
-403, a model will report that there is no landslide risk, because being helpful
-is its default.
-
-Set `GBSAFE_API_KEYS` and `GBSAFE_CORS_ALLOW_ORIGINS` before exposing this to
-the internet. Both are off by default so local work needs no setup, and neither
-defaults to open — this service calls government APIs with our credentials.
 
 ## Connected sources
 
@@ -264,57 +210,12 @@ The three landslide APIs have it backwards from everything else: **development-s
 | [docs/mcp.md](docs/mcp.md) | Tool reference (generated from the definitions) |
 | [docs/safety.md](docs/safety.md) | Each boundary and the mechanism enforcing it |
 | [docs/install.md](docs/install.md) | Per-harness setup, credentials, and troubleshooting |
+| [docs/rationale.md](docs/rationale.md) | **Why it is built this way — the survey, the design, the testing** |
+| [docs/chatgpt.md](docs/chatgpt.md) | **Connecting it to ChatGPT, step by step** |
 | [docs/connect.md](docs/connect.md) | **Connecting it to Claude, ChatGPT, or a coding agent** |
 | [docs/handoff.md](docs/handoff.md) | **Deployed instance, and how another team wires it in** |
 | [docs/pitch-differentiation.md](docs/pitch-differentiation.md) | Measured comparison against a naive integration |
 | [docs/data-sources.md](docs/data-sources.md) | Per-agency acquisition, quirks, and known defects |
-
-## Development
-
-```bash
-uv run pytest tests/ -q                                # no network required
-uv run ruff check .
-uv run python scripts/mutation_audit.py                # measure what tests catch
-uv run python scripts/smoke_live_apis.py               # call the real APIs
-uv run python scripts/check_generated_docs.py --write  # regenerate api.md, mcp.md
-uv run python scripts/check_readme_badges.py --write   # refresh badge counts
-```
-
-The suite never reads your `.env`. It has to produce the same result on a machine with no credentials at all — an earlier version didn't, and a test meant to cover the no-credential path was quietly exercising a real key and making live calls.
-
-### Why coverage isn't the metric
-
-Coverage tells you a line executed. What matters is whether a test fails when that line is *wrong*. Those are different questions — at 87% coverage, **flattening every landslide advisory to "low" left all 501 tests passing.**
-
-So [`scripts/mutation_audit.py`](scripts/mutation_audit.py) deliberately breaks the code in the direction that hides danger, then checks whether the suite notices. Each mutation is a failure that could really happen: a missing temperature becoming 0°C, a cancelled advisory left active, an earthquake shelter assigned to a flood.
-
-A surviving mutation means no test catches that failure, so CI treats it as a build failure.
-
-### What CI checks
-
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request.
-
-| Job | Checks |
-| --- | --- |
-| `test` | Full suite on Python 3.12 and 3.13, with no credential supplied |
-| `lint` | `ruff check` |
-| `guarantees` | That the safety properties below still hold |
-| `mutation` | That every danger-hiding mutation is caught |
-| `live-api` | Real government API calls, on push and daily |
-| `install` | Frozen install on Ubuntu and macOS, then CLI, MCP, and API exercised |
-
-`guarantees` asserts the claims this README makes:
-
-- the API exposes **no write routes** — a POST fails the build
-- every MCP tool registers **read-only**
-- **every catalogue licence string resolves** — a spelling variant degrading to `UNKNOWN` silently blocks permitted work
-- **grid conversion matches the published cells** for Seoul, Busan, Jeju, and Mungyeong, because a wrong cell returns another city's weather successfully
-- `docs/api.md` and `docs/mcp.md` are **current with the code**
-- the **badge numbers above match reality**
-
-`live-api` exists because recorded responses keep passing when an agency changes its schema — production is what breaks. It calls each source once to respect the quotas and asserts the review-pending sources still return `not_authorized`, so we learn when approval lands.
-
-It distinguishes three kinds of failure, because treating them alike makes the job useless. A parser that can no longer read a source is a real defect and fails the build. Every source being unreachable is a network or region problem, reported and exited zero. And AirKorea returns intermittent 504s — the source survey measured roughly one failure in three even after four retries and warns against making it a hard dependency — so its failure is reported without breaking the build.
 
 ## Licence
 
