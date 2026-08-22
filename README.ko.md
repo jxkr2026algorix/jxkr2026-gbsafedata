@@ -3,12 +3,12 @@
 [English](README.md) · **한국어**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/jxkr2026algorix/jxkr2026-gbsafedata/ci.yml?branch=main&label=CI&logo=githubactions&logoColor=white)](https://github.com/jxkr2026algorix/jxkr2026-gbsafedata/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-683%20passing-brightgreen)](tests)
+[![tests](https://img.shields.io/badge/tests-708%20passing-brightgreen)](tests)
 [![live APIs](https://img.shields.io/badge/live%20APIs-6%20connected-0a7bbb)](scripts/smoke_live_apis.py)
 [![python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue?logo=python&logoColor=white)](pyproject.toml)
 [![uv](https://img.shields.io/badge/uv-managed-261230?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
 [![ruff](https://img.shields.io/badge/ruff-checked-261230?logo=ruff&logoColor=white)](https://docs.astral.sh/ruff/)
-[![MCP](https://img.shields.io/badge/MCP-11%20read--only%20tools-000000)](docs/mcp.md)
+[![MCP](https://img.shields.io/badge/MCP-12%20read--only%20tools-000000)](docs/mcp.md)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 경북 재난대피 공공데이터를 AI와 행정시스템에 **출처를 붙여서** 제공한다.
@@ -127,15 +127,15 @@ uv run gbsafe serve   # http://127.0.0.1:8000/docs
 uv run gbsafe-mcp
 ```
 
-클라이언트 설정은 [`plugins/`](plugins)에 있다. 도구 11개 전부 읽기 전용이다.
+클라이언트 설정은 [`plugins/`](plugins)에 있다. 도구 12개 전부 읽기 전용이다.
 
-`gbsafe_search_datasets` · `gbsafe_describe_dataset` · `gbsafe_verify_dataset` · `gbsafe_cite_dataset` · `gbsafe_resolve_region` · `gbsafe_hazard_context` · `gbsafe_list_sources` · `gbsafe_fetch_source` · `gbsafe_data_health` · `gbsafe_quality_report` · `gbsafe_population_guidance`
+`gbsafe_search_datasets` · `gbsafe_describe_dataset` · `gbsafe_verify_dataset` · `gbsafe_cite_dataset` · `gbsafe_resolve_region` · `gbsafe_hazard_context` · `gbsafe_hazard_capabilities` · `gbsafe_list_sources` · `gbsafe_fetch_source` · `gbsafe_data_health` · `gbsafe_quality_report` · `gbsafe_population_guidance`
 
 [`skills/gb-safedata`](skills/gb-safedata)를 함께 설치한다. MCP 서버는 에이전트에게 도구를 주고, Skill은 재난 데이터를 정직하게 읽는 규칙을 준다 — 확인하지 않은 부재를 보고하지 않기, 예보를 관측으로 제시하지 않기, 집계로 개인을 추정하지 않기, 대피를 결정하지 않기.
 
 ### 웹 챗봇에 붙이기
 
-브라우저 백엔드는 stdio MCP 서버를 띄울 수 없어서, 같은 도구 11개를 HTTP로도
+브라우저 백엔드는 stdio MCP 서버를 띄울 수 없어서, 같은 도구 12개를 HTTP로도
 제공한다. 어느 표면을 쓸지는 쓰는 모델 클라이언트가 정한다.
 
 ```bash

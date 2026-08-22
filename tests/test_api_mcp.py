@@ -324,7 +324,7 @@ class TestMcpTools:
         assert validated_tools() == TOOLS
 
     def test_tool_count(self) -> None:
-        assert len(TOOLS) == 11
+        assert len(TOOLS) == 12
 
     def test_schemas_are_strict(self) -> None:
         for tool in TOOLS:
@@ -563,7 +563,7 @@ class TestCitationCommand:
         assert payload["text"]
 
     def test_tool_count_includes_cite(self) -> None:
-        assert len(TOOLS) == 11
+        assert len(TOOLS) == 12
 
 
 class TestSearchDisclosesPendingReview:
@@ -790,3 +790,54 @@ class TestBothSurfacesNameTheSameThing:
             )
         )
         assert "sources_checked" in payload
+
+
+class TestPartialHazardsCannotLookReady:
+    """대응 범위의 한계가 답변 자체에 실려야 한다.
+
+    별도 엔드포인트에만 있으면 화면이 그것을 부르지 않고, 지진 답변이
+    호우 답변과 똑같이 완전해 보인다.
+    """
+
+    async def test_partial_hazard_answer_leads_with_its_limit(
+        self, service: SafeDataService
+    ) -> None:
+        answer = await service.hazard_context("문경시", hazard="earthquake")
+        assert answer.caveats, "한계 설명이 없습니다"
+        assert "대피소" in answer.caveats[0], answer.caveats[0]
+
+    async def test_blocked_hazard_says_empty_is_not_absence(
+        self, service: SafeDataService
+    ) -> None:
+        answer = await service.hazard_context("문경시", hazard="nuclear")
+        assert answer.caveats
+        assert "발생하지 않았다" in answer.caveats[0], answer.caveats[0]
+
+    async def test_ready_hazard_does_not_get_a_false_limit(
+        self, service: SafeDataService
+    ) -> None:
+        answer = await service.hazard_context("문경시", hazard="heavy_rain")
+        assert not any("부분적으로만" in caveat for caveat in answer.caveats)
+
+    def test_capability_endpoint_reports_every_hazard(self, client: TestClient) -> None:
+        payload = client.get("/v1/hazards/capabilities").json()
+        assert len(payload["hazards"]) == 13
+        assert set(payload["summary"]) == {"ready", "partial", "blocked"}
+
+    def test_capability_endpoint_separates_detect_from_route(
+        self, client: TestClient
+    ) -> None:
+        """지진은 탐지되지만 갈 곳을 모른다. 두 질문이 구별돼야 한다."""
+        payload = client.get("/v1/hazards/capabilities").json()
+        quake = next(h for h in payload["hazards"] if h["hazard"] == "earthquake")
+        assert quake["can_detect"] is True
+        assert quake["can_say_where_to_go"] is False
+        assert quake["caveat"]
+
+    async def test_mcp_surface_matches_the_endpoint(
+        self, service: SafeDataService, client: TestClient
+    ) -> None:
+        api = client.get("/v1/hazards/capabilities").json()
+        mcp = json.loads(await execute(service, "gbsafe_hazard_capabilities", {}))
+        assert api["summary"] == mcp["summary"]
+        assert len(api["hazards"]) == len(mcp["hazards"])

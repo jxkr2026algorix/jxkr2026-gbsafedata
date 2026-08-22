@@ -3,12 +3,12 @@
 **English** · [한국어](README.ko.md)
 
 [![CI](https://img.shields.io/github/actions/workflow/status/jxkr2026algorix/jxkr2026-gbsafedata/ci.yml?branch=main&label=CI&logo=githubactions&logoColor=white)](https://github.com/jxkr2026algorix/jxkr2026-gbsafedata/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/badge/tests-683%20passing-brightgreen)](tests)
+[![tests](https://img.shields.io/badge/tests-708%20passing-brightgreen)](tests)
 [![live APIs](https://img.shields.io/badge/live%20APIs-6%20connected-0a7bbb)](scripts/smoke_live_apis.py)
 [![python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue?logo=python&logoColor=white)](pyproject.toml)
 [![uv](https://img.shields.io/badge/uv-managed-261230?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
 [![ruff](https://img.shields.io/badge/ruff-checked-261230?logo=ruff&logoColor=white)](https://docs.astral.sh/ruff/)
-[![MCP](https://img.shields.io/badge/MCP-11%20read--only%20tools-000000)](docs/mcp.md)
+[![MCP](https://img.shields.io/badge/MCP-12%20read--only%20tools-000000)](docs/mcp.md)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 Public disaster data for Gyeongsangbuk-do, South Korea, served to AI agents and administrative systems **with its provenance attached**.
@@ -129,7 +129,7 @@ uv run gbsafe-mcp
 
 Client configs are in [`plugins/`](plugins). All 11 tools are read-only:
 
-`gbsafe_search_datasets` · `gbsafe_describe_dataset` · `gbsafe_verify_dataset` · `gbsafe_cite_dataset` · `gbsafe_resolve_region` · `gbsafe_hazard_context` · `gbsafe_list_sources` · `gbsafe_fetch_source` · `gbsafe_data_health` · `gbsafe_quality_report` · `gbsafe_population_guidance`
+`gbsafe_search_datasets` · `gbsafe_describe_dataset` · `gbsafe_verify_dataset` · `gbsafe_cite_dataset` · `gbsafe_resolve_region` · `gbsafe_hazard_context` · `gbsafe_hazard_capabilities` · `gbsafe_list_sources` · `gbsafe_fetch_source` · `gbsafe_data_health` · `gbsafe_quality_report` · `gbsafe_population_guidance`
 
 Install [`skills/gb-safedata`](skills/gb-safedata) alongside it. The MCP server gives an agent the tools; the skill gives it the rules for reading disaster data honestly — never report absence you did not verify, never present a forecast as an observation, never infer an individual from aggregate statistics, never decide an evacuation.
 

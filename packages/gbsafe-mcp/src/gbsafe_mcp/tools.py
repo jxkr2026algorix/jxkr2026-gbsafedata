@@ -205,6 +205,12 @@ async def _data_health(service: SafeDataService, args: dict[str, Any]) -> dict[s
     return service.data_health()
 
 
+async def _hazard_capabilities(
+    service: SafeDataService, args: dict[str, Any]
+) -> dict[str, Any]:
+    return service.hazard_capabilities()
+
+
 async def _quality_report(service: SafeDataService, args: dict[str, Any]) -> dict[str, Any]:
     return service.quality_report()
 
@@ -376,6 +382,22 @@ TOOLS: tuple[ToolDef, ...] = (
         ),
         schema=_object({}),
         handler=_data_health,
+    ),
+    ToolDef(
+        name="gbsafe_hazard_capabilities",
+        title="재난별 대응 가능 범위",
+        description=(
+            "재난 13종 각각에 대해 지금 어디까지 답할 수 있는지 알려줍니다. "
+            "탐지(지금 났는가)·위험도(어디가 위험한가)·대피소(어디로 가는가) "
+            "세 축의 자료 보유 상태를 줍니다.\n\n"
+            "**readiness가 ready가 아니면 답이 불완전합니다.** partial은 발생은 "
+            "알 수 있으나 위험도나 대피소 자료가 없다는 뜻이고, blocked는 발생 "
+            "여부조차 확인할 수 없다는 뜻입니다. 지진은 발생을 알려주지만 어느 "
+            "대피소로 보낼지 모릅니다 — 그 한계를 밝히지 않고 답하면 갈 곳 없는 "
+            "안내가 됩니다. 특정 재난을 묻기 전에 이 도구로 범위를 확인하세요."
+        ),
+        schema=_object({}),
+        handler=_hazard_capabilities,
     ),
     ToolDef(
         name="gbsafe_quality_report",

@@ -498,6 +498,20 @@ def create_app(
             ]
         }
 
+    @app.get(
+        "/v1/hazards/capabilities",
+        tags=["hazard"],
+        summary="재난별로 지금 어디까지 답할 수 있는지",
+    )
+    async def hazard_capabilities() -> dict[str, Any]:
+        """탐지·위험도·대피소 세 축의 가용성.
+
+        재난 유형 목록만 보면 13종 전부 대응 가능한 것처럼 보인다. 실제로는
+        다섯만 세 축이 다 있고, 지진은 발생을 알려주지만 어느 대피소로 보낼지
+        모른다. 그 차이를 화면에서 지우면 갈 곳 없는 안내가 나간다.
+        """
+        return resolved.hazard_capabilities()
+
     @app.get("/v1/tools", tags=["agent"], summary="OpenAI 호환 도구 정의")
     async def tools() -> dict[str, Any]:
         """LLM에 그대로 넘길 수 있는 function calling 스키마.

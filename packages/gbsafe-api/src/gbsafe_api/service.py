@@ -23,6 +23,7 @@ from typing import Any
 
 from gbsafe_connectors import FetchOutcome, Registry, get_registry
 from gbsafe_connectors.filedata import local_response
+from gbsafe_core.capability import capability_for, readiness_summary
 from gbsafe_core.catalog import AccessRoute, DatasetEntry
 from gbsafe_core.domain import DatasetDescriptor, Shelter
 from gbsafe_core.licensing import (
@@ -417,6 +418,56 @@ class SafeDataService:
             "caveats": tuple(caveats),
         }
 
+    def hazard_capabilities(self) -> dict[str, Any]:
+        """재난별로 지금 어디까지 답할 수 있는지.
+
+        재난 유형 목록만 주면 전부 대응 가능한 것처럼 보인다. 실제로는 13종 중
+        다섯만 탐지·위험도·대피소 세 축이 다 있고, 지진은 발생을 알려주지만
+        어느 대피소로 보낼지 모르며, 원전은 탐지 수단 자체가 없다.
+        """
+        entries = []
+        for hazard in HazardDomain:
+            if hazard is HazardDomain.OTHER:
+                continue
+            capability = capability_for(hazard)
+            entries.append(
+                {
+                    "hazard": hazard.value,
+                    "korean_name": capability.korean_name,
+                    "readiness": capability.readiness.value,
+                    "can_detect": capability.readiness.can_detect,
+                    "can_say_where_to_go": capability.readiness.can_answer_where_to_go,
+                    "axes": {
+                        axis.name: {
+                            "label": axis.label,
+                            "usable": axis.usable,
+                            "total": axis.total,
+                            "covered": axis.is_covered,
+                            "sources": list(axis.sources),
+                        }
+                        for axis in capability.axes
+                    },
+                    "missing_axes": list(capability.missing_axes),
+                    "caveat": capability.caveat(),
+                    "connectors": list(HAZARD_PLAYBOOK.get(hazard, ())),
+                }
+            )
+        return {
+            "hazards": entries,
+            "summary": {key: list(value) for key, value in readiness_summary().items()},
+            "axes": {
+                "detection": "지금 났는가 — 실시간 관측·통보",
+                "risk": "어디가 위험한가 — 정적 위험도·취약성",
+                "shelter": "어디로 가는가 — 대피 목적지",
+            },
+            "how_to_read": (
+                "readiness가 ready가 아닌 재난은 답이 불완전합니다. partial은 "
+                "발생은 알 수 있으나 위험도나 대피소 자료가 없다는 뜻이고, "
+                "blocked는 발생 여부조차 이 시스템으로 확인할 수 없다는 뜻입니다. "
+                "화면에서 partial을 ready처럼 보이게 하면 안 됩니다."
+            ),
+        }
+
     # ── 위험 상황 ───────────────────────────────────────────────
     async def hazard_context(
         self,
@@ -499,6 +550,13 @@ class SafeDataService:
             degradations.extend(outcome.degradations)
             caveats.extend(outcome.caveats)
             receipts.append(outcome.receipt(connector=name, dataset_id=dataset_id))
+
+        # 이 재난을 애초에 어디까지 답할 수 있는지 밝힌다. 원천이 전부 성공해도
+        # 지진처럼 대피소 자료가 없는 재난은 완전한 답이 아니며, 그것을 말하지
+        # 않으면 읽는 쪽은 완전한 답으로 받아들인다.
+        limitation = capability_for(hazard_domain).caveat()
+        if limitation:
+            caveats.insert(0, limitation)
 
         return Answer(
             query=f"{sigungu.full_name} {hazard_domain.value}",

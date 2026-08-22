@@ -510,7 +510,7 @@ class TestSafety:
         """실제 등록된 도구가 전부 통과해야 한다."""
         from gbsafe_mcp.tools import validated_tools
 
-        assert len(validated_tools()) == 11
+        assert len(validated_tools()) == 12
 
     @pytest.mark.parametrize(
         "purpose",
