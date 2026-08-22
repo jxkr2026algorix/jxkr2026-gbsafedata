@@ -135,7 +135,7 @@ Install [`skills/gb-safedata`](skills/gb-safedata) alongside it. The MCP server 
 
 ### Connect it to your AI (nothing to install)
 
-**[▶ Add to Claude](https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=%EC%82%B4%EA%B8%B8%20%7C%20SALGIL%20%E2%80%93%20%EC%9E%AC%EB%82%9C%EB%8D%B0%EC%9D%B4%ED%84%B0&connectorUrl=https%3A%2F%2Fdatainfra.salgil.gyeongbuk.kr%2Fmcp%2F)** opens the dialog with the values filled in; confirm
+**[▶ Add to Claude](https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=SALGIL%20%7C%20%EC%82%B4%EA%B8%B8%20%E2%80%93%20%EC%9E%AC%EB%82%9C%EB%8D%B0%EC%9D%B4%ED%84%B0%EC%9D%B8%ED%94%84%EB%9D%BC&connectorUrl=https%3A%2F%2Fdatainfra.salgil.gyeongbuk.kr%2Fmcp%2F)** opens the dialog with the values filled in; confirm
 and you are done — no terminal, no credential, no signup, and it works on the
 free plan. Or paste the address below into Claude's Connectors settings.
 
