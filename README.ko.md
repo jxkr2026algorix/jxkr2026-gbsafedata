@@ -133,6 +133,18 @@ uv run gbsafe-mcp
 
 [`skills/gb-safedata`](skills/gb-safedata)를 함께 설치한다. MCP 서버는 에이전트에게 도구를 주고, Skill은 재난 데이터를 정직하게 읽는 규칙을 준다 — 확인하지 않은 부재를 보고하지 않기, 예보를 관측으로 제시하지 않기, 집계로 개인을 추정하지 않기, 대피를 결정하지 않기.
 
+### 내 AI에 연결하기 (설치 없음)
+
+Claude 설정의 Connectors에 아래 주소를 붙여넣으면 끝난다. 터미널도, 인증키도,
+가입도 필요 없고 **무료 플랜에서도 된다**.
+
+```
+https://datainfra.salgil.gyeongbuk.kr/mcp/
+```
+
+Claude 웹·데스크톱·모바일, ChatGPT(개발자 모드), Claude Code, Cursor, VS Code,
+opencode별 연결 방법은 **[docs/connect.md](docs/connect.md)** 에 있다.
+
 ### 내 AI 하네스에 붙이기
 
 서버가 배포돼 있어 따로 띄울 필요가 없다. 하네스를 아래 주소로 가리키면 도구가
@@ -250,6 +262,7 @@ JSON-RPC가 POST를 요구하기 때문이다.
 | [docs/mcp.md](docs/mcp.md) | 도구 명세 (도구 정의에서 생성) |
 | [docs/safety.md](docs/safety.md) | 각 안전 경계와 그것을 강제하는 방식 |
 | [docs/install.md](docs/install.md) | 하네스별 설정·인증키·문제 해결 |
+| [docs/connect.md](docs/connect.md) | **Claude·ChatGPT·코딩 에이전트에 연결하기** |
 | [docs/handoff.md](docs/handoff.md) | **배포된 인스턴스와 다른 팀이 붙이는 법** |
 | [docs/pitch-differentiation.md](docs/pitch-differentiation.md) | 뻔한 구현과의 정량 비교 근거 |
 | [docs/data-sources.md](docs/data-sources.md) | 기관별 취득 방법·함정·확인된 결함 |

@@ -133,6 +133,18 @@ Client configs are in [`plugins/`](plugins). All 11 tools are read-only:
 
 Install [`skills/gb-safedata`](skills/gb-safedata) alongside it. The MCP server gives an agent the tools; the skill gives it the rules for reading disaster data honestly — never report absence you did not verify, never present a forecast as an observation, never infer an individual from aggregate statistics, never decide an evacuation.
 
+### Connect it to your AI (nothing to install)
+
+Paste the address below into Claude's Connectors settings and you are done — no
+terminal, no credential, no signup, and it works on the free plan.
+
+```
+https://datainfra.salgil.gyeongbuk.kr/mcp/
+```
+
+**[docs/connect.md](docs/connect.md)** covers Claude web/desktop/mobile, ChatGPT
+developer mode, Claude Code, Cursor, VS Code, and opencode.
+
 ### Attaching it to your own AI harness
 
 The server is deployed, so you do not have to run anything. Point your harness at
@@ -251,6 +263,7 @@ The three landslide APIs have it backwards from everything else: **development-s
 | [docs/mcp.md](docs/mcp.md) | Tool reference (generated from the definitions) |
 | [docs/safety.md](docs/safety.md) | Each boundary and the mechanism enforcing it |
 | [docs/install.md](docs/install.md) | Per-harness setup, credentials, and troubleshooting |
+| [docs/connect.md](docs/connect.md) | **Connecting it to Claude, ChatGPT, or a coding agent** |
 | [docs/handoff.md](docs/handoff.md) | **Deployed instance, and how another team wires it in** |
 | [docs/pitch-differentiation.md](docs/pitch-differentiation.md) | Measured comparison against a naive integration |
 | [docs/data-sources.md](docs/data-sources.md) | Per-agency acquisition, quirks, and known defects |
