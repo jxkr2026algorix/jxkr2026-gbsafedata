@@ -22,9 +22,8 @@ Claude를 쓰신다면 [connect.md](connect.md)의 링크 하나로 끝나니 �
 
 계정 종류에 따라 **설정 → 앱 및 커넥터 → 고급 설정**에 있기도 합니다. 토글이 아예 보이지 않으면 플랜이 지원하지 않거나 관리자가 막아둔 것입니다.
 
-> **캡처 자리** — 개발자 모드 토글 화면
->
-> ![개발자 모드 토글](images/chatgpt-01-developer-mode.png)
+<img width="3334" height="2166" alt="CleanShot 2026-08-22 at 20 50 10@2x" src="https://github.com/user-attachments/assets/38c776d9-7383-4667-9bc5-9a4503197e48" />
+
 
 ---
 
@@ -39,21 +38,23 @@ Claude를 쓰신다면 [connect.md](connect.md)의 링크 하나로 끝나니 �
 | Name | `SALGIL \| 살길 – 재난데이터인프라` |
 | Description | `경북 재난 공공데이터를 출처와 함께 조회합니다. 조회하지 못한 원천은 그 사실을 밝힙니다.` |
 | MCP Server URL | `https://datainfra.salgil.gyeongbuk.kr/mcp/` |
-| Authentication | **None** |
+| Authentication | **No Auth** |
 
 주소 끝의 슬래시(`/mcp/`)를 빼지 마세요.
 
-**Authentication은 반드시 None입니다.** 이 서버는 인증을 요구하지 않습니다 — 정부 인증키는 서버가 들고 있고, 공개된 집계 데이터만 읽습니다. OAuth나 토큰을 고르면 연결에 실패합니다.
+**Authentication은 반드시 No Auth(None)입니다.** 이 서버는 인증을 요구하지 않습니다 — 정부 인증키는 서버가 들고 있고, 공개된 집계 데이터만 읽습니다. OAuth나 토큰을 고르면 연결에 실패합니다.
 
-> **캡처 자리** — 커넥터 생성 폼에 값을 채운 상태
->
-> ![커넥터 생성 폼](images/chatgpt-02-create-connector.png)
+<img width="3334" height="2166" alt="CleanShot 2026-08-22 at 20 53 45@2x" src="https://github.com/user-attachments/assets/a05c1cd8-5a07-41cf-835c-f17cf51688f8" />
+
 
 ---
 
 ## 3. 도구 스캔
 
 **Create**를 누르면 ChatGPT가 서버에 접속해 도구 목록을 읽습니다. **12개**가 잡히면 정상입니다.
+
+<img width="3334" height="2166" alt="CleanShot 2026-08-22 at 20 54 43@2x" src="https://github.com/user-attachments/assets/ac75ce7c-98ea-4406-b5bd-a51277231786" />
+
 
 ```
 gbsafe_search_datasets      gbsafe_describe_dataset   gbsafe_verify_dataset
@@ -64,9 +65,8 @@ gbsafe_data_health          gbsafe_quality_report     gbsafe_population_guidance
 
 전부 읽기 전용으로 선언돼 있어(`readOnlyHint`) 쓰기 확인 모달이 뜨지 않습니다.
 
-> **캡처 자리** — 스캔된 도구 12개 목록
->
-> ![도구 목록](images/chatgpt-03-tools-scanned.png)
+<img width="3334" height="2166" alt="CleanShot 2026-08-22 at 20 55 42@2x" src="https://github.com/user-attachments/assets/0cf903d8-12e9-44c6-9d82-1f01c46806f8" />
+
 
 ---
 
@@ -74,9 +74,8 @@ gbsafe_data_health          gbsafe_quality_report     gbsafe_population_guidance
 
 작성창의 **+ → 개발자 모드**에서 이 커넥터를 켭니다. 대화마다 켜야 합니다.
 
-> **캡처 자리** — 대화에서 커넥터를 켜는 메뉴
->
-> ![커넥터 활성화](images/chatgpt-04-enable-in-chat.png)
+<img width="3334" height="2166" alt="CleanShot 2026-08-22 at 20 57 10@2x" src="https://github.com/user-attachments/assets/065c23b7-98d0-407f-960c-93a143a40a8a" />
+
 
 이렇게 물어보세요.
 
@@ -88,9 +87,14 @@ gbsafe_data_health          gbsafe_quality_report     gbsafe_population_guidance
 
 **제대로 붙었다면** 마지막 질문에 대피소를 안내하지 못한다고 인정하고, 산사태 조회가 막혀 있으면 **"위험 없음"이 아니라 "자료를 읽지 못했다"** 고 구분해 답합니다.
 
-> **캡처 자리** — 조회 실패를 정직하게 보고하는 답변
->
-> ![정직한 답변](images/chatgpt-05-honest-answer.png)
+<img width="2976" height="2996" alt="image" src="https://github.com/user-attachments/assets/3aad5013-f775-4ae9-a458-cf466fdfefaf" />
+
+(잘된케이스 placeholder)
+
+<img width="3334" height="2166" alt="CleanShot 2026-08-22 at 21 04 37@2x" src="https://github.com/user-attachments/assets/c67b0fbc-7ef3-4f8c-af7f-0b03b6e42185" />
+
+<img width="3334" height="2166" alt="CleanShot 2026-08-22 at 21 04 45@2x" src="https://github.com/user-attachments/assets/60f160ff-94d3-40d1-91f9-70dba11136c1" />
+
 
 ---
 
