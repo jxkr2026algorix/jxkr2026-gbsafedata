@@ -1424,3 +1424,103 @@ class TestCacheIsScopedToCredentials:
         assert UltraShortNowcastConnector(settings=online)._cache_scope() != (
             UltraShortNowcastConnector(settings=offline)._cache_scope()
         )
+
+
+class TestRevivedSnapshotsAreNotSuccessfulChecks:
+    """보존자료만 있는 상태를 '조회 성공'으로 보고하면 안 된다.
+
+    레코드는 stale·usable=false라고 정확히 말하는데 봉투가 complete를 주면
+    읽는 쪽은 봉투를 믿는다. 현재 원천을 전혀 확인하지 못한 것이다.
+    """
+
+    async def test_stale_snapshot_degrades_the_answer(self, tmp_path) -> None:
+        import json
+        from datetime import UTC, datetime
+
+        from gbsafe_connectors.base import clear_cache
+        from gbsafe_connectors.registry import Registry
+        from gbsafe_core.config import Settings
+        from gbsafe_core.snapshot import SnapshotStore
+        from pydantic_settings import SettingsConfigDict
+
+        class _NoDotenv(Settings):
+            model_config = SettingsConfigDict(
+                env_prefix="GBSAFE_", env_file=None, extra="ignore", frozen=True
+            )
+
+        online = _NoDotenv(data_go_kr_service_key="k", store_dir=tmp_path / "store")
+        body = json.dumps(
+            {
+                "response": {
+                    "header": {"resultCode": "00"},
+                    "body": {
+                        "items": {
+                            "item": [
+                                {
+                                    "tmFc": "202001151200",
+                                    "tmSeq": "1",
+                                    "mt": "3.1",
+                                    "loc": "경주시",
+                                    "lat": "35.8",
+                                    "lon": "129.2",
+                                }
+                            ]
+                        }
+                    },
+                }
+            }
+        ).encode()
+        SnapshotStore.from_settings(online).put(
+            dataset_id="15000420",
+            body=body,
+            content_type="application/json",
+            endpoint="https://example.test",
+            stored_at=datetime(2020, 1, 15, tzinfo=UTC),
+        )
+
+        await clear_cache()
+        offline = _NoDotenv(
+            data_go_kr_service_key="k", store_dir=tmp_path / "store", offline=True
+        )
+        outcome = await Registry(settings=offline).create("earthquake").fetch()
+        receipt = outcome.receipt(connector="earthquake", dataset_id="15000420")
+
+        assert outcome.records, "스냅샷을 못 읽으면 이 테스트가 무의미하다"
+        assert not outcome.records[0].freshness.is_usable_for_decision
+        assert receipt.upstream_status is not UpstreamStatus.OK, (
+            "6년 전 자료를 읽고 upstream=ok로 보고합니다"
+        )
+        assert not outcome.ok, "해석을 막지 않습니다"
+        await clear_cache()
+
+    async def test_coalesced_requests_are_not_treated_as_stale(
+        self, settings: Settings, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """동시요청 병합은 방금 받은 응답을 나눠 쓰는 것이지 보존자료가 아니다."""
+        import asyncio
+
+        from gbsafe_connectors.base import Connector, FetchOutcome, clear_cache
+
+        class _Slow(Connector[dict]):
+            dataset_id = "15084084"
+            credential = None
+
+            def base_url(self) -> str:
+                return "https://example.test/slow"
+
+            def build_params(self, **kwargs: object) -> dict[str, str]:
+                return {}
+
+            def parse(self, response, **kwargs: object) -> FetchOutcome[dict]:
+                return FetchOutcome(records=(), confirmed_absence=True)
+
+        async def fake_send(self, url: str, params: dict[str, str]):
+            await asyncio.sleep(0.02)
+            return make_response({"ok": True})
+
+        monkeypatch.setattr(Connector, "_send", fake_send)
+        await clear_cache()
+        connector = _Slow(settings=settings)
+        outcomes = await asyncio.gather(*(connector.fetch() for _ in range(6)))
+        assert all(item.ok for item in outcomes)
+        await clear_cache()

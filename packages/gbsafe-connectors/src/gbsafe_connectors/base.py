@@ -107,6 +107,13 @@ class FetchOutcome[PayloadT]:
     caveats: tuple[str, ...] = ()
     confirmed_absence: bool = False
 
+    #: 이 결과를 만든 응답의 상태. 영수증이 실제로 무엇을 읽었는지 밝힌다.
+    #:
+    #: 기본값을 OK로 두면 스냅샷에서 되살린 6년 전 자료도 영수증에
+    #: `upstream: ok`로 나가고, 레코드가 stale·unusable이라고 말하는 것과
+    #: 봉투가 정면으로 모순된다.
+    upstream_status: UpstreamStatus = UpstreamStatus.OK
+
     @property
     def ok(self) -> bool:
         return not any(item.blocks_interpretation for item in self.degradations)
@@ -130,6 +137,11 @@ class FetchOutcome[PayloadT]:
             degradations=self.degradations + other.degradations,
             caveats=tuple(dict.fromkeys(self.caveats + other.caveats)),
             confirmed_absence=self.confirmed_absence and other.confirmed_absence,
+            upstream_status=(
+                other.upstream_status
+                if self.upstream_status is UpstreamStatus.OK
+                else self.upstream_status
+            ),
         )
 
     def receipt(self, *, connector: str, dataset_id: str) -> SourceReceipt:
@@ -137,7 +149,7 @@ class FetchOutcome[PayloadT]:
         status = (
             self.degradations[0].status
             if self.degradations
-            else UpstreamStatus.OK
+            else self.upstream_status
         )
         detail = self.degradations[0].detail if self.degradations else ""
         if not self.records and not self.confirmed_absence and not self.degradations:
@@ -452,10 +464,39 @@ class Connector[PayloadT](ABC):
             )
 
         if response.status is UpstreamStatus.CACHED:
+            # 판단에 쓸 수 없을 만큼 오래된 보존자료를 되살렸다면 그것은 조회에
+            # 성공한 것이 아니다. 레코드는 stale이라고 말하는데 봉투가
+            # complete를 주면 읽는 쪽은 봉투를 믿는다.
+            # 방금 받은 응답을 나눠 쓰는 동시요청 병합과, 저장고에서 되살린
+            # 보존자료를 구별한다. 앞은 몇 초 전 자료라 정상이고, 뒤는 현재
+            # 원천을 전혀 확인하지 못한 것이다.
+            revived = self._settings.offline and response.snapshot_id is not None
+            unusable = (
+                revived
+                and bool(outcome.records)
+                and not any(
+                    record.freshness.is_usable_for_decision for record in outcome.records
+                )
+            )
+            extra: tuple[Degradation, ...] = ()
+            if unusable:
+                extra = (
+                    Degradation(
+                        dataset_id=self.dataset_id,
+                        status=UpstreamStatus.DEGRADED,
+                        detail=(
+                            "보존된 자료만 있고 현재 원천을 확인하지 못했습니다 — "
+                            "이 값은 판단 근거로 쓸 수 있는 신선도가 아닙니다."
+                        ),
+                        occurred_at=datetime.now(UTC),
+                        last_known_good_at=self._last_snapshot_time(),
+                    ),
+                )
             outcome = FetchOutcome(
                 records=outcome.records,
-                degradations=outcome.degradations,
+                degradations=outcome.degradations + extra,
                 caveats=(*outcome.caveats, "캐시된 응답입니다 (호출 한도 보호)"),
+                upstream_status=UpstreamStatus.CACHED,
                 # 캐시를 거쳤다고 '해당 없음' 판정이 사라지면 안 된다. 이 필드를
                 # 빠뜨렸을 때 원천이 확인해 준 부재가 조회 실패로 강등됐고,
                 # TTL이 10분이라 대부분의 요청이 그 잘못된 쪽을 받았다.

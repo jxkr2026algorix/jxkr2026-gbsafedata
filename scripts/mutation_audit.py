@@ -605,6 +605,13 @@ MUTATIONS: tuple[Mutation, ...] = (
         "실데이터에 모드 표시를 붙여 훈련 데이터와 구별을 흐린다",
     ),
     Mutation(
+        "receipt-hides-cached-upstream",
+        CONNECTORS / "base.py",
+        "            else self.upstream_status",
+        "            else UpstreamStatus.OK",
+        "보존자료로 답하고도 영수증에 upstream=ok로 보고한다",
+    ),
+    Mutation(
         "cache-ignores-credentials",
         CONNECTORS / "base.py",
         'cache_key = f"{self._cache_scope()}|{url}?{sorted(params.items())}"',
