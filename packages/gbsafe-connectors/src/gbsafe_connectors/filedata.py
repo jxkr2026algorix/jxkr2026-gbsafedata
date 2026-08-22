@@ -26,7 +26,7 @@ from gbsafe_core.domain import RiskZone, Shelter, ShelterKind
 from gbsafe_core.models import GeoPoint, QualityFlag, UpstreamStatus
 from gbsafe_core.regions import HazardDomain
 
-from .base import Connector, FetchOutcome, RawResponse
+from .base import Connector, FetchOutcome, RawResponse, missing_or_impossible
 
 #: 컬럼 의미 → 실제로 관측된 컬럼명 후보. 앞쪽이 우선한다.
 COLUMN_ALIASES: dict[str, tuple[str, ...]] = {
@@ -73,6 +73,38 @@ _HAZARD_HINTS: tuple[tuple[str, HazardDomain], ...] = (
 )
 
 
+def _reject_duplicate_columns(text: str) -> None:
+    """의미 있는 컬럼이 중복된 파일을 거부한다.
+
+    `DictReader`는 같은 이름의 컬럼 중 **마지막 값만** 남긴다. 수용인원이 두 번
+    나오면 500명이 조용히 10명이 되고, 그 숫자로 대피소를 고르면 사람을 넘치는
+    곳으로 보낸다. 틀린 수용인원은 없는 것보다 나쁘다.
+
+    이름 없는 빈 컬럼이 여러 개인 것은 흔하고 해가 없으므로 넘긴다.
+    """
+    header = next(csv.reader(io.StringIO(text)), None)
+    if not header:
+        return
+    seen: set[str] = set()
+    duplicated: set[str] = set()
+    for raw in header:
+        name = (raw or "").strip()
+        if not name:
+            continue
+        if name in seen:
+            duplicated.add(name)
+        seen.add(name)
+    if not duplicated:
+        return
+    known = {alias for names in COLUMN_ALIASES.values() for alias in names}
+    meaningful = sorted(name for name in duplicated if name in known)
+    if meaningful:
+        raise ValueError(
+            f"같은 이름의 컬럼이 여러 번 있습니다: {', '.join(meaningful)}. "
+            "마지막 값만 남아 다른 값이 조용히 사라지므로 읽지 않습니다."
+        )
+
+
 def decode_csv(body: bytes) -> tuple[list[dict[str, str]], str, bool]:
     """CSV를 읽는다. 인코딩을 자동 판별하고 CP949였는지 알려준다.
 
@@ -83,6 +115,7 @@ def decode_csv(body: bytes) -> tuple[list[dict[str, str]], str, bool]:
             text = body.decode(encoding)
         except UnicodeDecodeError:
             continue
+        _reject_duplicate_columns(text)
         reader = csv.DictReader(io.StringIO(text))
         rows = [
             {(key or "").strip(): (value or "").strip() for key, value in row.items()}
@@ -124,15 +157,27 @@ def pick(row: dict[str, str], field: str) -> str | None:
 
 
 def _to_int(raw: str | None) -> int | None:
+    """수용인원을 정수로. 결측·음수는 None이다.
+
+    숫자만 추려내면 부호가 사라져 `-99.9`가 **999명 수용**이 된다. 수용인원은
+    음수가 될 수 없으므로 음수 표기는 전부 결측이며, 0으로 떨어뜨려도 안 된다
+    — 0명 수용과 미확인은 다른 상태다.
+    """
     if not raw:
         return None
-    digits = "".join(ch for ch in raw if ch.isdigit())
-    if not digits:
-        return None
+    text = str(raw).strip().replace(",", "")
     try:
-        return int(digits)
+        value = float(text)
     except ValueError:
-        return None
+        # "약 300명"처럼 단위가 붙은 표기는 숫자만 남긴다. 다만 부호가 붙어
+        # 있으면 결측 표기이므로 버린다.
+        if text.lstrip().startswith("-"):
+            return None
+        digits = "".join(ch for ch in text if ch.isdigit())
+        if not digits:
+            return None
+        value = float(digits)
+    return None if missing_or_impossible(value) else int(value)
 
 
 def _to_point(row: dict[str, str]) -> tuple[GeoPoint | None, QualityFlag | None]:

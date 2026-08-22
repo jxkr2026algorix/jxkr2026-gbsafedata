@@ -606,6 +606,20 @@ MUTATIONS: tuple[Mutation, ...] = (
         "실데이터에 모드 표시를 붙여 훈련 데이터와 구별을 흐린다",
     ),
     Mutation(
+        "shelter-capacity-sign-stripped",
+        CONNECTORS / "filedata.py",
+        "    return None if missing_or_impossible(value) else int(value)",
+        "    return int(abs(value))",
+        "결측 수용인원 -99.9를 999명으로 만들어 넘치는 대피소로 보낸다",
+    ),
+    Mutation(
+        "duplicate-columns-silently-accepted",
+        CONNECTORS / "filedata.py",
+        "        _reject_duplicate_columns(text)",
+        "        pass",
+        "중복 컬럼에서 앞의 수용인원이 조용히 사라진 채로 읽는다",
+    ),
+    Mutation(
         "credential-leaks-in-endpoint",
         CONNECTORS / "base.py",
         "            endpoint=self._redact_endpoint(response.endpoint),",

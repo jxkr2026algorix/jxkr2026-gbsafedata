@@ -1685,3 +1685,69 @@ class TestCredentialsNeverLeaveInAnEndpoint:
         outcome = RiverLevelConnector(settings=settings).parse(response)
         for record in outcome.records:
             assert "test-key" not in (record.provenance.endpoint or "")
+
+
+class TestShelterCapacityIsNeverFabricated:
+    """수용인원을 잘못 읽으면 사람을 넘치는 곳으로 보낸다."""
+
+    @pytest.mark.parametrize("raw", ["-99.9", "-99", "-1"])
+    def test_negative_capacity_is_missing_not_positive(self, raw: str) -> None:
+        """숫자만 추려내면 부호가 사라져 -99.9가 999명이 된다."""
+        from gbsafe_connectors.filedata import _to_int
+
+        assert _to_int(raw) is None
+
+    def test_zero_capacity_is_kept(self) -> None:
+        """0명 수용과 미확인은 다른 상태다."""
+        from gbsafe_connectors.filedata import _to_int
+
+        assert _to_int("0") == 0
+
+    @pytest.mark.parametrize(("raw", "expected"), [("1,200", 1200), ("약 300명", 300)])
+    def test_real_capacities_still_parse(self, raw: str, expected: int) -> None:
+        from gbsafe_connectors.filedata import _to_int
+
+        assert _to_int(raw) == expected
+
+
+class TestDuplicateColumnsAreRejected:
+    """같은 이름의 컬럼이 있으면 마지막 값만 남아 앞의 값이 조용히 사라진다."""
+
+    def test_duplicate_meaningful_column_is_refused(self) -> None:
+        from gbsafe_connectors.filedata import decode_csv
+
+        body = "시설명,수용인원,수용인원\n체육관,500,10\n".encode()
+        with pytest.raises(ValueError, match="같은 이름의 컬럼"):
+            decode_csv(body)
+
+    def test_duplicate_blank_columns_are_harmless(self) -> None:
+        """이름 없는 빈 컬럼이 여러 개인 것은 흔하고 해가 없다."""
+        from gbsafe_connectors.filedata import decode_csv
+
+        rows, _, _ = decode_csv("시설명,수용인원,,\n체육관,500,,\n".encode())
+        assert rows[0]["수용인원"] == "500"
+
+    def test_normal_file_still_reads(self) -> None:
+        from gbsafe_connectors.filedata import decode_csv
+
+        rows, _, _ = decode_csv("시설명,수용인원\n체육관,500\n".encode())
+        assert rows == [{"시설명": "체육관", "수용인원": "500"}]
+
+
+class TestUnplacedGaugesAreDisclosed:
+    """좌표 없는 관측소는 지도와 거리 계산에서 조용히 빠진다."""
+
+    def test_a_gauge_without_coordinates_is_named(self, settings: Settings) -> None:
+        from gbsafe_connectors.hrfco import STATIONS, RiverLevelConnector
+
+        unplaced = next(
+            (key for key, item in STATIONS.items() if item.location is None), None
+        )
+        if unplaced is None:
+            pytest.skip("좌표 없는 관측소가 없습니다")
+        outcome = RiverLevelConnector(settings=settings).parse(
+            make_response(
+                {"content": [{"wlobscd": unplaced, "ymdhm": "202608221200", "wl": "1.2"}]}
+            )
+        )
+        assert any("좌표가 확인되지 않은" in caveat for caveat in outcome.caveats)

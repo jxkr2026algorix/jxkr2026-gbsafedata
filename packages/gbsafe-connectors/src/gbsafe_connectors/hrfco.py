@@ -318,6 +318,21 @@ class RiverLevelConnector(Connector[Observation]):
             )
         if missing_level:
             caveats.append(f"수위가 결측인 관측소 {missing_level}곳이 있습니다")
+        # 좌표가 없는 관측소는 지도·거리 계산에서 조용히 빠진다. 그 지점의
+        # 수위를 읽고도 어디인지 모르는 상태이므로 밝힌다.
+        unplaced = sorted(
+            {
+                record.payload.station
+                for record in records
+                if record.payload.location is None and record.payload.station
+            }
+        )
+        if unplaced:
+            caveats.append(
+                f"좌표가 확인되지 않은 관측소 {len(unplaced)}곳"
+                f"({', '.join(unplaced[:3])}{' 외' if len(unplaced) > 3 else ''})은 "
+                "지도 표시와 거리 계산에 쓸 수 없습니다."
+            )
         if caveats_missing:
             caveats.insert(0, caveats_missing)
         if alerts:
