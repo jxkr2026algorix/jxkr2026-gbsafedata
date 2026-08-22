@@ -15,9 +15,14 @@
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Annotated, Any, Literal
 
 from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, RedirectResponse, Response
+from gbsafe_core.config import Settings, get_settings
 from gbsafe_core.licensing import TERMS, Operation
 from gbsafe_core.regions import SIGUNGU, HazardDomain
 
@@ -157,8 +162,97 @@ def _coerce_arguments(tool: Any, raw: dict[str, str]) -> dict[str, Any]:
     return coerced
 
 
-def create_app(service: SafeDataService | None = None) -> FastAPI:
+def _install_gateway(app: FastAPI, settings: Any) -> None:
+    """브라우저 출처 허용과 API 키 검사를 붙인다.
+
+    둘 다 기본은 꺼져 있다. 로컬 개발과 CI가 설정 없이 돌아야 하기 때문이다.
+    인터넷에 노출할 때 켜야 하며, 그 방법은 docs/platform-integration.md에 있다.
+    """
+    origins = settings.allowed_origins
+    if origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=list(origins),
+            allow_credentials=False,
+            allow_methods=["GET", "POST", "OPTIONS"],
+            allow_headers=["*"],
+        )
+
+    keys = settings.accepted_api_keys
+    if not keys:
+        return
+
+    @app.middleware("http")
+    async def require_api_key(request: Request, call_next):  # type: ignore[no-untyped-def]
+        # 문서·스키마·헬스는 열어둔다. 이것들이 막히면 연동하는 쪽이 무엇이
+        # 잘못됐는지 확인할 방법이 없어진다.
+        open_paths = ("/", "/docs", "/redoc", "/openapi.json", "/v1/health")
+        if request.method == "OPTIONS" or request.url.path in open_paths:
+            return await call_next(request)
+        supplied = request.headers.get("x-api-key") or ""
+        if not supplied:
+            authorization = request.headers.get("authorization") or ""
+            if authorization.lower().startswith("bearer "):
+                supplied = authorization[7:].strip()
+        if supplied not in keys:
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "error": "API 키가 필요합니다",
+                    "how": "x-api-key 헤더 또는 Authorization: Bearer <키>",
+                },
+            )
+        return await call_next(request)
+
+
+def _mount_mcp(app: FastAPI, service: SafeDataService) -> None:
+    """MCP를 Streamable HTTP로 `/mcp`에 마운트한다.
+
+    stdio는 로컬 AI 하네스용이라 웹 백엔드가 붙일 수 없다. OpenAI Responses
+    API처럼 원격 MCP를 네이티브로 받는 클라이언트는 이 URL 하나만 주면 도구
+    발견과 호출을 스스로 한다.
+
+    `stateless=True`인 이유: 세션을 들고 있으면 인스턴스를 여러 개 띄웠을 때
+    같은 세션이 다른 인스턴스로 가서 깨진다. 이 서버는 조회만 하므로 요청
+    사이에 유지할 상태가 없다.
+    """
+    try:
+        from gbsafe_mcp.server import create_server
+        from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+    except ImportError:
+        return
+
+    manager = StreamableHTTPSessionManager(
+        app=create_server(service), stateless=True, json_response=True
+    )
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        async with manager.run():
+            yield
+
+    app.router.lifespan_context = lifespan
+
+    async def handle(scope: Any, receive: Any, send: Any) -> None:
+        await manager.handle_request(scope, receive, send)
+
+    app.mount("/mcp", handle)
+
+    @app.post("/mcp", tags=["agent"], summary="MCP Streamable HTTP 전송")
+    async def mcp_without_trailing_slash() -> Response:
+        """`/mcp`도 받는다.
+
+        마운트는 `/mcp/`만 받아 슬래시 없는 요청이 400으로 떨어진다. 연동하는
+        쪽에서 원인을 알기 어려운 실패라 여기서 넘겨준다.
+        """
+        return RedirectResponse(url="/mcp/", status_code=307)
+
+
+def create_app(
+    service: SafeDataService | None = None, settings: Settings | None = None
+) -> FastAPI:
     resolved = service or SafeDataService()
+    config = settings or get_settings()
 
     app = FastAPI(
         title=TITLE,
@@ -491,6 +585,8 @@ def create_app(service: SafeDataService | None = None) -> FastAPI:
             ]
         }
 
+    _install_gateway(app, config)
+    _mount_mcp(app, resolved)
     return app
 
 

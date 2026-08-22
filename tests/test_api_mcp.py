@@ -78,11 +78,37 @@ class TestApiRoutes:
         assert payload["read_only"] is True
 
     def test_no_write_methods_exist(self, client: TestClient) -> None:
-        """공공데이터 계층은 부작용이 없어야 한다."""
+        """데이터 경로는 부작용이 없어야 한다.
+
+        `/mcp`는 예외다. MCP는 JSON-RPC라 프로토콜 자체가 POST를 쓴다. 그
+        POST가 무엇을 할 수 있는지는 HTTP 메서드가 아니라 등록된 도구가
+        정한다 — `validated_tools()`가 기동 시점에 전부 조회 전용인지
+        검사하고, 아래 테스트가 그것을 다시 확인한다.
+        """
         spec = client.get("/openapi.json").json()
         for path, operations in spec["paths"].items():
+            if path.startswith("/mcp"):
+                continue
             for method in operations:
                 assert method.lower() in ("get", "head", "options"), f"{method} {path}"
+
+    def test_the_only_post_route_is_the_mcp_transport(self, client: TestClient) -> None:
+        """POST가 늘어나면 그것이 무엇인지 여기서 드러나야 한다."""
+        spec = client.get("/openapi.json").json()
+        posts = {
+            f"{method.upper()} {path}"
+            for path, operations in spec["paths"].items()
+            for method in operations
+            if method.lower() not in ("get", "head", "options")
+        }
+        assert posts <= {"POST /mcp"}, f"예상하지 못한 쓰기 경로: {sorted(posts)}"
+
+    def test_every_tool_reachable_over_mcp_is_read_only(self) -> None:
+        """전송을 열어도 도구 경계는 그대로여야 한다."""
+        from gbsafe_core.safety import assert_read_only
+
+        for tool in validated_tools():
+            assert_read_only(tool.name)
 
     def test_health(self, client: TestClient) -> None:
         payload = client.get("/v1/health").json()

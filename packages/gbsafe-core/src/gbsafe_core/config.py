@@ -76,6 +76,32 @@ class Settings(BaseSettings):
     http_timeout_seconds: float = Field(default=20.0, gt=0)
     http_max_retries: int = Field(default=3, ge=0)
 
+    #: 브라우저에서 직접 부를 수 있는 출처. 쉼표로 구분한다.
+    #:
+    #: 기본값은 빈 목록이라 CORS 헤더가 나가지 않는다. `*`를 기본으로 두면
+    #: 배포하는 순간 아무 사이트나 이 API를 통해 우리 인증키로 원천을 호출할 수
+    #: 있게 된다. 대시보드 도메인을 명시적으로 적어야 열린다.
+    cors_allow_origins: str = ""
+
+    #: API 키. 쉼표로 구분하며, 비어 있으면 인증을 걸지 않는다.
+    #:
+    #: 로컬 개발과 CI는 키 없이 돌아야 하므로 기본은 무인증이다. 다만 인터넷에
+    #: 노출하는 순간 이 값을 반드시 채워야 한다 — 이 API는 우리 정부 인증키로
+    #: 원천을 부르므로, 열어두면 우리 호출 한도를 남이 소진한다.
+    api_keys: str = ""
+
+    @property
+    def allowed_origins(self) -> tuple[str, ...]:
+        return tuple(
+            item.strip() for item in self.cors_allow_origins.split(",") if item.strip()
+        )
+
+    @property
+    def accepted_api_keys(self) -> frozenset[str]:
+        return frozenset(
+            item.strip() for item in self.api_keys.split(",") if item.strip()
+        )
+
     def credential(self, name: CredentialName) -> str | None:
         """평문 값을 반환한다. 없으면 None.
 
