@@ -164,13 +164,27 @@ def _load() -> dict[HazardDomain, HazardCapability]:
             readiness = Readiness(str(entry.get("status")))
         except ValueError:
             readiness = Readiness.UNKNOWN
+        detection = _axis("detection", entry.get("detection"))
+        risk = _axis("risk", entry.get("risk"))
+        shelter = _axis("shelter", entry.get("shelter"))
+
+        # 파일이 주장하는 상태를 축과 대조한다. 손상되거나 손으로 고친 파일이
+        # "ready"라고만 적어두면, 자료가 하나도 없는 재난이 대응 가능한 것으로
+        # 보고된다. 축이 사실이고 선언은 주장이다.
+        if not detection.is_covered:
+            readiness = Readiness.BLOCKED
+        elif readiness is Readiness.READY and not (
+            risk.is_covered and shelter.is_covered
+        ):
+            readiness = Readiness.PARTIAL
+
         found[domain] = HazardCapability(
             hazard=domain,
             korean_name=str(korean),
             readiness=readiness,
-            detection=_axis("detection", entry.get("detection")),
-            risk=_axis("risk", entry.get("risk")),
-            shelter=_axis("shelter", entry.get("shelter")),
+            detection=detection,
+            risk=risk,
+            shelter=shelter,
         )
     return found
 
