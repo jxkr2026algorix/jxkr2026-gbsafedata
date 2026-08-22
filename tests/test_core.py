@@ -1242,3 +1242,164 @@ class TestFailedSourcesNamesOnlyFailures:
             ),
         )
         assert answer.failed_sources() == ("landslide_forecast",)
+
+
+class TestAbsenceInvariantSurvivesMutation:
+    """빈 결과를 '해당 없음'으로 읽어도 되는지 판단하는 경로 전체를 고정한다.
+
+    이 저장소의 중심 불변식이 여기 걸려 있다. 조회 실패가 '위험 없음'으로
+    읽히는 순간이 가장 위험한 실패이며, 그 판단은 아래 네 곳을 지난다:
+    `SourceOutcome.is_trustworthy_absence` → `Answer.is_complete` →
+    `Answer.absence_is_confirmed` → 호출자.
+    """
+
+    @staticmethod
+    def _receipt(connector: str, outcome, count: int):
+        from gbsafe_core.models import SourceReceipt
+
+        return SourceReceipt(
+            connector=connector,
+            dataset_id="15084084",
+            outcome=outcome,
+            record_count=count,
+            checked_at=datetime.now(UTC),
+            upstream_status=UpstreamStatus.OK,
+        )
+
+    def test_only_confirmed_empty_is_a_trustworthy_absence(self) -> None:
+        """`FAILED`가 신뢰할 수 있는 부재로 분류되면 장애가 '위험 없음'이 된다."""
+        from gbsafe_core.models import SourceOutcome
+
+        assert SourceOutcome.CONFIRMED_EMPTY.is_trustworthy_absence
+        assert not SourceOutcome.FAILED.is_trustworthy_absence
+        assert not SourceOutcome.RECORDS.is_trustworthy_absence
+
+    def test_trustworthy_absence_is_a_value_not_a_method(self) -> None:
+        """`@property`가 사라지면 메서드 객체가 항상 참이 되어 전부 통과한다."""
+        from gbsafe_core.models import SourceOutcome
+
+        assert SourceOutcome.FAILED.is_trustworthy_absence is False
+
+    def test_freshness_usability_is_a_value_not_a_method(self, record_factory) -> None:
+        """같은 이유로 신선도 판정도 bool이어야 한다."""
+        old = datetime.now(UTC) - timedelta(days=30)
+        record = record_factory({"v": 1}, observed_at=old, cycle=3600)
+        assert record.freshness.is_usable_for_decision is False
+        assert record.freshness.needs_timestamp_disclosure is True
+
+    def test_a_failed_source_makes_the_answer_incomplete(self) -> None:
+        from gbsafe_core.models import SourceOutcome
+
+        answer: Answer[dict[str, int]] = Answer(
+            query="t",
+            receipts=(
+                self._receipt("weather_now", SourceOutcome.RECORDS, 3),
+                self._receipt("landslide_forecast", SourceOutcome.FAILED, 0),
+            ),
+        )
+        assert not answer.is_complete
+        assert not answer.absence_is_confirmed
+
+    def test_all_successful_sources_leave_the_answer_complete(self) -> None:
+        """성공한 원천이 불완전으로 분류되면 멀쩡한 답이 계속 보류된다."""
+        from gbsafe_core.models import SourceOutcome
+
+        answer: Answer[dict[str, int]] = Answer(
+            query="t",
+            receipts=(
+                self._receipt("weather_now", SourceOutcome.RECORDS, 3),
+                self._receipt("weather_warning", SourceOutcome.CONFIRMED_EMPTY, 0),
+            ),
+        )
+        assert answer.is_complete
+        assert answer.absence_is_confirmed
+
+    def test_absence_needs_both_completeness_and_trustworthy_receipts(self) -> None:
+        """두 조건은 **함께** 성립해야 한다. 하나만으로 부재를 인정하면 안 된다."""
+        from gbsafe_core.models import Degradation, SourceOutcome
+
+        blocked: Answer[dict[str, int]] = Answer(
+            query="t",
+            receipts=(self._receipt("weather_warning", SourceOutcome.CONFIRMED_EMPTY, 0),),
+            degradations=(
+                Degradation(
+                    dataset_id="15074800",
+                    status=UpstreamStatus.NOT_AUTHORIZED,
+                    detail="심의 대기",
+                    occurred_at=datetime.now(UTC),
+                ),
+            ),
+        )
+        assert not blocked.is_complete
+        assert not blocked.absence_is_confirmed
+
+
+class TestFreshnessDecisionBoundary:
+    def test_age_exactly_at_the_limit_is_still_usable(self) -> None:
+        """경계값은 사용 가능이다. `<=`가 `<`로 바뀌면 여기서 걸린다."""
+        from gbsafe_core.models import Freshness, FreshnessStatus
+
+        now = datetime.now(UTC)
+        at_limit = Freshness(
+            status=FreshnessStatus.FRESH,
+            age_seconds=3600,
+            expected_cycle_seconds=3600,
+            as_of=now,
+            evaluated_at=now,
+            reason="테스트",
+            max_decision_age_seconds=3600,
+        )
+        assert at_limit.is_usable_for_decision
+
+    def test_one_second_past_the_limit_is_not_usable(self) -> None:
+        from gbsafe_core.models import Freshness, FreshnessStatus
+
+        now = datetime.now(UTC)
+        past = Freshness(
+            status=FreshnessStatus.FRESH,
+            age_seconds=3601,
+            expected_cycle_seconds=3600,
+            as_of=now,
+            evaluated_at=now,
+            reason="테스트",
+            max_decision_age_seconds=3600,
+        )
+        assert not past.is_usable_for_decision
+
+
+class TestFrozenBaseIsImmutable:
+    def test_frozen_models_reject_assignment(self) -> None:
+        """`Frozen`을 상속한 모델 전체가 이 보장에 기대고 있다."""
+        box = BBox(min_lon=127.8, min_lat=35.57, max_lon=131.87, max_lat=37.55)
+        with pytest.raises(ValidationError):
+            box.min_lon = 120.0  # type: ignore[misc]
+
+
+class TestBBoxRejectsDegenerateBounds:
+    @pytest.mark.parametrize(
+        ("kwargs", "why"),
+        [
+            ({"min_lon": 128.0, "max_lon": 128.0}, "경도 폭이 0인 상자"),
+            ({"min_lat": 36.0, "max_lat": 36.0}, "위도 높이가 0인 상자"),
+        ],
+    )
+    def test_zero_area_box_is_rejected(self, kwargs: dict[str, float], why: str) -> None:
+        """넓이가 0인 상자는 어떤 점도 포함하지 못하면서 통과한다."""
+        base = {"min_lon": 127.8, "min_lat": 35.57, "max_lon": 131.87, "max_lat": 37.55}
+        with pytest.raises(ValueError, match="min 값은 max"):
+            BBox(**{**base, **kwargs})
+
+
+class TestCitationLabelsOnlyNonRealModes:
+    def test_real_data_carries_no_mode_tag(self, record_factory) -> None:
+        """실데이터에 `[REAL]`이 붙으면 훈련 표시와 구별이 흐려진다."""
+        text = record_factory({"v": 1}).citation.to_text()
+        assert "[REAL]" not in text
+
+    def test_synthetic_data_is_tagged(self, record_factory) -> None:
+        text = record_factory({"v": 1}, mode=DataMode.SYNTHETIC).citation.to_text()
+        assert "[SYNTHETIC]" in text
+
+    def test_source_url_is_included_when_present(self, record_factory) -> None:
+        text = record_factory({"v": 1}).citation.to_text()
+        assert "https://example.test/dataset" in text

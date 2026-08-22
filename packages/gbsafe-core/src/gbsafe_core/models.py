@@ -17,8 +17,6 @@ from typing import Annotated, Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-KST_OFFSET_HOURS = 9
-
 
 class Frozen(BaseModel):
     """모든 GB SafeData 모델의 기반. 불변이며 미지정 필드를 거부한다."""
