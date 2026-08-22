@@ -511,7 +511,13 @@ class SafeDataService:
                     ),
                 ),
             )
-        names = include or HAZARD_PLAYBOOK.get(hazard_domain, ("weather_warning",))
+        playbook = HAZARD_PLAYBOOK.get(hazard_domain, ("weather_warning",))
+        names = include or playbook
+
+        # 호출자가 원천을 골라 넣으면 그 재난의 나머지 원천은 조회되지 않는다.
+        # 그것을 밝히지 않으면 "호우 확인 완료"라고 답하면서 실제로는 지진만
+        # 본 결과가 나온다 — 조회하지 않은 것은 확인한 것이 아니다.
+        skipped = tuple(name for name in playbook if name not in names)
 
         sigungu = find_sigungu(region)
         if sigungu is None:
@@ -579,6 +585,20 @@ class SafeDataService:
         # 빈 결과가 '확인된 부재'로 읽힌다. 원전은 발생 여부를 알 방법이 아예
         # 없는데 "완전 · 해당 없음"으로 나오는 것이 그 결과였다. 확인할 수단이
         # 없다는 것은 확인했다는 것의 반대다.
+        if skipped:
+            degradations.append(
+                Degradation(
+                    dataset_id=f"hazard:{hazard_domain.value}",
+                    status=UpstreamStatus.UNAVAILABLE,
+                    detail=(
+                        f"이 재난의 원천 중 {', '.join(skipped)}을(를) 조회하지 "
+                        "않았습니다 — 호출자가 원천을 지정했습니다. 결과를 "
+                        "완전한 확인으로 읽으면 안 됩니다."
+                    ),
+                    occurred_at=datetime.now(UTC),
+                )
+            )
+
         if not capability.readiness.can_detect:
             degradations.append(
                 Degradation(

@@ -605,6 +605,13 @@ MUTATIONS: tuple[Mutation, ...] = (
         "실데이터에 모드 표시를 붙여 훈련 데이터와 구별을 흐린다",
     ),
     Mutation(
+        "partial-selection-claims-completeness",
+        API / "service.py",
+        "        skipped = tuple(name for name in playbook if name not in names)",
+        "        skipped = ()",
+        "원천을 골라 조회하고도 재난 전체를 확인한 것처럼 보고한다",
+    ),
+    Mutation(
         "receipt-hides-cached-upstream",
         CONNECTORS / "base.py",
         (

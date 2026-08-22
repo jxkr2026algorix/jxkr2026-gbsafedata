@@ -889,3 +889,48 @@ class TestUndetectableHazardsAreNeverComplete:
         assert not any(
             "탐지 원천이 없습니다" in item.detail for item in answer.degradations
         )
+
+
+class TestPartialSourceSelectionIsDisclosed:
+    """원천을 골라 조회하면 나머지를 확인하지 않았다는 사실이 남아야 한다.
+
+    `include`로 무관한 커넥터 하나만 넣고 호우를 물으면, 실제로는 지진만 보고
+    "호우 확인 완료"가 나왔다. 조회하지 않은 것은 확인한 것이 아니다.
+    """
+
+    async def test_unrelated_include_cannot_claim_completeness(
+        self, service: SafeDataService
+    ) -> None:
+        answer = await service.hazard_context(
+            "문경시", hazard="heavy_rain", include=("earthquake",)
+        )
+        assert not answer.is_complete
+        assert not answer.absence_is_confirmed
+
+    async def test_it_names_what_was_not_checked(
+        self, service: SafeDataService
+    ) -> None:
+        answer = await service.hazard_context(
+            "문경시", hazard="heavy_rain", include=("earthquake",)
+        )
+        detail = " ".join(item.detail for item in answer.degradations)
+        assert "조회하지" in detail, detail
+        assert "weather_warning" in detail, detail
+
+    async def test_full_playbook_is_not_flagged(self, service: SafeDataService) -> None:
+        """정상 질의에까지 이 사유가 붙으면 경고가 의미를 잃는다."""
+        answer = await service.hazard_context("문경시", hazard="heavy_rain")
+        assert not any("조회하지" in item.detail for item in answer.degradations)
+
+    async def test_explicit_full_selection_is_not_flagged(
+        self, service: SafeDataService
+    ) -> None:
+        from gbsafe_api.service import HAZARD_PLAYBOOK
+        from gbsafe_core.regions import HazardDomain
+
+        answer = await service.hazard_context(
+            "문경시",
+            hazard="heavy_rain",
+            include=HAZARD_PLAYBOOK[HazardDomain.HEAVY_RAIN],
+        )
+        assert not any("조회하지" in item.detail for item in answer.degradations)
