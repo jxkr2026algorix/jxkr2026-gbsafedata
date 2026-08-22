@@ -764,3 +764,29 @@ class TestGatewayIsOffByDefaultAndRealWhenOn:
         assert response.headers.get("access-control-allow-origin") != (
             "https://evil.example"
         )
+
+
+class TestBothSurfacesNameTheSameThing:
+    """REST는 `receipts`, 도구는 `sources_checked`로 부른다.
+
+    이름이 다른 것은 의도했지만, 한쪽만 아는 개발자가 다른 표면에서 헤매면
+    영수증을 아예 안 보게 된다. 영수증을 안 보면 실패가 부재로 읽힌다.
+    """
+
+    def test_rest_envelope_carries_both_names(self, client: TestClient) -> None:
+        payload = client.get(
+            "/v1/hazards/context", params={"region": "문경시", "hazard": "landslide"}
+        ).json()
+        assert "receipts" in payload
+        assert "sources_checked" in payload
+        assert payload["receipts"] == payload["sources_checked"]
+
+    async def test_tool_surface_uses_sources_checked(
+        self, service: SafeDataService
+    ) -> None:
+        payload = json.loads(
+            await execute(
+                service, "gbsafe_hazard_context", {"region": "문경시", "hazard": "landslide"}
+            )
+        )
+        assert "sources_checked" in payload

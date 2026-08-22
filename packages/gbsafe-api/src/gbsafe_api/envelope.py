@@ -28,7 +28,7 @@ from typing import Any
 from gbsafe_core.licensing import Operation, attribution_notice, permits, terms_for
 from gbsafe_core.models import Answer, Citation, Degradation, Record
 from gbsafe_core.safety import assert_mode_consistent
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 
 class SourceInfo(BaseModel):
@@ -148,6 +148,18 @@ class ApiEnvelope(BaseModel):
         default_factory=list,
         description="조회한 원천별 결과. failed가 있으면 결과가 불완전하다",
     )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def sources_checked(self) -> list[SourceReceiptInfo]:
+        """`receipts`와 같다. 도구(LLM) 표면이 쓰는 이름.
+
+        두 표면의 이름이 다른 것은 의도한 것이다 — 모델에게는
+        `sources_checked`가 읽히기 쉽고, 기존 REST 소비자는 `receipts`를 쓴다.
+        다만 한쪽만 아는 개발자가 다른 표면에서 헤매지 않도록 양쪽에서
+        같은 값을 꺼낼 수 있게 둔다.
+        """
+        return self.receipts
     degradations: list[DegradationInfo] = Field(default_factory=list)
     caveats: list[str] = Field(default_factory=list)
     complete: bool = Field(
