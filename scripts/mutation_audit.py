@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import signal
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -651,6 +652,23 @@ def main() -> int:
     needle = sys.argv[1] if len(sys.argv) > 1 else ""
     selected = [m for m in MUTATIONS if needle in m.name] if needle else list(MUTATIONS)
 
+    # 중단돼도 소스를 되돌린다.
+    #
+    # 이 스크립트는 실행 중 소스 파일을 실제로 변형한다. Ctrl-C나 SIGTERM으로
+    # 죽으면 `finally`가 돌지 못해 변형이 그대로 남고, 그 상태는 `git status`를
+    # 보지 않으면 눈에 띄지 않는다. 실제로 감사를 중단했다가 뒤집힌 조건문이
+    # 작업트리에 남은 적이 있다. 저장소를 지키는 도구가 저장소를 깨뜨리면 안 된다.
+    pending: dict[Path, str] = {}
+
+    def restore_and_exit(signum: int, _frame: object) -> None:
+        for path, original in pending.items():
+            path.write_text(original, encoding="utf-8")
+        print(f"\n중단됨 — 변형한 파일 {len(pending)}개를 되돌렸습니다.", file=sys.stderr)
+        raise SystemExit(130)
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, restore_and_exit)
+
     print(f"뮤테이션 {len(selected)}건을 검사합니다.\n")
     survived: list[Mutation] = []
     unapplied: list[Mutation] = []
@@ -661,6 +679,7 @@ def main() -> int:
             unapplied.append(mutation)
             print(f"[{index:2}/{len(selected)}] {mutation.name:36} 적용 불가 (코드가 변경됨)")
             continue
+        pending[mutation.path] = original
         try:
             mutation.path.write_text(
                 original.replace(mutation.old, mutation.new, 1), encoding="utf-8"
@@ -668,6 +687,7 @@ def main() -> int:
             passed, summary = run_suite()
         finally:
             mutation.path.write_text(original, encoding="utf-8")
+            pending.pop(mutation.path, None)
 
         if passed:
             survived.append(mutation)
